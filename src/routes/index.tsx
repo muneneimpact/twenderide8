@@ -169,12 +169,25 @@ function Home() {
               {fare.provider}
             </p>
             <ul className="mt-4 space-y-1 text-sm">
-              {fare.breakdown.lines.map((line) => (
-                <li key={line.label} className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">{line.label}</span>
-                  <span className="text-foreground">KES {line.amount.toFixed(2)}</span>
-                </li>
-              ))}
+              {[
+                { label: "Base fare", amount: fare.breakdown.base_fare },
+                { label: "Booking fee", amount: fare.breakdown.booking_fee },
+                { label: "Distance", amount: fare.breakdown.distance_charge },
+                { label: "Long-distance saving", amount: -fare.breakdown.long_distance_saving },
+                { label: "Time", amount: fare.breakdown.time_charge },
+                ...fare.breakdown.modifiers.map((modifier) => ({
+                  label: modifier.customer_label,
+                  amount: modifier.amount,
+                })),
+                { label: "Rounding", amount: fare.breakdown.total_fare - fare.breakdown.unrounded_total },
+              ]
+                .filter((line) => Math.abs(line.amount) >= 0.005)
+                .map((line) => (
+                  <li key={line.label} className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">{line.label}</span>
+                    <span className="text-foreground">KES {line.amount.toFixed(2)}</span>
+                  </li>
+                ))}
             </ul>
           </section>
         )}
