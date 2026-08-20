@@ -1,0 +1,394 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { AppShell, driverTabs } from "@/components/AppShell";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  acceptOffer,
+  advanceRide,
+  confirmCashCollected,
+  declineOffer,
+  getDriverHome,
+  pushDriverLocation,
+  setActiveVehicle,
+  setDriverOnline,
+} from "@/lib/driver.functions";
+
+export const Route = createFileRoute("/_authenticated/driver/")({
+  head: () => ({
+    meta: [
+      { title: "Driver console — Twende Ride Meru" },
+      {
+        name: "description",
+        content:
+          "Go online, accept nearby ride offers, run the trip lifecycle and track your Twende Ride earnings in Meru.",
+      },
+      { property: "og:title", content: "Driver console — Twende Ride" },
+      { property: "og:description", content: "Accept offers, run trips and see earnings as a Twende Ride driver." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: DriverHome,
+});
+
+const nextLabel: Record<string, { next: "driver_arriving" | "driver_arrived" | "trip_started" | "trip_completed"; label: string }> = {
+  driver_assigned: { next: "driver_arriving", label: "Start heading to pickup" },
+  driver_arriving: { next: "driver_arrived", label: "I have arrived" },
+  driver_arrived: { next: "trip_started", label: "Start trip" },
+  trip_started: { next: "trip_completed", label: "Complete trip" },
+};
+
+function DriverHome() {
+  const queryClient = useQueryClient();
+  const fetchHome = useServerFn(getDriverHome);
+  const onlineFn = useServerFn(setDriverOnline);
+  const vehicleFn = useServerFn(setActiveVehicle);
+  const acceptFn = useServerFn(acceptOffer);
+  const declineFn = useServerFn(declineOffer);
+  const advanceFn = useServerFn(advanceRide);
+  const cashFn = useServerFn(confirmCashCollected);
+  const pingFn = useServerFn(pushDriverLocation);
+
+  const home = useQuery({ queryKey: ["driver-home"], queryFn: () => fetchHome({}), refetchInterval: 15000 });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["driver-home"] });
+
+  const driverId = home.data?.driver?.id;
+  const activeRideId = home.data?.activeRide?.id ?? null;
+  const isOnline = home.data?.driver?.is_online ?? false;
+
+  // Realtime offers + ride status keep the console live between polls.
+  useEffect(() => {
+    if (!driverId) return;
+    const channel = supabase
+      .channel(`driver:${driverId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "driver_offers", filter: `driver_id=eq.${driverId}` },
+        invalidate,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "rides", filter: `driver_id=eq.${driverId}` },
+        invalidate,
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [driverId]);
+
+  // Ping location while online so dispatch and the customer map stay accurate.
+  useEffect(() => {
+    if (!isOnline || typeof navigator === "undefined" || !navigator.geolocation) return;
+    const send = () =>
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          void pingFn({
+            data: {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy_m: Math.round(pos.coords.accuracy),
+              ...(activeRideId ? { rideId: activeRideId } : {}),
+            },
+          });
+        },
+        () => undefined,
+        { enableHighAccuracy: true, timeout: 10000 },
+      );
+    send();
+    const timer = setInterval(send, 20000);
+    return () => clearInterval(timer);
+  }, [isOnline, activeRideId, pingFn]);
+
+  const toggling = useMutation({
+    mutationFn: (online: boolean) => onlineFn({ data: { online } }),
+    onSuccess: invalidate,
+  });
+  const choosingVehicle = useMutation({
+    mutationFn: (vehicleId: string) => vehicleFn({ data: { vehicleId } }),
+    onSuccess: invalidate,
+  });
+  const accepting = useMutation({
+    mutationFn: (offerId: string) => acceptFn({ data: { offerId } }),
+    onSuccess: invalidate,
+  });
+  const declining = useMutation({
+    mutationFn: (offerId: string) => declineFn({ data: { offerId } }),
+    onSuccess: invalidate,
+  });
+  const advancing = useMutation({
+    mutationFn: (vars: { rideId: string; next: "driver_arriving" | "driver_arrived" | "trip_started" | "trip_completed" | "cancelled_by_driver" }) =>
+      advanceFn({ data: vars }),
+    onSuccess: invalidate,
+  });
+  const cash = useMutation({
+    mutationFn: (rideId: string) => cashFn({ data: { rideId } }),
+    onSuccess: invalidate,
+  });
+
+  if (home.isPending) {
+    return (
+      <AppShell title="Driver console" tabs={driverTabs} eyebrow="Twende Driver">
+        <p className="px-4 py-6 text-sm text-muted-foreground">Loading your console…</p>
+      </AppShell>
+    );
+  }
+
+  if (home.error) {
+    return (
+      <AppShell title="Driver console" tabs={driverTabs} eyebrow="Twende Driver">
+        <p className="px-4 py-6 text-sm text-destructive">{(home.error as Error).message}</p>
+      </AppShell>
+    );
+  }
+
+  const { driver, vehicles, wallet, offers, activeRide, recent, documents } = home.data!;
+
+  if (!driver) {
+    return (
+      <AppShell title="Driver console" tabs={driverTabs} eyebrow="Twende Driver">
+        <div className="hero-gradient min-h-[60vh] px-4 py-10">
+          <div className="glass-strong mx-auto max-w-md p-6">
+            <h2 className="font-display text-xl font-semibold text-foreground">Driver access pending</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This account has no driver profile yet. Operations must onboard you and approve your documents and
+              vehicle before you can go online.
+            </p>
+            <Link to="/book" className="mt-4 inline-flex text-sm font-semibold text-primary">
+              Back to booking
+            </Link>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  const step = activeRide ? nextLabel[activeRide.status] : undefined;
+
+  return (
+    <AppShell title="Driver console" tabs={driverTabs} eyebrow="Twende Driver">
+      <div className="hero-gradient px-4 pb-8 pt-5">
+        <div className="mx-auto max-w-md space-y-4">
+          {/* Availability */}
+          <section className="glass p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand-foreground/70">
+                  Availability
+                </p>
+                <h2 className="mt-1 font-display text-xl font-semibold text-brand-foreground">
+                  {driver.is_online ? "You are online" : "You are offline"}
+                </h2>
+                <p className="mt-1 text-xs text-brand-foreground/70">
+                  Status: {driver.status} · rating {Number(driver.rating ?? 5).toFixed(1)}
+                </p>
+              </div>
+              <button
+                onClick={() => toggling.mutate(!driver.is_online)}
+                disabled={toggling.isPending}
+                className={`relative h-9 w-16 shrink-0 rounded-full border border-white/30 transition-colors ${
+                  driver.is_online ? "bg-success" : "bg-white/25"
+                } disabled:opacity-60`}
+                aria-label={driver.is_online ? "Go offline" : "Go online"}
+              >
+                <span
+                  className={`absolute top-1 h-7 w-7 rounded-full bg-white shadow transition-all ${
+                    driver.is_online ? "left-8" : "left-1"
+                  }`}
+                />
+              </button>
+            </div>
+            {toggling.data?.blockers?.length ? (
+              <ul className="mt-3 space-y-1 text-xs text-warning-foreground">
+                {toggling.data.blockers.map((blocker) => (
+                  <li key={blocker} className="rounded-lg bg-warning/80 px-2.5 py-1.5">
+                    {blocker}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+
+          {/* Vehicle + wallet */}
+          <div className="grid grid-cols-2 gap-3">
+            <section className="glass p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-foreground/70">Wallet</p>
+              <p className="mt-1 font-display text-lg font-semibold text-brand-foreground">
+                KES {Number(wallet?.cached_balance ?? 0).toFixed(2)}
+              </p>
+              <Link to="/driver/wallet" className="mt-1 inline-flex text-xs font-medium text-brand-foreground/80">
+                Withdraw →
+              </Link>
+            </section>
+            <section className="glass p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-foreground/70">
+                Documents
+              </p>
+              <p className="mt-1 font-display text-lg font-semibold text-brand-foreground">
+                {documents.filter((d) => d.status === "approved").length}/{documents.length || 0}
+              </p>
+              <p className="mt-1 text-xs text-brand-foreground/70">approved</p>
+            </section>
+          </div>
+
+          <section className="glass p-5">
+            <h3 className="text-sm font-semibold text-brand-foreground">Active vehicle</h3>
+            {vehicles.length === 0 && (
+              <p className="mt-2 text-xs text-brand-foreground/75">
+                No vehicle assigned yet. Your fleet owner or operations must add one.
+              </p>
+            )}
+            <div className="mt-3 space-y-2">
+              {vehicles.map((vehicle) => {
+                const active = driver.active_vehicle_id === vehicle.id;
+                return (
+                  <button
+                    key={vehicle.id}
+                    onClick={() => choosingVehicle.mutate(vehicle.id)}
+                    className={`w-full rounded-2xl px-3.5 py-3 text-left text-sm transition-colors ${
+                      active
+                        ? "bg-white/85 text-foreground"
+                        : "border border-white/20 bg-white/15 text-brand-foreground"
+                    }`}
+                  >
+                    <span className="font-semibold">{vehicle.plate_number}</span>
+                    <span className="ml-2 opacity-80">
+                      {[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ")}
+                    </span>
+                    <span className="mt-0.5 block text-xs opacity-75">
+                      {vehicle.vehicle_class} · {vehicle.status}
+                      {active ? " · active" : ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-md space-y-4 px-4 py-5">
+        {/* Live offers */}
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">Ride offers</h3>
+          {offers.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {driver.is_online ? "Waiting for nearby requests…" : "Go online to receive ride offers."}
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-3">
+              {offers.map((offer) => (
+                <li key={offer.id} className="rounded-2xl border border-border bg-secondary/50 p-3">
+                  <p className="font-display text-base font-semibold text-foreground">
+                    KES {Number(offer.offered_fare ?? 0).toFixed(2)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Pickup {Number(offer.distance_to_pickup_km ?? 0).toFixed(1)} km away · expires{" "}
+                    {new Date(offer.expires_at).toLocaleTimeString("en-KE")}
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => accepting.mutate(offer.id)}
+                      disabled={accepting.isPending}
+                      className="flex-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                    >
+                      {accepting.isPending ? "Accepting…" : "Accept"}
+                    </button>
+                    <button
+                      onClick={() => declining.mutate(offer.id)}
+                      disabled={declining.isPending}
+                      className="rounded-full border border-input px-4 py-2.5 text-sm font-medium text-muted-foreground disabled:opacity-60"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {accepting.data && !accepting.data.ok && (
+            <p className="mt-2 text-xs text-warning">This offer is no longer available ({accepting.data.reason}).</p>
+          )}
+        </section>
+
+        {/* Active trip */}
+        {activeRide && (
+          <section className="surface-card p-4">
+            <h3 className="text-sm font-semibold text-foreground">Current trip · {activeRide.reference}</h3>
+            <p className="mt-1 font-display text-2xl font-semibold text-foreground">
+              KES {Number(activeRide.total_fare).toFixed(2)}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {activeRide.payment_method === "cash" ? "Cash on arrival" : "M-PESA"} · {activeRide.status}
+            </p>
+            <Link
+              to="/rides/$rideId"
+              params={{ rideId: activeRide.id }}
+              className="mt-2 inline-flex text-xs font-medium text-primary"
+            >
+              Open ride map →
+            </Link>
+            {step && (
+              <button
+                onClick={() => advancing.mutate({ rideId: activeRide.id, next: step.next })}
+                disabled={advancing.isPending}
+                className="mt-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {advancing.isPending ? "Updating…" : step.label}
+              </button>
+            )}
+            {activeRide.payment_method === "cash" && activeRide.status === "trip_started" && (
+              <button
+                onClick={() => cash.mutate(activeRide.id)}
+                disabled={cash.isPending}
+                className="mt-2 w-full rounded-full border border-input px-4 py-3 text-sm font-medium text-foreground disabled:opacity-60"
+              >
+                {cash.isSuccess ? "Cash recorded" : "Confirm cash collected"}
+              </button>
+            )}
+            {activeRide.status !== "trip_started" && (
+              <button
+                onClick={() =>
+                  advancing.mutate({ rideId: activeRide.id, next: "cancelled_by_driver" })
+                }
+                disabled={advancing.isPending}
+                className="mt-2 w-full rounded-full border border-destructive px-4 py-3 text-sm font-medium text-destructive disabled:opacity-60"
+              >
+                Cancel this trip
+              </button>
+            )}
+            {advancing.isError && (
+              <p className="mt-2 text-xs text-destructive">{(advancing.error as Error).message}</p>
+            )}
+          </section>
+        )}
+
+        {/* Recent */}
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">Recent trips</h3>
+          {recent.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">No completed trips yet.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-border">
+              {recent.map((ride) => (
+                <li key={ride.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <div>
+                    <p className="font-medium text-foreground">{ride.reference}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(ride.requested_at).toLocaleString("en-KE")} · {ride.status}
+                    </p>
+                  </div>
+                  <p className="font-display text-sm font-semibold text-foreground">
+                    KES {Number(ride.total_fare).toFixed(2)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </AppShell>
+  );
+}
