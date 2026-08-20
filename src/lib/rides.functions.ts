@@ -408,3 +408,36 @@ export const rateRide = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/** Public, read-only fare estimate. Writes nothing and never creates a ride. */
+export const estimateFare = createServerFn({ method: "POST" })
+  .inputValidator((input) => quoteSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { getMapProvider } = await import("./adapters/map.server");
+    const { loadPricingContext } = await import("./pricing.server");
+    const { computeFare } = await import("./fare-engine");
+    const pricing = await loadPricingContext(data.vehicleClass);
+    const route = await getMapProvider().route(data.pickup, data.dropoff);
+    const breakdown = computeFare({
+      distanceKm: route.distance_km,
+      durationMinutes: route.duration_minutes,
+      config: pricing.config,
+      policy: pricing.policy,
+      modifiers: pricing.modifiers,
+    });
+    return {
+      breakdown,
+      distance_km: route.distance_km,
+      duration_minutes: route.duration_minutes,
+      provider: route.provider,
+    };
+  });
+
+/** Public place search for the estimator on the landing screen. */
+export const publicSearchPlaces = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ query: z.string().min(2).max(120) }).parse(input))
+  .handler(async ({ data }) => {
+    const { getMapProvider } = await import("./adapters/map.server");
+    const { MERU_CENTRE } = await import("./geo");
+    return getMapProvider().search(data.query, MERU_CENTRE);
+  });
