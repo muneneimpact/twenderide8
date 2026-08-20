@@ -8,8 +8,8 @@ export const getDriverHome = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const { data: driver } = await supabase.from("drivers").select("*").eq("id", userId).maybeSingle();
-    const { data: vehicles } = await supabase.from("vehicles").select("*").eq("driver_id", userId);
-    const { data: documents } = await supabase.from("documents").select("*").eq("owner_id", userId);
+    const { data: vehicles } = await supabase.from("vehicles").select("*").eq("owner_driver_id", userId);
+    const { data: documents } = await supabase.from("documents").select("*").eq("subject_user_id", userId);
     const { data: wallet } = await supabase.from("wallets").select("*").eq("driver_id", userId).maybeSingle();
     const { data: offers } = await supabase
       .from("driver_offers")
@@ -72,7 +72,7 @@ export const setDriverOnline = createServerFn({ method: "POST" })
 
     const { error } = await supabase
       .from("drivers")
-      .update({ is_online: data.online, went_online_at: data.online ? new Date().toISOString() : null })
+      .update({ is_online: data.online })
       .eq("id", userId);
     if (error) throw new Error(error.message);
     return { online: data.online, blockers: [] as string[] };
@@ -147,9 +147,21 @@ export const acceptOffer = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { notify, audit } = await import("./notifications.server");
 
+    const { data: offer } = await supabaseAdmin
+      .from("driver_offers")
+      .select("ride_id, vehicle_id, driver_id, status, expires_at")
+      .eq("id", data.offerId)
+      .eq("driver_id", context.userId)
+      .maybeSingle();
+    if (!offer) return { ok: false, reason: "offer_not_found", ride_id: null };
+    if (offer.status !== "offered" || new Date(offer.expires_at).getTime() < Date.now()) {
+      return { ok: false, reason: "offer_expired", ride_id: null };
+    }
     const { data: result, error } = await supabaseAdmin.rpc("accept_ride_offer", {
-      _offer_id: data.offerId,
+      _ride_id: offer.ride_id,
       _driver_id: context.userId,
+      _vehicle_id: offer.vehicle_id!,
+      _grace_seconds: 120,
     });
     if (error) throw new Error(error.message);
     const outcome = result as unknown as { ok: boolean; reason: string; ride_id: string | null };
@@ -226,13 +238,18 @@ export const advanceRide = createServerFn({ method: "POST" })
     }
 
     const now = new Date().toISOString();
-    const patch: Record<string, unknown> = { status: data.next };
-    if (data.next === "driver_arrived") patch['arrived_at'] = now;
-    if (data.next === "trip_started") patch['started_at'] = now;
-    if (data.next === "trip_completed") patch['completed_at'] = now;
+    const patch: {
+      status: typeof data.next;
+      started_at?: string;
+      completed_at?: string;
+      cancelled_by?: string;
+      cancellation_reason?: string | null;
+    } = { status: data.next };
+    if (data.next === "trip_started") patch.started_at = now;
+    if (data.next === "trip_completed") patch.completed_at = now;
     if (data.next === "cancelled_by_driver") {
-      patch['cancelled_by'] = "driver";
-      patch['cancellation_reason'] = data.note ?? null;
+      patch.cancelled_by = "driver";
+      patch.cancellation_reason = data.note ?? null;
     }
 
     const { error } = await supabaseAdmin
@@ -311,10 +328,13 @@ export const confirmCashCollected = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!ride) throw new Error("Ride not found.");
     if (ride.payment_method !== "cash") throw new Error("This ride is not a cash ride.");
-    await supabaseAdmin
-      .from("rides")
-      .update({ cash_collected_at: new Date().toISOString() })
-      .eq("id", ride.id);
+    await supabaseAdmin.from("ride_status_events").insert({
+      ride_id: ride.id,
+      status: "trip_completed",
+      actor_id: context.userId,
+      actor_role: "driver",
+      note: "Cash collected from customer",
+    });
     return { ok: true };
   });
 
@@ -365,8 +385,8 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
         wallet_id: wallet.id,
         requested_by: context.userId,
         amount: data.amount,
-        msisdn: normaliseKenyanPhone(data.msisdn),
-        status: "requested",
+        destination: normaliseKenyanPhone(data.msisdn),
+        status: "pending",
       })
       .select()
       .single();
