@@ -17,16 +17,17 @@ interface MapPanelProps {
   className?: string;
 }
 
-function MapSkeleton({ className }: { className?: string }) {
-  return <div className={`${className ?? "h-full w-full"} animate-pulse bg-muted`} />;
+function MapSkeleton({ className }: { className: string }) {
+  return <div className={`${className} animate-pulse bg-muted`} />;
 }
 
 /** Leaflet touches window, so the map only ever renders in the browser. */
 export function MapPanel({ className, ...props }: MapPanelProps) {
+  const shell = className ?? "h-full w-full";
   return (
-    <ClientOnly fallback={<MapSkeleton className={className} />}>
-      <Suspense fallback={<MapSkeleton className={className} />}>
-        <TwendeMap {...props} className={className} />
+    <ClientOnly fallback={<MapSkeleton className={shell} />}>
+      <Suspense fallback={<MapSkeleton className={shell} />}>
+        <TwendeMap {...props} className={shell} />
       </Suspense>
     </ClientOnly>
   );
