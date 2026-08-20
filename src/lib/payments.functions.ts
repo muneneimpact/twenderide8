@@ -6,18 +6,22 @@ import { z } from "zod";
 export const getPaymentGate = createServerFn({ method: "GET" }).handler(async () => {
   const { getPaymentProvider, paymentMode } = await import("./adapters/payment.server");
   const provider = getPaymentProvider();
-  const readiness = provider.readiness();
+  const mode = paymentMode();
   return {
     provider: provider.name,
-    mode: paymentMode(),
-    configured: readiness.configured,
-    missing: readiness.missing,
-    message: readiness.message,
+    mode,
+    configured: provider.configured,
+    liveBlocked: mode === "live" && !provider.configured,
+    message: provider.configured
+      ? "Payment provider connected."
+      : mode === "live"
+        ? "Live STK Push is blocked until the payment provider credentials and documentation are configured."
+        : "Test mode: STK Push requests are recorded but no live request is sent and no payment is ever auto-confirmed.",
   };
 });
 
 /**
- * Starts an STK Push. If the provider is not configured, this returns a blocked
+ * Starts an STK Push. If the provider is not configured this returns a blocked
  * result — it never pretends a payment succeeded.
  */
 export const startStkPush = createServerFn({ method: "POST" })
@@ -35,7 +39,9 @@ export const startStkPush = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!ride) throw new Error("Ride not found.");
     if (ride.payment_method !== "stk_push") throw new Error("This ride is a cash ride.");
-    if (ride.payment_status === "paid") return { status: "paid" as const, message: "Already paid." };
+    if (ride.payment_status === "paid") {
+      return { status: "paid" as const, blocked: false, message: "This ride is already paid." };
+    }
 
     const { data: intent } = await supabaseAdmin
       .from("payment_intents")
@@ -44,45 +50,38 @@ export const startStkPush = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!intent) throw new Error("No payment intent for this ride.");
+    if (!intent) throw new Error("No payment intent exists for this ride.");
 
     const provider = getPaymentProvider();
-    const result = await provider.stkPush({
+    const result = await provider.initiateStkPush({
+      intentId: intent.id,
+      rideReference: ride.reference,
       amount: Number(ride.total_fare),
       msisdn: intent.msisdn ?? "",
-      reference: ride.reference,
-      description: `Twende Ride ${ride.reference}`,
       idempotencyKey: intent.idempotency_key,
     });
 
+    const intentStatus = result.status === "blocked_provider_gate" ? "failed" : result.status;
     await supabaseAdmin
       .from("payment_intents")
       .update({
-        status: result.status,
-        provider: provider.name,
-        provider_reference: result.provider_reference ?? null,
-        provider_message: result.message,
-        last_attempt_at: new Date().toISOString(),
-        attempts: intent.attempts + 1,
+        status: intentStatus,
+        provider: result.provider,
+        mode: result.mode,
+        provider_reference: result.providerReference,
+        provider_request: result.request as never,
+        provider_response: result.response as never,
+        failure_reason: result.accepted ? null : result.message,
       })
       .eq("id", intent.id);
 
-    const rideStatus =
-      result.status === "paid"
-        ? "paid"
-        : result.status === "awaiting_confirmation"
-          ? "awaiting_confirmation"
-          : result.status === "failed"
-            ? "failed"
-            : "pending";
-    await supabaseAdmin.from("rides").update({ payment_status: rideStatus }).eq("id", ride.id);
+    await supabaseAdmin.from("rides").update({ payment_status: intentStatus }).eq("id", ride.id);
 
-    if (result.status === "paid") {
-      const { settleRide } = await import("./ledger.server");
-      if (ride.status === "trip_completed") await settleRide(ride.id);
-    }
-
-    return { status: result.status, message: result.message, blocked: result.blocked ?? false };
+    return {
+      status: result.status,
+      blocked: result.status === "blocked_provider_gate",
+      message: result.message,
+    };
   });
 
 export const getPaymentStatus = createServerFn({ method: "POST" })
@@ -91,7 +90,7 @@ export const getPaymentStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: intent } = await context.supabase
       .from("payment_intents")
-      .select("*")
+      .select("id, status, mode, provider, provider_reference, failure_reason, amount, msisdn, created_at")
       .eq("ride_id", data.rideId)
       .order("created_at", { ascending: false })
       .limit(1)
