@@ -365,9 +365,9 @@ export const previewDistancePolicy = createServerFn({ method: "POST" })
     };
     const issues = validateDistancePolicy(policy);
     const pricing = await loadPricingContext(data.vehicleClass);
-    const rows = issues.some((issue) => issue.severity === "error")
+    const rows = issues.length > 0
       ? []
-      : previewTable(pricing.config, policy, [1, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120]);
+      : previewTable(pricing.config, policy, pricing.modifiers, [1, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120]);
     return { issues, rows };
   });
 
@@ -399,7 +399,7 @@ export const saveDistancePolicy = createServerFn({ method: "POST" })
       max_total_reduction_percent: data.maxTotalReductionPercent,
       bands: data.bands.map((b) => ({ ...b, customer_explanation: b.customer_explanation ?? null })),
     });
-    if (issues.some((issue) => issue.severity === "error")) {
+    if (issues.length > 0) {
       return { saved: false, issues, policyId: null };
     }
 
@@ -482,7 +482,7 @@ export const publishDistancePolicy = createServerFn({ method: "POST" })
         mode: band.mode as "linear" | "fixed",
       })),
     });
-    if (issues.some((issue) => issue.severity === "error")) return { published: false, issues };
+    if (issues.length > 0) return { published: false, issues };
 
     await supabaseAdmin
       .from("distance_policies")
