@@ -182,3 +182,53 @@ export const reportIncident = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/** Everything the driver onboarding wizard needs: application state + document checklist. */
+export const getDriverOnboarding = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const [{ data: driver }, { data: vehicles }, { data: types }, { data: documents }, { data: profile }] =
+      await Promise.all([
+        supabase.from("drivers").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("vehicles").select("*").eq("owner_driver_id", userId),
+        supabase.from("document_types").select("*").eq("active", true).order("label"),
+        supabase.from("documents").select("*").eq("subject_user_id", userId),
+        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+      ]);
+    return {
+      driver,
+      profile,
+      vehicles: vehicles ?? [],
+      documentTypes: (types ?? []).filter((t) => t.applies_to === "driver" || t.applies_to === "vehicle"),
+      documents: documents ?? [],
+    };
+  });
+
+/** Driver-submitted document record. Approval always stays with operations. */
+export const submitDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        documentTypeId: z.string().uuid(),
+        reference: z.string().trim().min(3).max(80),
+        issuedOn: z.string().max(10).optional(),
+        expiresOn: z.string().max(10).optional(),
+        vehicleId: z.string().uuid().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("documents").insert({
+      document_type_id: data.documentTypeId,
+      subject_user_id: context.userId,
+      subject_vehicle_id: data.vehicleId ?? null,
+      reference: data.reference,
+      issued_on: data.issuedOn || null,
+      expires_on: data.expiresOn || null,
+      status: "pending",
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
