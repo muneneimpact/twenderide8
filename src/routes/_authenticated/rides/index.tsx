@@ -74,6 +74,12 @@ function RidesPage() {
             </li>
           ))}
         </ul>
+        <Link
+          to="/driver"
+          className="mt-6 block rounded-full border border-input px-4 py-3 text-center text-sm font-medium text-foreground"
+        >
+          I drive for Twende — open driver console
+        </Link>
       </div>
     </AppShell>
   );
