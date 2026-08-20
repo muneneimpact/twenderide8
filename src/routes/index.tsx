@@ -77,6 +77,33 @@ function Home() {
           long-distance reduction bands, and are rounded exactly as they will be charged.
         </p>
 
+        <div className="mt-5 flex flex-wrap gap-2">
+          {signedIn ? (
+            <>
+              <Link
+                to="/book"
+                className="rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+              >
+                Book a taxi
+              </Link>
+              <Link
+                to="/rides"
+                className="rounded-md border border-input px-4 py-2.5 text-sm font-medium text-foreground"
+              >
+                My rides
+              </Link>
+            </>
+          ) : (
+            <Link
+              to="/auth"
+              search={{ redirect: "/book" }}
+              className="rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+            >
+              Sign in to book
+            </Link>
+          )}
+        </div>
+
         <section className="mt-8 rounded-xl border border-border bg-card p-4">
           <div className="flex gap-2">
             {(["pickup", "dropoff"] as const).map((key) => (
