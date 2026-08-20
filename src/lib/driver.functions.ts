@@ -163,27 +163,38 @@ export const acceptOffer = createServerFn({ method: "POST" })
       _vehicle_id: offer.vehicle_id!,
       _grace_seconds: 120,
     });
-    if (error) throw new Error(error.message);
-    const outcome = result as unknown as { ok: boolean; reason: string; ride_id: string | null };
-    if (!outcome.ok) return outcome;
-
-    const { data: ride } = await supabaseAdmin
-      .from("rides")
-      .select("id, reference, customer_id")
-      .eq("id", outcome.ride_id!)
-      .maybeSingle();
-    if (ride) {
-      await notify({
-        userId: ride.customer_id,
-        templateCode: "driver_assigned",
-        title: "Driver on the way",
-        body: `A driver accepted ride ${ride.reference} and is heading to your pickup point.`,
-        rideId: ride.id,
-        critical: true,
-      });
-      await audit(context.userId, "offer_accepted", "ride", ride.id, {});
+    if (error) {
+      // The function raises when another driver already won the race.
+      return { ok: false, reason: error.message, ride_id: null };
     }
-    return outcome;
+    const ride = Array.isArray(result) ? result[0] : result;
+    if (!ride) return { ok: false, reason: "ride_already_taken", ride_id: null };
+
+    await supabaseAdmin
+      .from("driver_offers")
+      .update({ status: "accepted", responded_at: new Date().toISOString() })
+      .eq("id", data.offerId);
+    await supabaseAdmin
+      .from("driver_offers")
+      .update({ status: "superseded", responded_at: new Date().toISOString() })
+      .eq("ride_id", ride.id)
+      .eq("status", "offered");
+    await supabaseAdmin.from("ride_status_events").insert({
+      ride_id: ride.id,
+      status: "driver_assigned",
+      actor_id: context.userId,
+      actor_role: "driver",
+    });
+    await notify({
+      userId: ride.customer_id,
+      templateCode: "driver_assigned",
+      title: "Driver on the way",
+      body: `A driver accepted ride ${ride.reference} and is heading to your pickup point.`,
+      rideId: ride.id,
+      critical: true,
+    });
+    await audit(context.userId, "offer_accepted", "ride", ride.id, {});
+    return { ok: true, reason: "assigned", ride_id: ride.id };
   });
 
 export const declineOffer = createServerFn({ method: "POST" })
