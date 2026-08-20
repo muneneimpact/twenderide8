@@ -72,4 +72,10 @@ export function AppShell({
 export const driverTabs: Tab[] = [
   { to: "/driver", label: "Drive" },
   { to: "/driver/wallet", label: "Wallet" },
+  { to: "/driver/apply", label: "Onboarding" },
+];
+
+export const adminTabs: Tab[] = [
+  { to: "/admin", label: "Operations" },
+  { to: "/book", label: "Book" },
 ];

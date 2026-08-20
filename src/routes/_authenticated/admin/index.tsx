@@ -51,7 +51,7 @@ function AdminBoard() {
   });
   const resolve = useMutation({
     mutationFn: (id: string) =>
-      incidentFn({ data: { incidentId: id, status: "resolved", resolution: note.trim() || "Resolved by operations" } }),
+      incidentFn({ data: { id, resolution: note.trim() || "Resolved by operations" } }),
     onSuccess: invalidate,
   });
 
