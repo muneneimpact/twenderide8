@@ -176,7 +176,7 @@ function Home() {
                 { label: "Long-distance saving", amount: -fare.breakdown.long_distance_saving },
                 { label: "Time", amount: fare.breakdown.time_charge },
                 ...fare.breakdown.modifiers.map((modifier) => ({
-                  label: modifier.customer_label,
+                  label: modifier.label,
                   amount: modifier.amount,
                 })),
                 { label: "Rounding", amount: fare.breakdown.total_fare - fare.breakdown.unrounded_total },
