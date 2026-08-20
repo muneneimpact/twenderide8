@@ -282,10 +282,10 @@ function DriverHome() {
               {offers.map((offer) => (
                 <li key={offer.id} className="rounded-2xl border border-border bg-secondary/50 p-3">
                   <p className="font-display text-base font-semibold text-foreground">
-                    KES {Number(offer.offered_fare ?? 0).toFixed(2)}
+                    {Number(offer.distance_km ?? 0).toFixed(1)} km to pickup
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Pickup {Number(offer.distance_to_pickup_km ?? 0).toFixed(1)} km away · expires{" "}
+                    ETA {offer.eta_minutes ?? "—"} min · expires{" "}
                     {new Date(offer.expires_at).toLocaleTimeString("en-KE")}
                   </p>
                   <div className="mt-3 flex gap-2">

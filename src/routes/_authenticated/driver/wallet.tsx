@@ -139,7 +139,7 @@ function DriverWallet() {
                     <p className="font-medium text-foreground">{entry.entry_type}</p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(entry.created_at).toLocaleString("en-KE")}
-                      {entry.description ? ` · ${entry.description}` : ""}
+                      {entry.reason ? ` · ${entry.reason}` : ""}
                     </p>
                   </div>
                   <p
