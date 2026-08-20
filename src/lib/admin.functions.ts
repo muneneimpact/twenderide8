@@ -25,7 +25,7 @@ export const getOpsBoard = createServerFn({ method: "POST" })
     const { expireStaleDispatch } = await import("./dispatch.server");
     await expireStaleDispatch();
 
-    const [{ data: active }, { data: drivers }, { data: pendingDrivers }, { data: pendingVehicles }, { data: incidents }] =
+    const [{ data: active }, { data: drivers }, { data: pendingDrivers }, { data: pendingVehicles }, { data: incidents }, { data: pendingDocuments }, { data: documentTypes }] =
       await Promise.all([
         supabaseAdmin
           .from("rides")
@@ -39,7 +39,21 @@ export const getOpsBoard = createServerFn({ method: "POST" })
         supabaseAdmin.from("drivers").select("*").eq("status", "pending"),
         supabaseAdmin.from("vehicles").select("*").eq("status", "pending"),
         supabaseAdmin.from("incidents").select("*").neq("status", "resolved").order("created_at", { ascending: false }),
+        supabaseAdmin.from("documents").select("*").eq("status", "pending").order("created_at", { ascending: true }),
+        supabaseAdmin.from("document_types").select("id, code, label, applies_to").eq("active", true),
       ]);
+
+    // Applicant identity for every pending item so ops reviews a person, not a UUID.
+    const applicantIds = [
+      ...new Set([
+        ...(pendingDrivers ?? []).map((d) => d.id),
+        ...(pendingVehicles ?? []).map((v) => v.owner_driver_id).filter((v): v is string => Boolean(v)),
+        ...(pendingDocuments ?? []).map((d) => d.subject_user_id).filter((v): v is string => Boolean(v)),
+      ]),
+    ];
+    const { data: applicants } = applicantIds.length
+      ? await supabaseAdmin.from("profiles").select("id, full_name, email, phone").in("id", applicantIds)
+      : { data: [] };
 
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const { data: recent } = await supabaseAdmin
@@ -53,7 +67,11 @@ export const getOpsBoard = createServerFn({ method: "POST" })
       onlineDrivers: drivers ?? [],
       pendingDrivers: pendingDrivers ?? [],
       pendingVehicles: pendingVehicles ?? [],
+      pendingDocuments: pendingDocuments ?? [],
+      documentTypes: documentTypes ?? [],
+      applicants: applicants ?? [],
       incidents: incidents ?? [],
+
       last24h: {
         requested: rows.length,
         completed: rows.filter((r) => r.status === "trip_completed").length,

@@ -153,12 +153,19 @@ function DriverHome() {
           <div className="glass-strong mx-auto max-w-md p-6">
             <h2 className="font-display text-xl font-semibold text-foreground">Driver access pending</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              This account has no driver profile yet. Operations must onboard you and approve your documents and
-              vehicle before you can go online.
+              This account has no driver profile yet. Register your vehicle and documents, then operations will review
+              and approve you before you can go online.
             </p>
-            <Link to="/book" className="mt-4 inline-flex text-sm font-semibold text-primary">
+            <Link
+              to="/driver/apply"
+              className="mt-4 inline-flex rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+            >
+              Start driver onboarding
+            </Link>
+            <Link to="/book" className="mt-3 block text-sm font-medium text-primary">
               Back to booking
             </Link>
+
           </div>
         </div>
       </AppShell>
