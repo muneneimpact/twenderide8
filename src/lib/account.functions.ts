@@ -146,7 +146,16 @@ export const updateNotificationPreferences = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("notification_preferences")
-      .upsert({ user_id: context.userId, ...data }, { onConflict: "user_id" });
+      .upsert(
+        {
+          user_id: context.userId,
+          ...(data.sms_enabled === undefined ? {} : { sms_enabled: data.sms_enabled }),
+          ...(data.email_enabled === undefined ? {} : { email_enabled: data.email_enabled }),
+          ...(data.push_enabled === undefined ? {} : { push_enabled: data.push_enabled }),
+          ...(data.push_permission === undefined ? {} : { push_permission: data.push_permission }),
+        },
+        { onConflict: "user_id" },
+      );
     if (error) throw new Error(error.message);
     return { ok: true };
   });
