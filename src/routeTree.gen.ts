@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedBookRouteImport } from './routes/_authenticated/book'
+import { Route as AuthenticatedDriverIndexRouteImport } from './routes/_authenticated/driver/index'
 import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authenticated/rides/index'
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
 
@@ -35,6 +36,12 @@ const AuthenticatedBookRoute = AuthenticatedBookRouteImport.update({
   path: '/book',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDriverIndexRoute =
+  AuthenticatedDriverIndexRouteImport.update({
+    id: '/driver/',
+    path: '/driver/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedRidesIndexRoute = AuthenticatedRidesIndexRouteImport.update({
   id: '/rides/',
   path: '/rides/',
@@ -52,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/book': typeof AuthenticatedBookRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
+  '/driver/': typeof AuthenticatedDriverIndexRoute
   '/rides/': typeof AuthenticatedRidesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -59,6 +67,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/book': typeof AuthenticatedBookRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
+  '/driver': typeof AuthenticatedDriverIndexRoute
   '/rides': typeof AuthenticatedRidesIndexRoute
 }
 export interface FileRoutesById {
@@ -68,13 +77,14 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/book': typeof AuthenticatedBookRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
+  '/_authenticated/driver/': typeof AuthenticatedDriverIndexRoute
   '/_authenticated/rides/': typeof AuthenticatedRidesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/book' | '/rides/$rideId' | '/rides/'
+  fullPaths: '/' | '/auth' | '/book' | '/rides/$rideId' | '/driver/' | '/rides/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/book' | '/rides/$rideId' | '/rides'
+  to: '/' | '/auth' | '/book' | '/rides/$rideId' | '/driver' | '/rides'
   id:
     | '__root__'
     | '/'
@@ -82,6 +92,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/book'
     | '/_authenticated/rides/$rideId'
+    | '/_authenticated/driver/'
     | '/_authenticated/rides/'
   fileRoutesById: FileRoutesById
 }
@@ -121,6 +132,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBookRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/driver/': {
+      id: '/_authenticated/driver/'
+      path: '/driver'
+      fullPath: '/driver/'
+      preLoaderRoute: typeof AuthenticatedDriverIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/rides/': {
       id: '/_authenticated/rides/'
       path: '/rides'
@@ -141,12 +159,14 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedBookRoute: typeof AuthenticatedBookRoute
   AuthenticatedRidesRideIdRoute: typeof AuthenticatedRidesRideIdRoute
+  AuthenticatedDriverIndexRoute: typeof AuthenticatedDriverIndexRoute
   AuthenticatedRidesIndexRoute: typeof AuthenticatedRidesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBookRoute: AuthenticatedBookRoute,
   AuthenticatedRidesRideIdRoute: AuthenticatedRidesRideIdRoute,
+  AuthenticatedDriverIndexRoute: AuthenticatedDriverIndexRoute,
   AuthenticatedRidesIndexRoute: AuthenticatedRidesIndexRoute,
 }
 
