@@ -387,6 +387,7 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
         amount: data.amount,
         destination: normaliseKenyanPhone(data.msisdn),
         status: "pending",
+        idempotency_key: `wd:${context.userId}:${Date.now()}`,
       })
       .select()
       .single();
