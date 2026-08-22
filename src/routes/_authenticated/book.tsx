@@ -4,7 +4,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
-import { createQuote, requestRide, reverseGeocode, searchPlaces } from "@/lib/rides.functions";
+import { createQuote, requestRide, reverseGeocode } from "@/lib/rides.functions";
+import { PlaceSearch } from "@/components/PlaceSearch";
 
 export const Route = createFileRoute("/_authenticated/book")({
   head: () => ({
@@ -38,7 +39,6 @@ function label(point: Point | null) {
 
 function BookPage() {
   const navigate = useNavigate();
-  const search = useServerFn(searchPlaces);
   const reverse = useServerFn(reverseGeocode);
   const quoteFn = useServerFn(createQuote);
   const requestFn = useServerFn(requestRide);
@@ -46,18 +46,11 @@ function BookPage() {
   const [placing, setPlacing] = useState<"pickup" | "dropoff">("pickup");
   const [pickup, setPickup] = useState<Point | null>(null);
   const [dropoff, setDropoff] = useState<Point | null>(null);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Point[]>([]);
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>("economy");
   const [pickupNotes, setPickupNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [msisdn, setMsisdn] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(0);
-
-  const searching = useMutation({
-    mutationFn: (value: string) => search({ data: { query: value, near: pickup ?? undefined } }),
-    onSuccess: (places) => setResults(places as Point[]),
-  });
 
   const quoting = useMutation({
     mutationFn: () =>
@@ -138,11 +131,7 @@ function BookPage() {
           {(["pickup", "dropoff"] as const).map((key) => (
             <button
               key={key}
-              onClick={() => {
-                setPlacing(key);
-                setResults([]);
-                setQuery("");
-              }}
+              onClick={() => setPlacing(key)}
               className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 placing === key ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
               }`}
@@ -152,51 +141,24 @@ function BookPage() {
           ))}
         </div>
 
-        <form
-          className="mt-3 flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (query.trim().length >= 2) searching.mutate(query.trim());
-          }}
-        >
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={placing === "pickup" ? "Search pickup" : "Search destination"}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+        <div className="mt-3">
+          <PlaceSearch
+            placeholder={placing === "pickup" ? "Search pickup (e.g. Makutano)" : "Search destination"}
+            near={placing === "pickup" ? pickup ?? dropoff : dropoff ?? pickup}
+            onPick={(place) => {
+              const picked: Point = {
+                lat: place.lat,
+                lng: place.lng,
+                label: place.label,
+                address: place.address,
+              };
+              if (placing === "pickup") setPickup(picked);
+              else setDropoff(picked);
+              quoting.reset();
+            }}
           />
-          <button
-            type="submit"
-            disabled={searching.isPending}
-            className="rounded-md bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground disabled:opacity-60"
-          >
-            {searching.isPending ? "…" : "Find"}
-          </button>
-        </form>
+        </div>
 
-        {results.length > 0 && (
-          <ul className="mt-3 divide-y divide-border overflow-hidden rounded-md border border-border">
-            {results.slice(0, 5).map((place) => (
-              <li key={`${place.lat},${place.lng}`}>
-                <button
-                  onClick={() => {
-                    if (placing === "pickup") setPickup(place);
-                    else setDropoff(place);
-                    setResults([]);
-                    setQuery("");
-                    quoting.reset();
-                  }}
-                  className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-accent"
-                >
-                  <span className="font-medium">{place.label ?? "Selected point"}</span>
-                  {place.address ? (
-                    <span className="block text-xs text-muted-foreground">{place.address}</span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
 
         <dl className="mt-4 space-y-1 rounded-lg border border-border bg-card p-3 text-sm">
           <div className="flex justify-between gap-4">

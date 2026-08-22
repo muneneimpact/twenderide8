@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useMe, type AppRole } from "@/hooks/useMe";
 
 type Tab = { to: string; label: string };
 
@@ -10,10 +11,23 @@ const customerTabs: Tab[] = [
   { to: "/rides", label: "My rides" },
 ];
 
+/** Tabs a person may use, derived from the roles the server reported. */
+export function tabsForRoles(roles: AppRole[]): Tab[] {
+  const has = (...wanted: AppRole[]) => wanted.some((role) => roles.includes(role));
+  const tabs: Tab[] = [...customerTabs];
+  if (has("driver")) tabs.push({ to: "/driver", label: "Drive" });
+  if (has("fleet_owner")) tabs.push({ to: "/fleet", label: "Fleet" });
+  if (has("ops_admin", "super_admin")) tabs.push({ to: "/admin", label: "Ops" });
+  if (has("finance_admin", "super_admin")) tabs.push({ to: "/admin/finance", label: "Finance" });
+  if (has("super_admin")) tabs.push({ to: "/admin/pricing", label: "Pricing" });
+  if (has("super_admin")) tabs.push({ to: "/admin/staff", label: "People" });
+  return tabs;
+}
+
 export function AppShell({
   title,
   children,
-  tabs = customerTabs,
+  tabs,
   eyebrow = "Twende Ride",
 }: {
   title: string;
@@ -23,6 +37,8 @@ export function AppShell({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { roles } = useMe();
+  const visibleTabs = tabs ?? tabsForRoles(roles);
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -49,16 +65,17 @@ export function AppShell({
       <div className="flex-1 pb-24">{children}</div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3">
-        <div className="glass-strong mx-auto flex max-w-md gap-1 p-1.5 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.25)]">
-          {tabs.map((tab) => (
+        <div className="glass-strong mx-auto flex max-w-md gap-1 overflow-x-auto p-1.5 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.25)]">
+          {visibleTabs.map((tab) => (
             <Link
               key={tab.to}
               to={tab.to}
-              className="flex-1 rounded-full px-3 py-2.5 text-center text-sm font-medium text-muted-foreground transition-colors"
+              className="flex-1 whitespace-nowrap rounded-full px-3 py-2.5 text-center text-sm font-medium text-muted-foreground transition-colors"
               activeProps={{
                 className:
-                  "flex-1 rounded-full px-3 py-2.5 text-center text-sm font-semibold bg-primary text-primary-foreground shadow-[0_2px_12px_-4px_rgba(0,0,0,0.35)]",
+                  "flex-1 whitespace-nowrap rounded-full px-3 py-2.5 text-center text-sm font-semibold bg-primary text-primary-foreground shadow-[0_2px_12px_-4px_rgba(0,0,0,0.35)]",
               }}
+              activeOptions={{ exact: true }}
             >
               {tab.label}
             </Link>
@@ -76,6 +93,8 @@ export const driverTabs: Tab[] = [
 ];
 
 export const adminTabs: Tab[] = [
-  { to: "/admin", label: "Operations" },
-  { to: "/book", label: "Book" },
+  { to: "/admin", label: "Ops" },
+  { to: "/admin/finance", label: "Finance" },
+  { to: "/admin/pricing", label: "Pricing" },
+  { to: "/admin/staff", label: "People" },
 ];
