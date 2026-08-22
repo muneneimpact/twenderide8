@@ -19,7 +19,6 @@ import { Route as AuthenticatedDriverApplyRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authenticated/driver/wallet'
 import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authenticated/rides/index'
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
-import { Route as ApiPublicBootstrapSuperAdminRouteImport } from './routes/api/public/bootstrap-super-admin'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -74,12 +73,6 @@ const AuthenticatedRidesRideIdRoute =
     path: '/rides/$rideId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const ApiPublicBootstrapSuperAdminRoute =
-  ApiPublicBootstrapSuperAdminRouteImport.update({
-    id: '/api/public/bootstrap-super-admin',
-    path: '/api/public/bootstrap-super-admin',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -88,7 +81,6 @@ export interface FileRoutesByFullPath {
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
-  '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/driver/': typeof AuthenticatedDriverIndexRoute
   '/rides/': typeof AuthenticatedRidesIndexRoute
@@ -100,7 +92,6 @@ export interface FileRoutesByTo {
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
-  '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/driver': typeof AuthenticatedDriverIndexRoute
   '/rides': typeof AuthenticatedRidesIndexRoute
@@ -114,7 +105,6 @@ export interface FileRoutesById {
   '/_authenticated/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/_authenticated/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
-  '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/driver/': typeof AuthenticatedDriverIndexRoute
   '/_authenticated/rides/': typeof AuthenticatedRidesIndexRoute
@@ -128,7 +118,6 @@ export interface FileRouteTypes {
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
-    | '/api/public/bootstrap-super-admin'
     | '/admin/'
     | '/driver/'
     | '/rides/'
@@ -140,7 +129,6 @@ export interface FileRouteTypes {
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
-    | '/api/public/bootstrap-super-admin'
     | '/admin'
     | '/driver'
     | '/rides'
@@ -153,7 +141,6 @@ export interface FileRouteTypes {
     | '/_authenticated/driver/apply'
     | '/_authenticated/driver/wallet'
     | '/_authenticated/rides/$rideId'
-    | '/api/public/bootstrap-super-admin'
     | '/_authenticated/admin/'
     | '/_authenticated/driver/'
     | '/_authenticated/rides/'
@@ -163,7 +150,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  ApiPublicBootstrapSuperAdminRoute: typeof ApiPublicBootstrapSuperAdminRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -238,13 +224,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRidesRideIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/api/public/bootstrap-super-admin': {
-      id: '/api/public/bootstrap-super-admin'
-      path: '/api/public/bootstrap-super-admin'
-      fullPath: '/api/public/bootstrap-super-admin'
-      preLoaderRoute: typeof ApiPublicBootstrapSuperAdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -275,7 +254,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  ApiPublicBootstrapSuperAdminRoute: ApiPublicBootstrapSuperAdminRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
