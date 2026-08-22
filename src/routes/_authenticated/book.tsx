@@ -4,7 +4,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
-import { createQuote, requestRide, reverseGeocode, searchPlaces } from "@/lib/rides.functions";
+import { createQuote, requestRide, reverseGeocode } from "@/lib/rides.functions";
+import { PlaceSearch } from "@/components/PlaceSearch";
 
 export const Route = createFileRoute("/_authenticated/book")({
   head: () => ({
@@ -38,7 +39,6 @@ function label(point: Point | null) {
 
 function BookPage() {
   const navigate = useNavigate();
-  const search = useServerFn(searchPlaces);
   const reverse = useServerFn(reverseGeocode);
   const quoteFn = useServerFn(createQuote);
   const requestFn = useServerFn(requestRide);
@@ -46,18 +46,11 @@ function BookPage() {
   const [placing, setPlacing] = useState<"pickup" | "dropoff">("pickup");
   const [pickup, setPickup] = useState<Point | null>(null);
   const [dropoff, setDropoff] = useState<Point | null>(null);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Point[]>([]);
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>("economy");
   const [pickupNotes, setPickupNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [msisdn, setMsisdn] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(0);
-
-  const searching = useMutation({
-    mutationFn: (value: string) => search({ data: { query: value, near: pickup ?? undefined } }),
-    onSuccess: (places) => setResults(places as Point[]),
-  });
 
   const quoting = useMutation({
     mutationFn: () =>
@@ -138,11 +131,7 @@ function BookPage() {
           {(["pickup", "dropoff"] as const).map((key) => (
             <button
               key={key}
-              onClick={() => {
-                setPlacing(key);
-                setResults([]);
-                setQuery("");
-              }}
+              onClick={() => setPlacing(key)}
               className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 placing === key ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
               }`}
