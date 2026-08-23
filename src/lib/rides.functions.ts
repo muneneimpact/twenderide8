@@ -137,18 +137,35 @@ export const createQuote = createServerFn({ method: "POST" })
     const { getMapProvider } = await import("./adapters/map.server");
     const { loadPricingContext, settingNumber } = await import("./pricing.server");
     const { computeFare } = await import("./fare-engine");
+    const { applyDiscount, drawDiscount, nairobiDayKey } = await import("./discounts");
 
     const pricing = await loadPricingContext(data.vehicleClass);
     const route = await getMapProvider().route(data.pickup, data.dropoff);
     if (route.distance_km <= 0) throw new Error("Pickup and destination are too close to price a ride.");
 
-    const breakdown = computeFare({
+    const computed = computeFare({
       distanceKm: route.distance_km,
       durationMinutes: route.duration_minutes,
       config: pricing.config,
       policy: pricing.policy,
       modifiers: pricing.modifiers,
     });
+
+    // Same deterministic draw the comparison cards used, so the price never moves.
+    const discount = drawDiscount(
+      `${context.userId}:${nairobiDayKey()}:${data.vehicleClass}`,
+      settingNumber(pricing.settings, "random_discount_max_percent", 20),
+      settingNumber(pricing.settings, "random_discount_chance_percent", 35),
+    );
+    const priced = applyDiscount(computed.total_fare, discount?.percent ?? 0);
+    const breakdown = {
+      ...computed,
+      total_fare: priced.total_fare,
+      discount_percent: priced.discount_percent,
+      discount_amount: priced.discount_amount,
+      discount_label: discount?.label ?? null,
+      total_before_discount: priced.total_before_discount,
+    };
 
     const validitySeconds = settingNumber(pricing.settings, "quote_validity_seconds", 300);
     const { data: quote, error } = await supabaseAdmin
@@ -177,6 +194,7 @@ export const createQuote = createServerFn({ method: "POST" })
           config: pricing.config,
           policy: pricing.policy,
           modifiers: pricing.modifiers,
+          discount: { percent: priced.discount_percent, amount: priced.discount_amount },
           traffic_aware: route.traffic_aware,
         } as never,
         expires_at: new Date(Date.now() + validitySeconds * 1000).toISOString(),
@@ -187,6 +205,7 @@ export const createQuote = createServerFn({ method: "POST" })
 
     const { raw: _raw, ...routeSummary } = route;
     return { quote, breakdown, route: routeSummary };
+
   });
 
 /** Accept a locked quote and create exactly one ride request, then dispatch. */
