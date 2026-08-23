@@ -396,7 +396,13 @@ export const listMyRides = createServerFn({ method: "POST" })
 export const cancelRide = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ rideId: z.string().uuid(), reason: z.string().max(300).optional() }).parse(input),
+    z
+      .object({
+        rideId: z.string().uuid(),
+        reason: z.string().trim().min(3).max(300),
+        reasonCode: z.string().max(60).optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -425,7 +431,7 @@ export const cancelRide = createServerFn({ method: "POST" })
       .update({
         status: "cancelled_by_customer",
         cancelled_by: "customer",
-        cancellation_reason: data.reason ?? null,
+        cancellation_reason: data.reasonCode ? `${data.reasonCode}: ${data.reason}` : data.reason,
         cancellation_fee: fee,
       })
       .eq("id", ride.id);
@@ -434,8 +440,8 @@ export const cancelRide = createServerFn({ method: "POST" })
       status: "cancelled_by_customer",
       actor_id: context.userId,
       actor_role: "customer",
-      note: data.reason ?? null,
-      metadata: { fee, within_free_window: withinFreeWindow } as never,
+      note: data.reason,
+      metadata: { fee, within_free_window: withinFreeWindow, reason_code: data.reasonCode ?? null } as never,
     });
 
     // Release the driver and vehicle.
