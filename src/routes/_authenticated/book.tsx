@@ -253,25 +253,61 @@ function BookPage() {
         </dl>
 
         <div className="mt-4">
-          <span className="text-xs font-medium text-muted-foreground">Vehicle</span>
-          <div className="mt-1 flex gap-2">
-            {(["economy", "comfort", "xl"] as const).map((option) => (
-              <button
-                key={option}
-                onClick={() => {
-                  setVehicleClass(option);
-                  quoting.reset();
-                }}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium capitalize transition-colors ${
-                  vehicleClass === option
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground"
-                }`}
-              >
-                {option}
-              </button>
-            ))}
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-xs font-medium text-muted-foreground">Choose your ride</span>
+            {estimating.isPending ? (
+              <span className="text-xs text-muted-foreground">Checking prices…</span>
+            ) : estimating.data ? (
+              <span className="text-xs text-muted-foreground">
+                {estimating.data.distance_km.toFixed(1)} km · {Math.round(estimating.data.duration_minutes)} min
+              </span>
+            ) : null}
           </div>
+          <div className="mt-2 space-y-2">
+            {(["boda", "economy", "comfort", "xl"] as const).map((option) => {
+              const priced = estimates.find((item) => item.vehicleClass === option);
+              const selected = vehicleClass === option;
+              const unavailable = priced ? !priced.available : false;
+              return (
+                <button
+                  key={option}
+                  disabled={unavailable}
+                  onClick={() => {
+                    setVehicleClass(option);
+                    quoting.reset();
+                  }}
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
+                    selected
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-card"
+                  } disabled:opacity-45`}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground">
+                      {CLASS_LABELS[option].name}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {unavailable ? "Not available on this route" : CLASS_LABELS[option].hint}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    {priced && priced.available ? (
+                      <span className="font-display text-base font-semibold text-foreground">
+                        KES {priced.total.toFixed(0)}
+                      </span>
+                    ) : estimating.isPending ? (
+                      <span className="text-xs text-muted-foreground">…</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {estimating.isError ? (
+            <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
+          ) : null}
         </div>
 
         <label className="mt-4 block">
@@ -309,8 +345,7 @@ function BookPage() {
 
             <ul className="mt-3 space-y-1 text-sm">
               {[
-                { label: "Base fare", amount: quote.breakdown.base_fare },
-                { label: "Booking fee", amount: quote.breakdown.booking_fee },
+                { label: "Booking fee", amount: quote.breakdown.booking_fee + quote.breakdown.base_fare },
                 { label: "Distance", amount: quote.breakdown.distance_charge },
                 { label: "Long-distance saving", amount: -quote.breakdown.long_distance_saving },
                 { label: "Time", amount: quote.breakdown.time_charge },
@@ -318,10 +353,6 @@ function BookPage() {
                   label: modifier.label,
                   amount: modifier.amount,
                 })),
-                {
-                  label: "Rounding",
-                  amount: quote.breakdown.total_fare - quote.breakdown.unrounded_total,
-                },
               ]
                 .filter((line) => Math.abs(line.amount) >= 0.005)
                 .map((line) => (
