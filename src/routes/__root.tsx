@@ -143,6 +143,11 @@ function RootComponent() {
     return () => data.subscription.unsubscribe();
   }, [queryClient, router]);
 
+  // Offline shell: refused in dev and every Lovable preview host.
+  useEffect(() => {
+    void registerAppServiceWorker();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
