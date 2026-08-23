@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { applyAsDriver, getDriverOnboarding, submitDocument, updateProfile } from "@/lib/account.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/driver/apply")({
   head: () => ({
@@ -52,6 +53,7 @@ function DriverApply() {
   const [docRef, setDocRef] = useState("");
   const [docExpiry, setDocExpiry] = useState("");
   const [docVehicle, setDocVehicle] = useState("");
+  const [docFile, setDocFile] = useState<File | null>(null);
 
   const contact = useMutation({
     mutationFn: () =>
@@ -83,21 +85,39 @@ function DriverApply() {
   });
 
   const addDoc = useMutation({
-    mutationFn: () =>
-      docFn({
+    mutationFn: async () => {
+      let filePath: string | undefined;
+      if (docFile) {
+        const { data: session } = await supabase.auth.getUser();
+        const userId = session.user?.id;
+        if (!userId) throw new Error("Your session expired. Sign in again.");
+        const extension = docFile.name.split(".").pop()?.toLowerCase() ?? "jpg";
+        const path = `${userId}/${docType}-${Date.now()}.${extension}`;
+        const { error } = await supabase.storage
+          .from("driver-documents")
+          .upload(path, docFile, { contentType: docFile.type || "image/jpeg", upsert: false });
+        if (error) throw new Error(`Photo upload failed: ${error.message}`);
+        filePath = path;
+      }
+      return docFn({
         data: {
           documentTypeId: docType,
           reference: docRef,
           ...(docExpiry ? { expiresOn: docExpiry } : {}),
           ...(docVehicle ? { vehicleId: docVehicle } : {}),
+          ...(filePath ? { filePath } : {}),
         },
-      }),
+      });
+    },
     onSuccess: () => {
       setDocRef("");
       setDocExpiry("");
+      setDocFile(null);
       invalidate();
     },
   });
+
+
 
   if (board.isPending) {
     return (
@@ -116,6 +136,8 @@ function DriverApply() {
 
   const { driver, profile, vehicles, documentTypes, documents } = board.data!;
   const required = documentTypes.filter((t) => t.required);
+  const selectedType = documentTypes.find((t) => t.id === docType) ?? null;
+  const photoRequired = Boolean(selectedType?.requires_image);
   const approvedCount = documents.filter((d) => d.status === "approved").length;
 
   return (
@@ -266,8 +288,8 @@ function DriverApply() {
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">3 · Compliance documents</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Required: {required.map((t) => t.label).join(", ") || "none configured"}. Record the document reference —
-            operations will ask for the physical copy during verification.
+            Required: {required.map((t) => t.label).join(", ") || "none configured"}. National ID, driving licence and
+            certificate of good conduct need a clear photo; the rest only need a reference for now.
           </p>
           <div className="mt-3 space-y-2">
             <select
@@ -283,6 +305,17 @@ function DriverApply() {
                 </option>
               ))}
             </select>
+            <label className="block text-xs text-muted-foreground">
+              {photoRequired ? "Photo of the document (required)" : "Photo of the document (optional)"}
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                capture="environment"
+                onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground file:mr-3 file:rounded-full file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-medium"
+              />
+            </label>
+            {docFile && <p className="text-xs text-muted-foreground">Attached: {docFile.name}</p>}
             <input
               value={docRef}
               onChange={(e) => setDocRef(e.target.value)}
@@ -315,7 +348,7 @@ function DriverApply() {
             )}
             <button
               onClick={() => addDoc.mutate()}
-              disabled={addDoc.isPending || !docType || docRef.trim().length < 3}
+              disabled={addDoc.isPending || !docType || docRef.trim().length < 3 || (photoRequired && !docFile)}
               className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               {addDoc.isPending ? "Submitting…" : "Submit document"}
