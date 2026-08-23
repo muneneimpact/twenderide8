@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
+import { MapPanel } from "@/components/MapPanel";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acceptOffer,
@@ -159,7 +160,7 @@ function DriverHome() {
     );
   }
 
-  const { driver, vehicles, wallet, offers, activeRide, recent, documents } = home.data!;
+  const { driver, vehicles, wallet, offers, activeRide, activeRoute, recent, documents } = home.data!;
 
   if (!driver) {
     return (
@@ -345,6 +346,35 @@ function DriverHome() {
             <p className="mt-0.5 text-xs text-muted-foreground">
               {activeRide.payment_method === "cash" ? "Cash on arrival" : "M-PESA"} · {activeRide.status}
             </p>
+            {activeRoute && (
+              <div className="mt-3 space-y-2">
+                <div className="overflow-hidden rounded-2xl border border-border">
+                  <MapPanel
+                    pickup={activeRoute.pickup}
+                    dropoff={activeRoute.dropoff}
+                    className="h-52 w-full"
+                  />
+                </div>
+                <div className="rounded-2xl bg-secondary/60 p-3 text-xs">
+                  <p className="text-muted-foreground">
+                    Pickup:{" "}
+                    <span className="font-medium text-foreground">
+                      {activeRoute.pickup_address ?? "pin on the map"}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    Drop-off:{" "}
+                    <span className="font-medium text-foreground">
+                      {activeRoute.dropoff_address ?? "pin on the map"}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    Trip distance {activeRoute.distance_km.toFixed(1)} km
+                    {activeRoute.pickup_notes ? ` · note: ${activeRoute.pickup_notes}` : ""}
+                  </p>
+                </div>
+              </div>
+            )}
             <Link
               to="/rides/$rideId"
               params={{ rideId: activeRide.id }}
