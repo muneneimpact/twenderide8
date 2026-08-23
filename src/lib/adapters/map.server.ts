@@ -49,6 +49,61 @@ function estimateRoute(from: LatLng, to: LatLng): RouteResult {
   };
 }
 
+/**
+ * Look for a named place within a short walk of the pin (hotel, shop, fuel
+ * station, school…) so the pickup reads like a landmark instead of the town.
+ */
+async function nearestLandmark(point: LatLng): Promise<PlaceResult | null> {
+  const query =
+    `[out:json][timeout:8];(` +
+    `node(around:150,${point.lat},${point.lng})["name"]["amenity"];` +
+    `node(around:150,${point.lat},${point.lng})["name"]["shop"];` +
+    `node(around:150,${point.lat},${point.lng})["name"]["tourism"];` +
+    `way(around:150,${point.lat},${point.lng})["name"]["building"~"commercial|retail|hotel|hospital|school"];` +
+    `);out center 12;`;
+  try {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": USER_AGENT },
+      body: `data=${encodeURIComponent(query)}`,
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as {
+      elements?: {
+        lat?: number;
+        lon?: number;
+        center?: { lat: number; lon: number };
+        tags?: Record<string, string>;
+      }[];
+    };
+    const candidates = (body.elements ?? [])
+      .map((element) => {
+        const lat = element.lat ?? element.center?.lat;
+        const lon = element.lon ?? element.center?.lon;
+        const name = element.tags?.["name"];
+        if (lat == null || lon == null || !name) return null;
+        const kind =
+          element.tags?.["amenity"] ?? element.tags?.["shop"] ?? element.tags?.["tourism"] ?? "place";
+        return { name, kind, lat, lon, distance: haversineKm(point, { lat, lng: lon }) };
+      })
+      .filter((value): value is NonNullable<typeof value> => value !== null)
+      .sort((a, b) => a.distance - b.distance);
+
+    const best = candidates[0];
+    if (!best) return null;
+    const metres = Math.round(best.distance * 1000);
+    return {
+      label: metres <= 25 ? best.name : `Near ${best.name}`,
+      address: `${best.name} (${best.kind.replace(/_/g, " ")}) · about ${metres} m away`,
+      lat: point.lat,
+      lng: point.lng,
+      kind: "landmark",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const openMapProvider: MapProvider = {
   name: "osm",
   async route(from, to) {
