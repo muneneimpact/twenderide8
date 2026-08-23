@@ -222,10 +222,23 @@ export const submitDocument = createServerFn({ method: "POST" })
         issuedOn: z.string().max(10).optional(),
         expiresOn: z.string().max(10).optional(),
         vehicleId: z.string().uuid().optional(),
+        filePath: z.string().max(300).optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    const { data: type } = await context.supabase
+      .from("document_types")
+      .select("label, requires_image")
+      .eq("id", data.documentTypeId)
+      .maybeSingle();
+    if (type?.requires_image && !data.filePath) {
+      throw new Error(`Attach a clear photo or scan of your ${type.label.toLowerCase()}.`);
+    }
+    // A driver may only reference a file inside their own folder.
+    if (data.filePath && !data.filePath.startsWith(`${context.userId}/`)) {
+      throw new Error("That upload does not belong to your account.");
+    }
     const { error } = await context.supabase.from("documents").insert({
       document_type_id: data.documentTypeId,
       subject_user_id: context.userId,
@@ -233,8 +246,10 @@ export const submitDocument = createServerFn({ method: "POST" })
       reference: data.reference,
       issued_on: data.issuedOn || null,
       expires_on: data.expiresOn || null,
+      file_path: data.filePath ?? null,
       status: "pending",
     });
     if (error) throw new Error(error.message);
+
     return { ok: true };
   });
