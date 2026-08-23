@@ -11,7 +11,7 @@ const pointSchema = z.object({
 const quoteSchema = z.object({
   pickup: pointSchema,
   dropoff: pointSchema,
-  vehicleClass: z.enum(["economy", "comfort", "xl"]).default("economy"),
+  vehicleClass: z.enum(["boda", "economy", "comfort", "xl"]).default("economy"),
   pickupNotes: z.string().max(400).optional().nullable(),
 });
 

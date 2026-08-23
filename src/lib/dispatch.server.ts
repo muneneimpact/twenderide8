@@ -11,7 +11,7 @@ export interface DispatchResult {
 export async function dispatchRide(
   rideId: string,
   pickup: { lat: number; lng: number },
-  vehicleClass: "economy" | "comfort" | "xl",
+  vehicleClass: "boda" | "economy" | "comfort" | "xl",
   options: { radiusKm: number; offerTimeoutSeconds: number; cashRide: boolean },
 ): Promise<DispatchResult> {
   const { data: drivers } = await supabaseAdmin
