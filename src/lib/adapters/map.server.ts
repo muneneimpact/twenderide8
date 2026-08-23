@@ -110,16 +110,39 @@ export const openMapProvider: MapProvider = {
     }
   },
   async reverse(point) {
+    // A pin should read like a place you'd tell a driver — a hotel, shop,
+    // petrol station or road — not just the town name.
+    const landmark = await nearestLandmark(point);
+    if (landmark) return landmark;
+
     const url =
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1` +
       `&lat=${point.lat}&lon=${point.lng}`;
     try {
       const response = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
       if (!response.ok) return null;
-      const item = (await response.json()) as { display_name?: string; name?: string };
+      const item = (await response.json()) as {
+        display_name?: string;
+        name?: string;
+        address?: Record<string, string>;
+      };
       if (!item.display_name) return null;
+      const a = item.address ?? {};
+      const specific =
+        (item.name && item.name.length > 0 ? item.name : null) ??
+        a["amenity"] ??
+        a["shop"] ??
+        a["tourism"] ??
+        a["building"] ??
+        a["office"] ??
+        a["leisure"] ??
+        a["road"] ??
+        a["neighbourhood"] ??
+        a["suburb"] ??
+        item.display_name.split(",")[0]!;
+      const context = a["road"] && specific !== a["road"] ? `${specific}, ${a["road"]}` : specific;
       return {
-        label: item.name && item.name.length > 0 ? item.name : item.display_name.split(",")[0]!,
+        label: context,
         address: item.display_name,
         lat: point.lat,
         lng: point.lng,
@@ -129,6 +152,7 @@ export const openMapProvider: MapProvider = {
       return null;
     }
   },
+
 };
 
 export function getMapProvider(): MapProvider {
