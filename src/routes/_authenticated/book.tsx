@@ -387,6 +387,12 @@ function BookPage() {
               </div>
             </div>
 
+            <p className="mt-2 rounded-2xl bg-secondary px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+              {paymentMethod === "stk_push"
+                ? "Paying by M-PESA here settles the whole trip. Get in, get out — nothing more to pay the driver."
+                : "Cash means you still settle with the driver at the end of the trip. Pay by M-PESA now to avoid extra charges later."}
+            </p>
+
             {paymentMethod === "stk_push" && (
               <label className="mt-3 block">
                 <span className="text-xs font-medium text-muted-foreground">M-PESA number</span>
