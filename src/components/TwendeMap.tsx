@@ -118,8 +118,11 @@ export default function TwendeMap({
   }, [pickup, dropoff, driver]);
 
   return (
-    <div className={className ?? "h-full w-full"}>
+    <div className={`relative ${className ?? "h-full w-full"}`}>
       <div ref={holder} className="h-full w-full" aria-label="Ride map" />
+      <span className="pointer-events-none absolute bottom-1 left-1.5 z-[400] text-[9px] text-foreground/40">
+        © OpenStreetMap
+      </span>
     </div>
   );
 }
