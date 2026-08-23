@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
+import { RoleGate } from "@/components/RoleGate";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acceptOffer,
@@ -39,6 +40,20 @@ const nextLabel: Record<string, { next: "driver_arriving" | "driver_arrived" | "
   driver_arrived: { next: "trip_started", label: "Start trip" },
   trip_started: { next: "trip_completed", label: "Complete trip" },
 };
+
+function DriverConsolePage() {
+  return (
+    <RoleGate
+      allow={["driver"]}
+      title="Driver console"
+      hint="The driver console opens once operations approve your application."
+      actionTo="/driver/apply"
+      actionLabel="Start driver onboarding"
+    >
+      <DriverHome />
+    </RoleGate>
+  );
+}
 
 function DriverHome() {
   const queryClient = useQueryClient();
