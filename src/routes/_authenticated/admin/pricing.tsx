@@ -418,11 +418,11 @@ function PricingWorkspace() {
                 </tr>
               </thead>
               <tbody>
-                {preview.data.rows.map((row: Record<string, unknown>, i: number) => (
+                {preview.data.rows.map((row, i) => (
                   <tr key={i} className="text-foreground">
-                    <td>{String(row["distance_km"] ?? "")}</td>
-                    <td className="text-right">{Number(row["total_fare"] ?? 0).toFixed(2)}</td>
-                    <td className="text-right">{Number(row["long_distance_saving"] ?? 0).toFixed(2)}</td>
+                    <td>{row.distance_km}</td>
+                    <td className="text-right">{row.total.toFixed(2)}</td>
+                    <td className="text-right">{row.saving.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
