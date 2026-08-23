@@ -50,13 +50,12 @@ export default function TwendeMap({
 
   useEffect(() => {
     if (!holder.current || map.current) return;
-    const instance = L.map(holder.current, { zoomControl: false, attributionControl: true }).setView(
+    const instance = L.map(holder.current, { zoomControl: false, attributionControl: false }).setView(
       [pickup?.lat ?? MERU.lat, pickup?.lng ?? MERU.lng],
       14,
     );
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
-      attribution: "© OpenStreetMap contributors",
     }).addTo(instance);
     L.control.zoom({ position: "bottomright" }).addTo(instance);
     instance.on("click", (event: L.LeafletMouseEvent) => {
