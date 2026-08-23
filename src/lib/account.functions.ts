@@ -83,9 +83,15 @@ export const applyAsDriver = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     await supabaseAdmin.from("drivers").update({ active_vehicle_id: vehicle.id }).eq("id", userId);
+    // Authorise the owner to drive their own vehicle. It only takes effect once
+    // operations approve the vehicle.
+    await supabaseAdmin
+      .from("driver_vehicle_authorisations")
+      .insert({ vehicle_id: vehicle.id, driver_id: userId });
     await audit(userId, "driver_application_submitted", "driver", userId, { vehicle: vehicle.id });
     return { vehicle };
   });
+
 
 export const listNotifications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
