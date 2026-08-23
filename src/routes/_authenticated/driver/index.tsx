@@ -30,7 +30,7 @@ export const Route = createFileRoute("/_authenticated/driver/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: DriverHome,
+  component: DriverConsolePage,
 });
 
 const nextLabel: Record<string, { next: "driver_arriving" | "driver_arrived" | "trip_started" | "trip_completed"; label: string }> = {

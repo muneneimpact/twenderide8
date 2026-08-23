@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/driver/wallet")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: DriverWallet,
+  component: DriverWalletPage,
 });
 
 function DriverWallet() {
