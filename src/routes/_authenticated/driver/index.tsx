@@ -15,7 +15,10 @@ import {
   pushDriverLocation,
   setActiveVehicle,
   setDriverOnline,
+  claimRide,
+  listOpenRides,
 } from "@/lib/driver.functions";
+import { playAlert, primeAudio } from "@/lib/audio";
 
 export const Route = createFileRoute("/_authenticated/driver/")({
   head: () => ({
@@ -66,6 +69,14 @@ function DriverHome() {
   const advanceFn = useServerFn(advanceRide);
   const cashFn = useServerFn(confirmCashCollected);
   const pingFn = useServerFn(pushDriverLocation);
+  const openFn = useServerFn(listOpenRides);
+  const claimFn = useServerFn(claimRide);
+
+  const openRides = useQuery({
+    queryKey: ["driver-open-rides"],
+    queryFn: () => openFn({}),
+    refetchInterval: 10000,
+  });
 
   const home = useQuery({ queryKey: ["driver-home"], queryFn: () => fetchHome({}), refetchInterval: 15000 });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["driver-home"] });
@@ -143,6 +154,22 @@ function DriverHome() {
     mutationFn: (rideId: string) => cashFn({ data: { rideId } }),
     onSuccess: invalidate,
   });
+  const claiming = useMutation({
+    mutationFn: (rideId: string) => claimFn({ data: { rideId } }),
+    onSuccess: () => {
+      invalidate();
+      void queryClient.invalidateQueries({ queryKey: ["driver-open-rides"] });
+    },
+  });
+
+  const offerCount = home.data?.offers.length ?? 0;
+  const openCount = openRides.data?.rides.length ?? 0;
+  useEffect(() => {
+    if (offerCount > 0) playAlert("offer");
+  }, [offerCount]);
+  useEffect(() => {
+    if (openCount > 0) playAlert("status");
+  }, [openCount]);
 
   if (home.isPending) {
     return (
@@ -333,6 +360,64 @@ function DriverHome() {
           )}
           {accepting.data && !accepting.data.ok && (
             <p className="mt-2 text-xs text-warning">This offer is no longer available ({accepting.data.reason}).</p>
+          )}
+        </section>
+
+        {/* Open ride board */}
+        <section className="surface-card p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-foreground">Available ride requests</h3>
+            <button
+              onClick={() => {
+                primeAudio();
+                void openRides.refetch();
+              }}
+              className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-muted-foreground"
+            >
+              Refresh
+            </button>
+          </div>
+          {openRides.data && !openRides.data.eligible ? (
+            <p className="mt-2 text-xs text-warning">{openRides.data.reason}</p>
+          ) : openRides.data && openRides.data.rides.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">No open requests right now.</p>
+          ) : (
+            <ul className="mt-3 space-y-3">
+              {(openRides.data?.rides ?? []).map((request) => (
+                <li key={request.id} className="rounded-2xl border border-border bg-secondary/40 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">
+                        {request.pickup_address ?? "Pickup pin"}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        to {request.dropoff_address ?? "destination pin"}
+                      </p>
+                    </div>
+                    <p className="shrink-0 font-display text-base font-semibold text-foreground">
+                      KES {request.total_fare.toFixed(0)}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {request.distance_km?.toFixed(1) ?? "—"} km · {Math.round(request.duration_minutes ?? 0)} min ·{" "}
+                    {request.vehicle_class ?? "any"} · {request.payment_method === "cash" ? "Cash" : "M-PESA"}
+                  </p>
+                  <button
+                    onClick={() => {
+                      primeAudio();
+                      claiming.mutate(request.id);
+                    }}
+                    disabled={claiming.isPending}
+                    className="mt-3 w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                  >
+                    {claiming.isPending ? "Claiming…" : "Accept this ride"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {claiming.data && !claiming.data.ok && (
+            <p className="mt-2 text-xs text-warning">{claiming.data.reason}</p>
           )}
         </section>
 
