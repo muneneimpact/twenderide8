@@ -43,7 +43,9 @@ function BookPage() {
   const quoteFn = useServerFn(createQuote);
   const requestFn = useServerFn(requestRide);
 
-  const [placing, setPlacing] = useState<"pickup" | "dropoff">("pickup");
+  const [placing, setPlacing] = useState<"pickup" | "dropoff">("dropoff");
+  const [locating, setLocating] = useState(true);
+  const [locateError, setLocateError] = useState<string | null>(null);
   const [pickup, setPickup] = useState<Point | null>(null);
   const [dropoff, setDropoff] = useState<Point | null>(null);
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>("economy");
