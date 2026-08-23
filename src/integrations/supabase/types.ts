@@ -164,6 +164,7 @@ export type Database = {
           label: string
           reminder_days: number
           required: boolean
+          requires_image: boolean
         }
         Insert: {
           active?: boolean
@@ -175,6 +176,7 @@ export type Database = {
           label: string
           reminder_days?: number
           required?: boolean
+          requires_image?: boolean
         }
         Update: {
           active?: boolean
@@ -186,6 +188,7 @@ export type Database = {
           label?: string
           reminder_days?: number
           required?: boolean
+          requires_image?: boolean
         }
         Relationships: []
       }
