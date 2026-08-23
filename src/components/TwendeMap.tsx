@@ -50,13 +50,12 @@ export default function TwendeMap({
 
   useEffect(() => {
     if (!holder.current || map.current) return;
-    const instance = L.map(holder.current, { zoomControl: false, attributionControl: true }).setView(
+    const instance = L.map(holder.current, { zoomControl: false, attributionControl: false }).setView(
       [pickup?.lat ?? MERU.lat, pickup?.lng ?? MERU.lng],
       14,
     );
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
-      attribution: "© OpenStreetMap contributors",
     }).addTo(instance);
     L.control.zoom({ position: "bottomright" }).addTo(instance);
     instance.on("click", (event: L.LeafletMouseEvent) => {
@@ -119,8 +118,11 @@ export default function TwendeMap({
   }, [pickup, dropoff, driver]);
 
   return (
-    <div className={className ?? "h-full w-full"}>
+    <div className={`relative ${className ?? "h-full w-full"}`}>
       <div ref={holder} className="h-full w-full" aria-label="Ride map" />
+      <span className="pointer-events-none absolute bottom-1 left-1.5 z-[400] text-[9px] text-foreground/40">
+        © OpenStreetMap
+      </span>
     </div>
   );
 }

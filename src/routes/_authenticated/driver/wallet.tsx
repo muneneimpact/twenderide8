@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
+import { RoleGate } from "@/components/RoleGate";
 import { getDriverWallet, requestWithdrawal } from "@/lib/driver.functions";
 
 export const Route = createFileRoute("/_authenticated/driver/wallet")({
@@ -20,8 +21,22 @@ export const Route = createFileRoute("/_authenticated/driver/wallet")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: DriverWallet,
+  component: DriverWalletPage,
 });
+
+function DriverWalletPage() {
+  return (
+    <RoleGate
+      allow={["driver"]}
+      title="Wallet"
+      hint="Your earnings wallet opens once you are approved as a driver."
+      actionTo="/driver/apply"
+      actionLabel="Start driver onboarding"
+    >
+      <DriverWallet />
+    </RoleGate>
+  );
+}
 
 function DriverWallet() {
   const queryClient = useQueryClient();

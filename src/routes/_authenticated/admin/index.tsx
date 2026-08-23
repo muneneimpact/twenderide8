@@ -21,8 +21,16 @@ export const Route = createFileRoute("/_authenticated/admin/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: AdminBoard,
+  component: AdminPage,
 });
+
+function AdminPage() {
+  return (
+    <RoleGate allow={["ops_admin", "super_admin"]} title="Operations">
+      <AdminBoard />
+    </RoleGate>
+  );
+}
 
 function AdminBoard() {
   const queryClient = useQueryClient();

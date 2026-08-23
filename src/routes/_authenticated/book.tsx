@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
 import { createQuote, requestRide, reverseGeocode } from "@/lib/rides.functions";
@@ -43,7 +43,9 @@ function BookPage() {
   const quoteFn = useServerFn(createQuote);
   const requestFn = useServerFn(requestRide);
 
-  const [placing, setPlacing] = useState<"pickup" | "dropoff">("pickup");
+  const [placing, setPlacing] = useState<"pickup" | "dropoff">("dropoff");
+  const [locating, setLocating] = useState(true);
+  const [locateError, setLocateError] = useState<string | null>(null);
   const [pickup, setPickup] = useState<Point | null>(null);
   const [dropoff, setDropoff] = useState<Point | null>(null);
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>("economy");
@@ -107,6 +109,42 @@ function BookPage() {
     }
   }
 
+  // Pickup defaults to where the phone says you are; you only type where to.
+  const useCurrentLocation = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocating(false);
+      setLocateError("This device can't share your location — drop the pickup pin on the map.");
+      return;
+    }
+    setLocating(true);
+    setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+        setPickup({ ...point, label: "Current location" });
+        setLocating(false);
+        quoting.reset();
+        try {
+          const resolved = await reverse({ data: point });
+          setPickup({ ...point, label: resolved.label, address: resolved.address });
+        } catch {
+          // Coordinates stay authoritative even without a friendly name.
+        }
+      },
+      () => {
+        setLocating(false);
+        setLocateError("We couldn't read your location — drop the pickup pin on the map instead.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reverse]);
+
+  useEffect(() => {
+    useCurrentLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const expired = Boolean(quote) && secondsLeft <= 0;
 
   return (
@@ -122,29 +160,39 @@ function BookPage() {
       </div>
 
       <div className="mx-auto max-w-md px-4 py-4">
-        <p className="text-xs text-muted-foreground">
-          Tap the map to drop the {placing === "pickup" ? "pickup" : "destination"} pin, or search for a place.
-          The pin is what the driver navigates to.
-        </p>
-
-        <div className="mt-3 flex gap-2">
-          {(["pickup", "dropoff"] as const).map((key) => (
+        {/* Pickup is your current location by default — you only say where to. */}
+        <div className="surface-card flex items-center justify-between gap-3 p-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pickup</p>
+            <p className="truncate text-sm font-medium text-foreground">
+              {locating ? "Finding your location…" : label(pickup)}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-1.5">
             <button
-              key={key}
-              onClick={() => setPlacing(key)}
-              className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                placing === key ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+              onClick={useCurrentLocation}
+              className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground"
+            >
+              Use my location
+            </button>
+            <button
+              onClick={() => setPlacing(placing === "pickup" ? "dropoff" : "pickup")}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                placing === "pickup"
+                  ? "bg-primary text-primary-foreground"
+                  : "border border-input text-muted-foreground"
               }`}
             >
-              {key === "pickup" ? "Pickup" : "Destination"}
+              {placing === "pickup" ? "Tap map…" : "Change"}
             </button>
-          ))}
+          </div>
         </div>
+        {locateError && <p className="mt-2 text-xs text-destructive">{locateError}</p>}
 
         <div className="mt-3">
           <PlaceSearch
-            placeholder={placing === "pickup" ? "Search pickup (e.g. Makutano)" : "Search destination"}
-            near={placing === "pickup" ? pickup ?? dropoff : dropoff ?? pickup}
+            placeholder={placing === "pickup" ? "Search pickup (e.g. Makutano)" : "Where to?"}
+            near={placing === "pickup" ? pickup ?? dropoff : pickup ?? dropoff}
             onPick={(place) => {
               const picked: Point = {
                 lat: place.lat,
@@ -152,13 +200,20 @@ function BookPage() {
                 label: place.label,
                 address: place.address,
               };
-              if (placing === "pickup") setPickup(picked);
-              else setDropoff(picked);
+              if (placing === "pickup") {
+                setPickup(picked);
+                setPlacing("dropoff");
+              } else {
+                setDropoff(picked);
+              }
               quoting.reset();
             }}
           />
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Type where you're going, or tap the map to drop the{" "}
+            {placing === "pickup" ? "pickup" : "destination"} pin.
+          </p>
         </div>
-
 
         <dl className="mt-4 space-y-1 rounded-lg border border-border bg-card p-3 text-sm">
           <div className="flex justify-between gap-4">
