@@ -140,7 +140,38 @@ export const reviewApproval = createServerFn({ method: "POST" })
       if (data.decision !== "approved" && table === "drivers") {
         await supabaseAdmin.from("drivers").update({ is_online: false }).eq("id", data.id);
       }
+      if (table === "vehicles") {
+        const { data: vehicle } = await supabaseAdmin
+          .from("vehicles")
+          .select("owner_driver_id")
+          .eq("id", data.id)
+          .maybeSingle();
+        if (vehicle?.owner_driver_id) {
+          if (data.decision === "approved") {
+            // Approval is what authorises the owning driver to operate the car.
+            const { data: existing } = await supabaseAdmin
+              .from("driver_vehicle_authorisations")
+              .select("id")
+              .eq("vehicle_id", data.id)
+              .eq("driver_id", vehicle.owner_driver_id)
+              .is("revoked_at", null)
+              .maybeSingle();
+            if (!existing) {
+              await supabaseAdmin
+                .from("driver_vehicle_authorisations")
+                .insert({ vehicle_id: data.id, driver_id: vehicle.owner_driver_id, granted_by: context.userId });
+            }
+          } else {
+            await supabaseAdmin
+              .from("driver_vehicle_authorisations")
+              .update({ revoked_at: new Date().toISOString() })
+              .eq("vehicle_id", data.id)
+              .is("revoked_at", null);
+          }
+        }
+      }
     }
+
 
     if (data.kind === "driver") {
       await notify({
