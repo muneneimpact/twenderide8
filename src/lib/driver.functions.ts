@@ -31,6 +31,36 @@ export const getDriverHome = createServerFn({ method: "POST" })
       .order("requested_at", { ascending: false })
       .limit(15);
 
+    // Where the trip starts and ends, so the console can show the route map.
+    let activeRoute: {
+      pickup: { lat: number; lng: number };
+      dropoff: { lat: number; lng: number };
+      pickup_address: string | null;
+      dropoff_address: string | null;
+      pickup_notes: string | null;
+      distance_km: number;
+    } | null = null;
+    if (activeRide) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: quote } = await supabaseAdmin
+        .from("route_quotes")
+        .select(
+          "pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, pickup_notes, distance_km",
+        )
+        .eq("id", activeRide.quote_id)
+        .maybeSingle();
+      if (quote) {
+        activeRoute = {
+          pickup: { lat: Number(quote.pickup_lat), lng: Number(quote.pickup_lng) },
+          dropoff: { lat: Number(quote.dropoff_lat), lng: Number(quote.dropoff_lng) },
+          pickup_address: quote.pickup_address,
+          dropoff_address: quote.dropoff_address,
+          pickup_notes: quote.pickup_notes,
+          distance_km: Number(quote.distance_km),
+        };
+      }
+    }
+
     return {
       driver,
       vehicles: vehicles ?? [],
@@ -38,6 +68,7 @@ export const getDriverHome = createServerFn({ method: "POST" })
       wallet,
       offers: offers ?? [],
       activeRide,
+      activeRoute,
       recent: recent ?? [],
     };
   });
