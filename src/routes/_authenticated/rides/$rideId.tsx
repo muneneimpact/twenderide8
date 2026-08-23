@@ -7,6 +7,16 @@ import { MapPanel } from "@/components/MapPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { cancelRide, getRide, rateRide } from "@/lib/rides.functions";
 import { getPaymentStatus, startStkPush } from "@/lib/payments.functions";
+import { playAlert } from "@/lib/audio";
+
+const cancelReasons = [
+  "Driver is taking too long",
+  "I booked by mistake",
+  "My plans changed",
+  "I found another ride",
+  "Wrong pickup location",
+  "Other",
+];
 
 export const Route = createFileRoute("/_authenticated/rides/$rideId")({
   head: () => ({
@@ -45,6 +55,8 @@ function RideDetail() {
   const pushFn = useServerFn(startStkPush);
   const rateFn = useServerFn(rateRide);
   const [score, setScore] = useState(5);
+  const [reasonCode, setReasonCode] = useState(cancelReasons[0]!);
+  const [reasonNote, setReasonNote] = useState("");
 
   const rideQuery = useQuery({
     queryKey: ["ride", rideId],
@@ -82,7 +94,8 @@ function RideDetail() {
   }, [queryClient, rideId]);
 
   const cancelling = useMutation({
-    mutationFn: (reason: string) => cancelFn({ data: { rideId, reason } }),
+    mutationFn: ({ reason, reasonCode: code }: { reason: string; reasonCode: string }) =>
+      cancelFn({ data: { rideId, reason, reasonCode: code } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ride", rideId] }),
   });
 
@@ -94,6 +107,13 @@ function RideDetail() {
   const rating = useMutation({
     mutationFn: () => rateFn({ data: { rideId, score } }),
   });
+
+  const liveStatus = rideQuery.data?.ride.status;
+  useEffect(() => {
+    if (!liveStatus) return;
+    if (liveStatus === "driver_assigned") playAlert("status");
+    if (liveStatus === "driver_arrived") playAlert("arrived");
+  }, [liveStatus]);
 
   if (rideQuery.isPending) {
     return (
@@ -200,11 +220,39 @@ function RideDetail() {
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold text-foreground">Need to cancel?</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              A cancellation fee only applies after the free window on an assigned ride.
+              Tell us why so we can improve. A cancellation fee only applies after the free window on an
+              assigned ride.
             </p>
+            <label className="mt-3 block text-xs font-medium text-muted-foreground" htmlFor="cancel-reason">
+              Reason for cancelling
+            </label>
+            <select
+              id="cancel-reason"
+              value={reasonCode}
+              onChange={(event) => setReasonCode(event.target.value)}
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+            >
+              {cancelReasons.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason}
+                </option>
+              ))}
+            </select>
+            <textarea
+              value={reasonNote}
+              onChange={(event) => setReasonNote(event.target.value)}
+              placeholder={reasonCode === "Other" ? "Please tell us what happened" : "Anything else? (optional)"}
+              rows={2}
+              className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+            />
             <button
-              onClick={() => cancelling.mutate("Cancelled from the ride screen")}
-              disabled={cancelling.isPending}
+              onClick={() =>
+                cancelling.mutate({
+                  reasonCode,
+                  reason: reasonNote.trim() || reasonCode,
+                })
+              }
+              disabled={cancelling.isPending || (reasonCode === "Other" && reasonNote.trim().length < 3)}
               className="mt-3 w-full rounded-md border border-destructive px-4 py-3 text-sm font-semibold text-destructive disabled:opacity-60"
             >
               {cancelling.isPending ? "Cancelling…" : "Cancel this ride"}
@@ -214,6 +262,15 @@ function RideDetail() {
             )}
           </section>
         )}
+
+        {ride.status.startsWith("cancelled") || ride.status === "no_driver_found" ? (
+          <Link
+            to="/book"
+            className="mt-4 block w-full rounded-md bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground"
+          >
+            Request another ride
+          </Link>
+        ) : null}
 
         {ride.status === "trip_completed" && (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
