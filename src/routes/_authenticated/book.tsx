@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
-import { createQuote, requestRide, reverseGeocode } from "@/lib/rides.functions";
+import { createQuote, estimateClasses, requestRide, reverseGeocode } from "@/lib/rides.functions";
 import { PlaceSearch } from "@/components/PlaceSearch";
 
 export const Route = createFileRoute("/_authenticated/book")({
@@ -23,7 +23,14 @@ export const Route = createFileRoute("/_authenticated/book")({
   component: BookPage,
 });
 
-type VehicleClass = "economy" | "comfort" | "xl";
+type VehicleClass = "boda" | "economy" | "comfort" | "xl";
+
+const CLASS_LABELS: Record<VehicleClass, { name: string; hint: string }> = {
+  boda: { name: "Boda", hint: "One rider, quickest" },
+  economy: { name: "Economy", hint: "Everyday saloon car" },
+  comfort: { name: "Comfort", hint: "Newer, roomier car" },
+  xl: { name: "XL", hint: "Up to 6 seats" },
+};
 
 interface Point {
   lat: number;
@@ -40,6 +47,7 @@ function label(point: Point | null) {
 function BookPage() {
   const navigate = useNavigate();
   const reverse = useServerFn(reverseGeocode);
+  const estimateFn = useServerFn(estimateClasses);
   const quoteFn = useServerFn(createQuote);
   const requestFn = useServerFn(requestRide);
 
@@ -62,6 +70,16 @@ function BookPage() {
           dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
           vehicleClass,
           pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
+        },
+      }),
+  });
+
+  const estimating = useMutation({
+    mutationFn: () =>
+      estimateFn({
+        data: {
+          pickup: { lat: pickup!.lat, lng: pickup!.lng },
+          dropoff: { lat: dropoff!.lat, lng: dropoff!.lng },
         },
       }),
   });
@@ -145,6 +163,14 @@ function BookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Price every vehicle class as soon as both ends of the trip are known.
+  useEffect(() => {
+    if (!pickup || !dropoff) return;
+    estimating.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
+
+  const estimates = estimating.data?.options ?? [];
   const expired = Boolean(quote) && secondsLeft <= 0;
 
   return (
