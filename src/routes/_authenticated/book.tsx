@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
 import { createQuote, requestRide, reverseGeocode } from "@/lib/rides.functions";
@@ -108,6 +108,42 @@ function BookPage() {
       // Coordinates remain the source of truth even if the label lookup fails.
     }
   }
+
+  // Pickup defaults to where the phone says you are; you only type where to.
+  const useCurrentLocation = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocating(false);
+      setLocateError("This device can't share your location — drop the pickup pin on the map.");
+      return;
+    }
+    setLocating(true);
+    setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+        setPickup({ ...point, label: "Current location" });
+        setLocating(false);
+        quoting.reset();
+        try {
+          const resolved = await reverse({ data: point });
+          setPickup({ ...point, label: resolved.label, address: resolved.address });
+        } catch {
+          // Coordinates stay authoritative even without a friendly name.
+        }
+      },
+      () => {
+        setLocating(false);
+        setLocateError("We couldn't read your location — drop the pickup pin on the map instead.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reverse]);
+
+  useEffect(() => {
+    useCurrentLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const expired = Boolean(quote) && secondsLeft <= 0;
 
