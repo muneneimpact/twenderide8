@@ -436,3 +436,143 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { withdrawal: created };
   });
+
+/**
+ * Open marketplace board: every ride still searching for a driver.
+ * Only approved, authorised drivers with an approved vehicle may see it.
+ */
+export const listOpenRides = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { expireStaleDispatch } = await import("./dispatch.server");
+
+    const { data: driver } = await supabaseAdmin
+      .from("drivers")
+      .select("status, active_vehicle_id")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!driver || driver.status !== "approved") {
+      return { eligible: false, reason: "Your driver account is not approved yet.", rides: [] };
+    }
+    if (!driver.active_vehicle_id) {
+      return { eligible: false, reason: "Select an active vehicle first.", rides: [] };
+    }
+    const { data: authorised } = await supabaseAdmin.rpc("may_drive_vehicle", {
+      _user_id: context.userId,
+      _vehicle_id: driver.active_vehicle_id,
+    });
+    if (!authorised) {
+      return {
+        eligible: false,
+        reason: "You are not authorised on this vehicle yet — operations must approve it.",
+        rides: [],
+      };
+    }
+
+    await expireStaleDispatch();
+    const { data: rides } = await supabaseAdmin
+      .from("rides")
+      .select("id, reference, total_fare, payment_method, requested_at, quote_id")
+      .eq("status", "searching")
+      .order("requested_at", { ascending: true })
+      .limit(20);
+
+    const quoteIds = (rides ?? []).map((r) => r.quote_id);
+    const { data: quotes } = quoteIds.length
+      ? await supabaseAdmin
+          .from("route_quotes")
+          .select(
+            "id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, distance_km, duration_minutes, vehicle_class",
+          )
+          .in("id", quoteIds)
+      : { data: [] };
+
+    return {
+      eligible: true,
+      reason: null as string | null,
+      rides: (rides ?? []).map((ride) => {
+        const quote = (quotes ?? []).find((q) => q.id === ride.quote_id) ?? null;
+        return {
+          id: ride.id,
+          reference: ride.reference,
+          total_fare: Number(ride.total_fare),
+          payment_method: ride.payment_method,
+          requested_at: ride.requested_at,
+          vehicle_class: quote?.vehicle_class ?? null,
+          pickup_address: quote?.pickup_address ?? null,
+          dropoff_address: quote?.dropoff_address ?? null,
+          distance_km: quote ? Number(quote.distance_km) : null,
+          duration_minutes: quote ? Number(quote.duration_minutes) : null,
+          pickup: quote ? { lat: Number(quote.pickup_lat), lng: Number(quote.pickup_lng) } : null,
+          dropoff: quote ? { lat: Number(quote.dropoff_lat), lng: Number(quote.dropoff_lng) } : null,
+        };
+      }),
+    };
+  });
+
+/**
+ * Claim a ride straight from the open board. A short-lived offer is written
+ * first so the same atomic database function decides the winner.
+ */
+export const claimRide = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ rideId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { notify, audit } = await import("./notifications.server");
+
+    const { data: driver } = await supabaseAdmin
+      .from("drivers")
+      .select("status, active_vehicle_id")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!driver || driver.status !== "approved" || !driver.active_vehicle_id) {
+      return { ok: false, reason: "You are not cleared to accept rides yet.", ride_id: null };
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from("driver_offers")
+      .select("id")
+      .eq("ride_id", data.rideId)
+      .eq("driver_id", context.userId)
+      .eq("status", "offered")
+      .maybeSingle();
+    if (!existing) {
+      const { error: offerError } = await supabaseAdmin.from("driver_offers").insert({
+        ride_id: data.rideId,
+        driver_id: context.userId,
+        vehicle_id: driver.active_vehicle_id,
+        status: "offered",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      });
+      if (offerError) return { ok: false, reason: offerError.message, ride_id: null };
+    }
+
+    const { data: result, error } = await supabaseAdmin.rpc("accept_ride_offer", {
+      _ride_id: data.rideId,
+      _driver_id: context.userId,
+      _vehicle_id: driver.active_vehicle_id,
+      _grace_seconds: 120,
+    });
+    if (error) return { ok: false, reason: error.message, ride_id: null };
+    const ride = Array.isArray(result) ? result[0] : result;
+    if (!ride) return { ok: false, reason: "Another driver already took this ride.", ride_id: null };
+
+    await supabaseAdmin.from("ride_status_events").insert({
+      ride_id: ride.id,
+      status: "driver_assigned",
+      actor_id: context.userId,
+      actor_role: "driver",
+    });
+    await notify({
+      userId: ride.customer_id,
+      templateCode: "driver_assigned",
+      title: "Driver on the way",
+      body: `A driver accepted ride ${ride.reference} and is heading to your pickup point.`,
+      rideId: ride.id,
+      critical: true,
+    });
+    await audit(context.userId, "open_ride_claimed", "ride", ride.id, {});
+    return { ok: true, reason: "assigned", ride_id: ride.id };
+  });
