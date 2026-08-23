@@ -13,8 +13,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedBookRouteImport } from './routes/_authenticated/book'
+import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/fleet'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminFinanceRouteImport } from './routes/_authenticated/admin/finance'
+import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin/pricing'
+import { Route as AuthenticatedAdminStaffRouteImport } from './routes/_authenticated/admin/staff'
 import { Route as AuthenticatedDriverIndexRouteImport } from './routes/_authenticated/driver/index'
 import { Route as AuthenticatedDriverApplyRouteImport } from './routes/_authenticated/driver/apply'
 import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authenticated/driver/wallet'
@@ -40,6 +43,11 @@ const AuthenticatedBookRoute = AuthenticatedBookRouteImport.update({
   path: '/book',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedFleetRoute = AuthenticatedFleetRouteImport.update({
+  id: '/fleet',
+  path: '/fleet',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
@@ -51,6 +59,17 @@ const AuthenticatedAdminFinanceRoute =
     path: '/admin/finance',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminPricingRoute =
+  AuthenticatedAdminPricingRouteImport.update({
+    id: '/admin/pricing',
+    path: '/admin/pricing',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminStaffRoute = AuthenticatedAdminStaffRouteImport.update({
+  id: '/admin/staff',
+  path: '/admin/staff',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDriverIndexRoute =
   AuthenticatedDriverIndexRouteImport.update({
     id: '/driver/',
@@ -85,7 +104,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/book': typeof AuthenticatedBookRoute
+  '/fleet': typeof AuthenticatedFleetRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
+  '/admin/pricing': typeof AuthenticatedAdminPricingRoute
+  '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -97,7 +119,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/book': typeof AuthenticatedBookRoute
+  '/fleet': typeof AuthenticatedFleetRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
+  '/admin/pricing': typeof AuthenticatedAdminPricingRoute
+  '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -111,7 +136,10 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/book': typeof AuthenticatedBookRoute
+  '/_authenticated/fleet': typeof AuthenticatedFleetRoute
   '/_authenticated/admin/finance': typeof AuthenticatedAdminFinanceRoute
+  '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
+  '/_authenticated/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/_authenticated/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/_authenticated/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -125,7 +153,10 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/book'
+    | '/fleet'
     | '/admin/finance'
+    | '/admin/pricing'
+    | '/admin/staff'
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
@@ -137,7 +168,10 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/book'
+    | '/fleet'
     | '/admin/finance'
+    | '/admin/pricing'
+    | '/admin/staff'
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
@@ -150,7 +184,10 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/book'
+    | '/_authenticated/fleet'
     | '/_authenticated/admin/finance'
+    | '/_authenticated/admin/pricing'
+    | '/_authenticated/admin/staff'
     | '/_authenticated/driver/apply'
     | '/_authenticated/driver/wallet'
     | '/_authenticated/rides/$rideId'
@@ -195,6 +232,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBookRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/fleet': {
+      id: '/_authenticated/fleet'
+      path: '/fleet'
+      fullPath: '/fleet'
+      preLoaderRoute: typeof AuthenticatedFleetRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/admin'
@@ -207,6 +251,20 @@ declare module '@tanstack/react-router' {
       path: '/admin/finance'
       fullPath: '/admin/finance'
       preLoaderRoute: typeof AuthenticatedAdminFinanceRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/pricing': {
+      id: '/_authenticated/admin/pricing'
+      path: '/admin/pricing'
+      fullPath: '/admin/pricing'
+      preLoaderRoute: typeof AuthenticatedAdminPricingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/staff': {
+      id: '/_authenticated/admin/staff'
+      path: '/admin/staff'
+      fullPath: '/admin/staff'
+      preLoaderRoute: typeof AuthenticatedAdminStaffRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/driver/': {
@@ -249,7 +307,10 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedBookRoute: typeof AuthenticatedBookRoute
+  AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
   AuthenticatedAdminFinanceRoute: typeof AuthenticatedAdminFinanceRoute
+  AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
+  AuthenticatedAdminStaffRoute: typeof AuthenticatedAdminStaffRoute
   AuthenticatedDriverApplyRoute: typeof AuthenticatedDriverApplyRoute
   AuthenticatedDriverWalletRoute: typeof AuthenticatedDriverWalletRoute
   AuthenticatedRidesRideIdRoute: typeof AuthenticatedRidesRideIdRoute
@@ -260,7 +321,10 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBookRoute: AuthenticatedBookRoute,
+  AuthenticatedFleetRoute: AuthenticatedFleetRoute,
   AuthenticatedAdminFinanceRoute: AuthenticatedAdminFinanceRoute,
+  AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
+  AuthenticatedAdminStaffRoute: AuthenticatedAdminStaffRoute,
   AuthenticatedDriverApplyRoute: AuthenticatedDriverApplyRoute,
   AuthenticatedDriverWalletRoute: AuthenticatedDriverWalletRoute,
   AuthenticatedRidesRideIdRoute: AuthenticatedRidesRideIdRoute,
