@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
-import { createQuote, requestRide, reverseGeocode } from "@/lib/rides.functions";
+import { createQuote, estimateClasses, requestRide, reverseGeocode } from "@/lib/rides.functions";
 import { PlaceSearch } from "@/components/PlaceSearch";
 
 export const Route = createFileRoute("/_authenticated/book")({
@@ -23,7 +23,14 @@ export const Route = createFileRoute("/_authenticated/book")({
   component: BookPage,
 });
 
-type VehicleClass = "economy" | "comfort" | "xl";
+type VehicleClass = "boda" | "economy" | "comfort" | "xl";
+
+const CLASS_LABELS: Record<VehicleClass, { name: string; hint: string }> = {
+  boda: { name: "Boda", hint: "One rider, quickest" },
+  economy: { name: "Economy", hint: "Everyday saloon car" },
+  comfort: { name: "Comfort", hint: "Newer, roomier car" },
+  xl: { name: "XL", hint: "Up to 6 seats" },
+};
 
 interface Point {
   lat: number;
@@ -40,6 +47,7 @@ function label(point: Point | null) {
 function BookPage() {
   const navigate = useNavigate();
   const reverse = useServerFn(reverseGeocode);
+  const estimateFn = useServerFn(estimateClasses);
   const quoteFn = useServerFn(createQuote);
   const requestFn = useServerFn(requestRide);
 
@@ -62,6 +70,16 @@ function BookPage() {
           dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
           vehicleClass,
           pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
+        },
+      }),
+  });
+
+  const estimating = useMutation({
+    mutationFn: () =>
+      estimateFn({
+        data: {
+          pickup: { lat: pickup!.lat, lng: pickup!.lng },
+          dropoff: { lat: dropoff!.lat, lng: dropoff!.lng },
         },
       }),
   });
@@ -145,6 +163,14 @@ function BookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Price every vehicle class as soon as both ends of the trip are known.
+  useEffect(() => {
+    if (!pickup || !dropoff) return;
+    estimating.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
+
+  const estimates = estimating.data?.options ?? [];
   const expired = Boolean(quote) && secondsLeft <= 0;
 
   return (
@@ -227,25 +253,61 @@ function BookPage() {
         </dl>
 
         <div className="mt-4">
-          <span className="text-xs font-medium text-muted-foreground">Vehicle</span>
-          <div className="mt-1 flex gap-2">
-            {(["economy", "comfort", "xl"] as const).map((option) => (
-              <button
-                key={option}
-                onClick={() => {
-                  setVehicleClass(option);
-                  quoting.reset();
-                }}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium capitalize transition-colors ${
-                  vehicleClass === option
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground"
-                }`}
-              >
-                {option}
-              </button>
-            ))}
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-xs font-medium text-muted-foreground">Choose your ride</span>
+            {estimating.isPending ? (
+              <span className="text-xs text-muted-foreground">Checking prices…</span>
+            ) : estimating.data ? (
+              <span className="text-xs text-muted-foreground">
+                {estimating.data.distance_km.toFixed(1)} km · {Math.round(estimating.data.duration_minutes)} min
+              </span>
+            ) : null}
           </div>
+          <div className="mt-2 space-y-2">
+            {(["boda", "economy", "comfort", "xl"] as const).map((option) => {
+              const priced = estimates.find((item) => item.vehicleClass === option);
+              const selected = vehicleClass === option;
+              const unavailable = priced ? !priced.available : false;
+              return (
+                <button
+                  key={option}
+                  disabled={unavailable}
+                  onClick={() => {
+                    setVehicleClass(option);
+                    quoting.reset();
+                  }}
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
+                    selected
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-card"
+                  } disabled:opacity-45`}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground">
+                      {CLASS_LABELS[option].name}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {unavailable ? "Not available on this route" : CLASS_LABELS[option].hint}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    {priced && priced.available ? (
+                      <span className="font-display text-base font-semibold text-foreground">
+                        KES {priced.total.toFixed(0)}
+                      </span>
+                    ) : estimating.isPending ? (
+                      <span className="text-xs text-muted-foreground">…</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {estimating.isError ? (
+            <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
+          ) : null}
         </div>
 
         <label className="mt-4 block">
@@ -283,8 +345,7 @@ function BookPage() {
 
             <ul className="mt-3 space-y-1 text-sm">
               {[
-                { label: "Base fare", amount: quote.breakdown.base_fare },
-                { label: "Booking fee", amount: quote.breakdown.booking_fee },
+                { label: "Booking fee", amount: quote.breakdown.booking_fee + quote.breakdown.base_fare },
                 { label: "Distance", amount: quote.breakdown.distance_charge },
                 { label: "Long-distance saving", amount: -quote.breakdown.long_distance_saving },
                 { label: "Time", amount: quote.breakdown.time_charge },
@@ -292,10 +353,6 @@ function BookPage() {
                   label: modifier.label,
                   amount: modifier.amount,
                 })),
-                {
-                  label: "Rounding",
-                  amount: quote.breakdown.total_fare - quote.breakdown.unrounded_total,
-                },
               ]
                 .filter((line) => Math.abs(line.amount) >= 0.005)
                 .map((line) => (
@@ -329,6 +386,12 @@ function BookPage() {
                 ))}
               </div>
             </div>
+
+            <p className="mt-2 rounded-2xl bg-secondary px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+              {paymentMethod === "stk_push"
+                ? "Paying by M-PESA here settles the whole trip. Get in, get out — nothing more to pay the driver."
+                : "Cash means you still settle with the driver at the end of the trip. Pay by M-PESA now to avoid extra charges later."}
+            </p>
 
             {paymentMethod === "stk_push" && (
               <label className="mt-3 block">

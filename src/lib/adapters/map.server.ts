@@ -49,6 +49,61 @@ function estimateRoute(from: LatLng, to: LatLng): RouteResult {
   };
 }
 
+/**
+ * Look for a named place within a short walk of the pin (hotel, shop, fuel
+ * station, school…) so the pickup reads like a landmark instead of the town.
+ */
+async function nearestLandmark(point: LatLng): Promise<PlaceResult | null> {
+  const query =
+    `[out:json][timeout:8];(` +
+    `node(around:150,${point.lat},${point.lng})["name"]["amenity"];` +
+    `node(around:150,${point.lat},${point.lng})["name"]["shop"];` +
+    `node(around:150,${point.lat},${point.lng})["name"]["tourism"];` +
+    `way(around:150,${point.lat},${point.lng})["name"]["building"~"commercial|retail|hotel|hospital|school"];` +
+    `);out center 12;`;
+  try {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": USER_AGENT },
+      body: `data=${encodeURIComponent(query)}`,
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as {
+      elements?: {
+        lat?: number;
+        lon?: number;
+        center?: { lat: number; lon: number };
+        tags?: Record<string, string>;
+      }[];
+    };
+    const candidates = (body.elements ?? [])
+      .map((element) => {
+        const lat = element.lat ?? element.center?.lat;
+        const lon = element.lon ?? element.center?.lon;
+        const name = element.tags?.["name"];
+        if (lat == null || lon == null || !name) return null;
+        const kind =
+          element.tags?.["amenity"] ?? element.tags?.["shop"] ?? element.tags?.["tourism"] ?? "place";
+        return { name, kind, lat, lon, distance: haversineKm(point, { lat, lng: lon }) };
+      })
+      .filter((value): value is NonNullable<typeof value> => value !== null)
+      .sort((a, b) => a.distance - b.distance);
+
+    const best = candidates[0];
+    if (!best) return null;
+    const metres = Math.round(best.distance * 1000);
+    return {
+      label: metres <= 25 ? best.name : `Near ${best.name}`,
+      address: `${best.name} (${best.kind.replace(/_/g, " ")}) · about ${metres} m away`,
+      lat: point.lat,
+      lng: point.lng,
+      kind: "landmark",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const openMapProvider: MapProvider = {
   name: "osm",
   async route(from, to) {
@@ -110,16 +165,39 @@ export const openMapProvider: MapProvider = {
     }
   },
   async reverse(point) {
+    // A pin should read like a place you'd tell a driver — a hotel, shop,
+    // petrol station or road — not just the town name.
+    const landmark = await nearestLandmark(point);
+    if (landmark) return landmark;
+
     const url =
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1` +
       `&lat=${point.lat}&lon=${point.lng}`;
     try {
       const response = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
       if (!response.ok) return null;
-      const item = (await response.json()) as { display_name?: string; name?: string };
+      const item = (await response.json()) as {
+        display_name?: string;
+        name?: string;
+        address?: Record<string, string>;
+      };
       if (!item.display_name) return null;
+      const a = item.address ?? {};
+      const specific =
+        (item.name && item.name.length > 0 ? item.name : null) ??
+        a["amenity"] ??
+        a["shop"] ??
+        a["tourism"] ??
+        a["building"] ??
+        a["office"] ??
+        a["leisure"] ??
+        a["road"] ??
+        a["neighbourhood"] ??
+        a["suburb"] ??
+        item.display_name.split(",")[0]!;
+      const context = a["road"] && specific !== a["road"] ? `${specific}, ${a["road"]}` : specific;
       return {
-        label: item.name && item.name.length > 0 ? item.name : item.display_name.split(",")[0]!,
+        label: context,
         address: item.display_name,
         lat: point.lat,
         lng: point.lng,
@@ -129,6 +207,7 @@ export const openMapProvider: MapProvider = {
       return null;
     }
   },
+
 };
 
 export function getMapProvider(): MapProvider {

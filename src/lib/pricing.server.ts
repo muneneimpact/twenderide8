@@ -57,7 +57,7 @@ function inWindow(start: string | null, end: string | null, now: number): boolea
 }
 
 export async function loadPricingContext(
-  vehicleClass: "economy" | "comfort" | "xl",
+  vehicleClass: "boda" | "economy" | "comfort" | "xl",
   now = new Date(),
 ): Promise<PricingContext> {
   const settings = await loadSettings();

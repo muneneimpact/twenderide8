@@ -1,37 +1,33 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 
-const searchSchema = z.object({
-  redirect: z.string().optional(),
-});
-
-export const Route = createFileRoute("/auth")({
-  validateSearch: (search) => searchSchema.parse(search),
-  head: () => ({
-    meta: [
-      { title: "Sign in — Twende Ride Meru" },
-      {
-        name: "description",
-        content:
-          "Sign in or create a Twende Ride account to book taxis in Meru with the fare shown before you request.",
-      },
-      { property: "og:title", content: "Sign in — Twende Ride" },
-      { property: "og:description", content: "Create an account to book taxis in Meru with upfront fares." },
-    ],
-  }),
-  component: AuthPage,
-});
-
-function safePath(value: string | undefined) {
-  if (!value) return "/book";
-  return value.startsWith("/") && !value.startsWith("//") ? value : "/book";
+export interface AuthFormProps {
+  eyebrow: string;
+  heading: string;
+  blurb: string;
+  /** Where to land after a successful sign-in. */
+  destination: string;
+  /** Sign-in only entrances (staff) hide account creation entirely. */
+  allowSignUp: boolean;
+  signUpCta?: string;
+  footer?: React.ReactNode;
 }
 
-function AuthPage() {
+/**
+ * One sign-in surface reused by the customer, driver and staff entrances so
+ * each audience only ever sees the door meant for them.
+ */
+export function AuthForm({
+  eyebrow,
+  heading,
+  blurb,
+  destination,
+  allowSignUp,
+  signUpCta,
+  footer,
+}: AuthFormProps) {
   const navigate = useNavigate();
-  const { redirect } = Route.useSearch();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -39,8 +35,6 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const destination = safePath(redirect);
 
   useEffect(() => {
     let active = true;
@@ -62,12 +56,12 @@ function AuthPage() {
     setError(null);
     setNotice(null);
     try {
-      if (mode === "signup") {
+      if (mode === "signup" && allowSignUp) {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth`,
+            emailRedirectTo: `${window.location.origin}${destination}`,
             data: { full_name: fullName },
           },
         });
@@ -90,36 +84,36 @@ function AuthPage() {
     <main className="flex min-h-screen flex-col justify-center bg-background px-5 py-10">
       <div className="mx-auto w-full max-w-sm">
         <Link to="/" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          Twende Ride
+          {eyebrow}
         </Link>
         <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground">
-          {mode === "signin" ? "Welcome back" : "Create your account"}
+          {mode === "signup" ? (signUpCta ?? "Create your account") : heading}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Your account keeps your ride history, fares and receipts in one place.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{blurb}</p>
 
-        <div className="mt-6 flex gap-2 rounded-lg bg-secondary p-1">
-          {(["signin", "signup"] as const).map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                setMode(key);
-                setError(null);
-                setNotice(null);
-              }}
-              className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                mode === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-              }`}
-            >
-              {key === "signin" ? "Sign in" : "Sign up"}
-            </button>
-          ))}
-        </div>
+        {allowSignUp && (
+          <div className="mt-6 flex gap-2 rounded-2xl bg-secondary p-1">
+            {(["signin", "signup"] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setMode(key);
+                  setError(null);
+                  setNotice(null);
+                }}
+                className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                {key === "signin" ? "Sign in" : "Sign up"}
+              </button>
+            ))}
+          </div>
+        )}
 
         <form onSubmit={submit} className="mt-5 space-y-3">
-          {mode === "signup" && (
+          {allowSignUp && mode === "signup" && (
             <label className="block">
               <span className="text-xs font-medium text-muted-foreground">Full name</span>
               <input
@@ -128,7 +122,7 @@ function AuthPage() {
                 required
                 minLength={2}
                 autoComplete="name"
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
               />
             </label>
           )}
@@ -140,7 +134,7 @@ function AuthPage() {
               onChange={(event) => setEmail(event.target.value)}
               required
               autoComplete="email"
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
             />
           </label>
           <label className="block">
@@ -152,7 +146,7 @@ function AuthPage() {
               required
               minLength={8}
               autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+              className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
             />
           </label>
 
@@ -162,11 +156,13 @@ function AuthPage() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+            className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
           >
-            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : (signUpCta ?? "Create account")}
           </button>
         </form>
+
+        {footer ? <div className="mt-5 text-xs text-muted-foreground">{footer}</div> : null}
       </div>
     </main>
   );

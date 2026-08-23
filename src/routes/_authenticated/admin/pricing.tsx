@@ -430,8 +430,8 @@ function PricingWorkspace() {
           ) : null}
           {savePolicy.data && !savePolicy.data.saved ? (
             <ul className="mt-3 space-y-1 text-xs text-destructive">
-              {savePolicy.data.issues.map((issue) => (
-                <li key={String(issue)}>{String(issue)}</li>
+              {savePolicy.data.issues.map((issue, i) => (
+                <li key={i}>{issue.band ? `${issue.band}: ${issue.message}` : issue.message}</li>
               ))}
             </ul>
           ) : null}
@@ -468,8 +468,8 @@ function PricingWorkspace() {
           </ul>
           {publish.data && !publish.data.published ? (
             <ul className="mt-2 space-y-1 text-xs text-destructive">
-              {publish.data.issues.map((issue) => (
-                <li key={String(issue)}>{String(issue)}</li>
+              {publish.data.issues.map((issue, i) => (
+                <li key={i}>{issue.band ? `${issue.band}: ${issue.message}` : issue.message}</li>
               ))}
             </ul>
           ) : null}

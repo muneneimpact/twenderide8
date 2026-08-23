@@ -194,6 +194,79 @@ function AdminBoard() {
           )}
         </section>
 
+        {/* Fleets */}
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">Fleets ({b.allFleets.length})</h3>
+          {b.allFleets.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">No fleet businesses registered yet.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-border">
+              {b.allFleets.map((fleet) => (
+                <li key={fleet.id} className="py-3">
+                  <p className="text-sm font-medium text-foreground">{fleet.business_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {fleet.status} · owner {who(fleet.owner_id)} ·{" "}
+                    {b.allVehicles.filter((v) => v.fleet_id === fleet.id).length} vehicles
+                  </p>
+                  <Decisions
+                    disabled={review.isPending}
+                    onDecide={(decision) => review.mutate({ kind: "fleet", id: fleet.id, decision })}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Driver register */}
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">All drivers ({b.allDrivers.length})</h3>
+          {b.allDrivers.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">No drivers registered yet.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-border">
+              {b.allDrivers.map((driver) => (
+                <li key={driver.id} className="py-3">
+                  <p className="text-sm font-medium text-foreground">{who(driver.id)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {driver.status} · {driver.is_online ? "online" : "offline"} · {driver.completed_rides} trips ·
+                    rating {Number(driver.rating ?? 5).toFixed(1)}
+                  </p>
+                  <Decisions
+                    disabled={review.isPending}
+                    onDecide={(decision) => review.mutate({ kind: "driver", id: driver.id, decision })}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Vehicle register */}
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">All vehicles ({b.allVehicles.length})</h3>
+          {b.allVehicles.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">No vehicles registered yet.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-border">
+              {b.allVehicles.map((vehicle) => (
+                <li key={vehicle.id} className="py-3">
+                  <p className="text-sm font-medium text-foreground">
+                    {vehicle.plate_number} · {vehicle.vehicle_class}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {vehicle.status} · {[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "no details"}
+                  </p>
+                  <Decisions
+                    disabled={review.isPending}
+                    onDecide={(decision) => review.mutate({ kind: "vehicle", id: vehicle.id, decision })}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {/* Live rides */}
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">

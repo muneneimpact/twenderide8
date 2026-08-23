@@ -11,9 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedBookRouteImport } from './routes/_authenticated/book'
 import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/fleet'
+import { Route as AuthIndexRouteImport } from './routes/auth.index'
+import { Route as AuthAdminRouteImport } from './routes/auth.admin'
+import { Route as AuthDriversRouteImport } from './routes/auth.drivers'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminFinanceRouteImport } from './routes/_authenticated/admin/finance'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin/pricing'
@@ -34,11 +36,6 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthenticatedBookRoute = AuthenticatedBookRouteImport.update({
   id: '/book',
   path: '/book',
@@ -48,6 +45,21 @@ const AuthenticatedFleetRoute = AuthenticatedFleetRouteImport.update({
   id: '/fleet',
   path: '/fleet',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthIndexRoute = AuthIndexRouteImport.update({
+  id: '/auth/',
+  path: '/auth/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthAdminRoute = AuthAdminRouteImport.update({
+  id: '/auth/admin',
+  path: '/auth/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthDriversRoute = AuthDriversRouteImport.update({
+  id: '/auth/drivers',
+  path: '/auth/drivers',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/admin/',
@@ -109,9 +121,11 @@ const ApiPublicBootstrapSuperAdminRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
+  '/auth/admin': typeof AuthAdminRoute
+  '/auth/drivers': typeof AuthDriversRoute
+  '/auth/': typeof AuthIndexRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
@@ -125,9 +139,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
+  '/auth/admin': typeof AuthAdminRoute
+  '/auth/drivers': typeof AuthDriversRoute
+  '/auth': typeof AuthIndexRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
@@ -143,9 +159,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
   '/_authenticated/book': typeof AuthenticatedBookRoute
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
+  '/auth/admin': typeof AuthAdminRoute
+  '/auth/drivers': typeof AuthDriversRoute
+  '/auth/': typeof AuthIndexRoute
   '/_authenticated/admin/finance': typeof AuthenticatedAdminFinanceRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/_authenticated/admin/staff': typeof AuthenticatedAdminStaffRoute
@@ -161,9 +179,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/auth'
     | '/book'
     | '/fleet'
+    | '/auth/admin'
+    | '/auth/drivers'
+    | '/auth/'
     | '/admin/finance'
     | '/admin/pricing'
     | '/admin/staff'
@@ -177,9 +197,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/auth'
     | '/book'
     | '/fleet'
+    | '/auth/admin'
+    | '/auth/drivers'
+    | '/auth'
     | '/admin/finance'
     | '/admin/pricing'
     | '/admin/staff'
@@ -194,9 +216,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
-    | '/auth'
     | '/_authenticated/book'
     | '/_authenticated/fleet'
+    | '/auth/admin'
+    | '/auth/drivers'
+    | '/auth/'
     | '/_authenticated/admin/finance'
     | '/_authenticated/admin/pricing'
     | '/_authenticated/admin/staff'
@@ -212,7 +236,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthAdminRoute: typeof AuthAdminRoute
+  AuthDriversRoute: typeof AuthDriversRoute
+  AuthIndexRoute: typeof AuthIndexRoute
   ApiPublicBootstrapSuperAdminRoute: typeof ApiPublicBootstrapSuperAdminRoute
 }
 
@@ -232,13 +258,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated/book': {
       id: '/_authenticated/book'
       path: '/book'
@@ -252,6 +271,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/fleet'
       preLoaderRoute: typeof AuthenticatedFleetRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/auth/': {
+      id: '/auth/'
+      path: '/auth'
+      fullPath: '/auth/'
+      preLoaderRoute: typeof AuthIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/admin': {
+      id: '/auth/admin'
+      path: '/auth/admin'
+      fullPath: '/auth/admin'
+      preLoaderRoute: typeof AuthAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/drivers': {
+      id: '/auth/drivers'
+      path: '/auth/drivers'
+      fullPath: '/auth/drivers'
+      preLoaderRoute: typeof AuthDriversRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
@@ -360,7 +400,9 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthAdminRoute: AuthAdminRoute,
+  AuthDriversRoute: AuthDriversRoute,
+  AuthIndexRoute: AuthIndexRoute,
   ApiPublicBootstrapSuperAdminRoute: ApiPublicBootstrapSuperAdminRoute,
 }
 export const routeTree = rootRouteImport

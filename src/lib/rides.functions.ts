@@ -11,7 +11,7 @@ const pointSchema = z.object({
 const quoteSchema = z.object({
   pickup: pointSchema,
   dropoff: pointSchema,
-  vehicleClass: z.enum(["economy", "comfort", "xl"]).default("economy"),
+  vehicleClass: z.enum(["boda", "economy", "comfort", "xl"]).default("economy"),
   pickupNotes: z.string().max(400).optional().nullable(),
 });
 
@@ -54,6 +54,53 @@ export const reverseGeocode = createServerFn({ method: "POST" })
       note: "The pin you set is the pickup point. The address is only a description.",
     };
   });
+
+/**
+ * Price the same route for every vehicle class so the customer can compare
+ * before locking one. Nothing is persisted — the binding quote is created
+ * only when a class is chosen.
+ */
+export const estimateClasses = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ pickup: pointSchema, dropoff: pointSchema }).parse(input))
+  .handler(async ({ data }) => {
+    const { getMapProvider } = await import("./adapters/map.server");
+    const { loadPricingContext } = await import("./pricing.server");
+    const { computeFare } = await import("./fare-engine");
+
+    const route = await getMapProvider().route(data.pickup, data.dropoff);
+    if (route.distance_km <= 0) throw new Error("Pickup and destination are too close to price a ride.");
+
+    const classes = ["boda", "economy", "comfort", "xl"] as const;
+    const options: {
+      vehicleClass: (typeof classes)[number];
+      total: number;
+      available: boolean;
+    }[] = [];
+
+    for (const vehicleClass of classes) {
+      try {
+        const pricing = await loadPricingContext(vehicleClass);
+        const breakdown = computeFare({
+          distanceKm: route.distance_km,
+          durationMinutes: route.duration_minutes,
+          config: pricing.config,
+          policy: pricing.policy,
+          modifiers: pricing.modifiers,
+        });
+        options.push({ vehicleClass, total: breakdown.total_fare, available: true });
+      } catch {
+        options.push({ vehicleClass, total: 0, available: false });
+      }
+    }
+
+    return {
+      distance_km: route.distance_km,
+      duration_minutes: route.duration_minutes,
+      options,
+    };
+  });
+
 
 /** Server-authoritative itemised quote with a full pricing snapshot. */
 export const createQuote = createServerFn({ method: "POST" })
