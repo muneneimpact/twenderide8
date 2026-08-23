@@ -43,12 +43,21 @@ export const getOpsBoard = createServerFn({ method: "POST" })
         supabaseAdmin.from("document_types").select("id, code, label, applies_to").eq("active", true),
       ]);
 
+    // Full driver, vehicle and fleet registers so ops can manage, not just approve.
+    const [{ data: allDrivers }, { data: allVehicles }, { data: allFleets }] = await Promise.all([
+      supabaseAdmin.from("drivers").select("*").order("created_at", { ascending: false }).limit(200),
+      supabaseAdmin.from("vehicles").select("*").order("created_at", { ascending: false }).limit(200),
+      supabaseAdmin.from("fleets").select("*").order("created_at", { ascending: false }).limit(100),
+    ]);
+
     // Applicant identity for every pending item so ops reviews a person, not a UUID.
     const applicantIds = [
       ...new Set([
         ...(pendingDrivers ?? []).map((d) => d.id),
         ...(pendingVehicles ?? []).map((v) => v.owner_driver_id).filter((v): v is string => Boolean(v)),
         ...(pendingDocuments ?? []).map((d) => d.subject_user_id).filter((v): v is string => Boolean(v)),
+        ...(allDrivers ?? []).map((d) => d.id),
+        ...(allFleets ?? []).map((f) => f.owner_id),
       ]),
     ];
     const { data: applicants } = applicantIds.length
@@ -70,6 +79,9 @@ export const getOpsBoard = createServerFn({ method: "POST" })
       pendingDocuments: pendingDocuments ?? [],
       documentTypes: documentTypes ?? [],
       applicants: applicants ?? [],
+      allDrivers: allDrivers ?? [],
+      allVehicles: allVehicles ?? [],
+      allFleets: allFleets ?? [],
       incidents: incidents ?? [],
 
       last24h: {
