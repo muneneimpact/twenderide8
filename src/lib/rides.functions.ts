@@ -63,18 +63,23 @@ export const reverseGeocode = createServerFn({ method: "POST" })
 export const estimateClasses = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ pickup: pointSchema, dropoff: pointSchema }).parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { getMapProvider } = await import("./adapters/map.server");
-    const { loadPricingContext } = await import("./pricing.server");
+    const { loadPricingContext, settingNumber } = await import("./pricing.server");
     const { computeFare } = await import("./fare-engine");
+    const { applyDiscount, drawDiscount, nairobiDayKey } = await import("./discounts");
 
     const route = await getMapProvider().route(data.pickup, data.dropoff);
     if (route.distance_km <= 0) throw new Error("Pickup and destination are too close to price a ride.");
 
     const classes = ["boda", "economy", "comfort", "xl"] as const;
+    const day = nairobiDayKey();
     const options: {
       vehicleClass: (typeof classes)[number];
       total: number;
+      total_before_discount: number;
+      discount_percent: number;
+      discount_label: string | null;
       available: boolean;
     }[] = [];
 
@@ -88,9 +93,29 @@ export const estimateClasses = createServerFn({ method: "POST" })
           policy: pricing.policy,
           modifiers: pricing.modifiers,
         });
-        options.push({ vehicleClass, total: breakdown.total_fare, available: true });
+        const discount = drawDiscount(
+          `${context.userId}:${day}:${vehicleClass}`,
+          settingNumber(pricing.settings, "random_discount_max_percent", 20),
+          settingNumber(pricing.settings, "random_discount_chance_percent", 35),
+        );
+        const priced = applyDiscount(breakdown.total_fare, discount?.percent ?? 0);
+        options.push({
+          vehicleClass,
+          total: priced.total_fare,
+          total_before_discount: priced.total_before_discount,
+          discount_percent: priced.discount_percent,
+          discount_label: discount?.label ?? null,
+          available: true,
+        });
       } catch {
-        options.push({ vehicleClass, total: 0, available: false });
+        options.push({
+          vehicleClass,
+          total: 0,
+          total_before_discount: 0,
+          discount_percent: 0,
+          discount_label: null,
+          available: false,
+        });
       }
     }
 
@@ -100,6 +125,7 @@ export const estimateClasses = createServerFn({ method: "POST" })
       options,
     };
   });
+
 
 
 /** Server-authoritative itemised quote with a full pricing snapshot. */
