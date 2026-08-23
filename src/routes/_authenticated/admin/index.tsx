@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { AppShell, adminTabs } from "@/components/AppShell";
+import { RoleGate } from "@/components/RoleGate";
+import { AppShell } from "@/components/AppShell";
 import { getOpsBoard, opsCancelRide, resolveIncident, reviewApproval } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -57,14 +58,14 @@ function AdminBoard() {
 
   if (board.isPending) {
     return (
-      <AppShell title="Operations" tabs={adminTabs} eyebrow="Twende Ops">
+      <AppShell title="Operations" eyebrow="Twende Ops">
         <p className="px-4 py-6 text-sm text-muted-foreground">Loading the board…</p>
       </AppShell>
     );
   }
   if (board.error) {
     return (
-      <AppShell title="Operations" tabs={adminTabs} eyebrow="Twende Ops">
+      <AppShell title="Operations" eyebrow="Twende Ops">
         <p className="px-4 py-6 text-sm text-destructive">{(board.error as Error).message}</p>
       </AppShell>
     );
@@ -77,7 +78,7 @@ function AdminBoard() {
   };
 
   return (
-    <AppShell title="Operations" tabs={adminTabs} eyebrow="Twende Ops">
+    <AppShell title="Operations" eyebrow="Twende Ops">
       <div className="hero-gradient px-4 pb-8 pt-5">
         <div className="mx-auto grid max-w-md grid-cols-2 gap-3">
           {[
