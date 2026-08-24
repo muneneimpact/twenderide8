@@ -289,12 +289,24 @@ function BookPage() {
                     <span className="block truncate text-xs text-muted-foreground">
                       {unavailable ? "Not available on this route" : CLASS_LABELS[option].hint}
                     </span>
+                    {priced && priced.available && priced.discount_percent > 0 ? (
+                      <span className="mt-1 inline-flex rounded-full bg-gold/20 px-2 py-0.5 text-[10px] font-semibold text-gold-foreground">
+                        {priced.discount_label ?? `${priced.discount_percent}% off`}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="shrink-0 text-right">
                     {priced && priced.available ? (
-                      <span className="font-display text-base font-semibold text-foreground">
-                        KES {priced.total.toFixed(0)}
-                      </span>
+                      <>
+                        {priced.discount_percent > 0 ? (
+                          <span className="block text-xs text-muted-foreground line-through">
+                            KES {priced.total_before_discount.toFixed(0)}
+                          </span>
+                        ) : null}
+                        <span className="font-display text-base font-semibold text-foreground">
+                          KES {priced.total.toFixed(0)}
+                        </span>
+                      </>
                     ) : estimating.isPending ? (
                       <span className="text-xs text-muted-foreground">…</span>
                     ) : (
