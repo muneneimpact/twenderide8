@@ -403,10 +403,11 @@ function PricingWorkspace() {
 
           {preview.data?.issues?.length ? (
             <ul className="mt-3 space-y-1 text-xs text-destructive">
-              {preview.data.issues.map((issue) => (
-                <li key={String(issue)}>{String(issue)}</li>
+              {preview.data.issues.map((issue, i) => (
+                <li key={i}>{issue.band ? `${issue.band}: ${issue.message}` : issue.message}</li>
               ))}
             </ul>
+
           ) : null}
           {preview.data?.rows?.length ? (
             <table className="mt-3 w-full text-xs">
