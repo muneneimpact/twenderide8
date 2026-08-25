@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { cancelRide, getRide, rateRide } from "@/lib/rides.functions";
 import { getPaymentStatus, startStkPush } from "@/lib/payments.functions";
 import { playAlert } from "@/lib/audio";
+import { CarBadge } from "@/components/CarBadge";
+import { RideChat } from "@/components/RideChat";
 
 const cancelReasons = [
   "Driver is taking too long",
