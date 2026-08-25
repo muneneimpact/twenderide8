@@ -374,17 +374,28 @@ function DriverHome() {
         {/* Open ride board */}
         <section className="surface-card p-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-foreground">Available ride requests</h3>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Available ride requests</h3>
+              <p className="text-[11px] text-muted-foreground">
+                {openRides.isFetching
+                  ? "Refreshing…"
+                  : openRides.dataUpdatedAt
+                    ? `Updated ${new Date(openRides.dataUpdatedAt).toLocaleTimeString()}`
+                    : "Waiting for requests"}
+              </p>
+            </div>
             <button
               onClick={() => {
                 primeAudio();
                 void openRides.refetch();
               }}
-              className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-muted-foreground"
+              disabled={openRides.isFetching}
+              className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-muted-foreground disabled:opacity-60"
             >
-              Refresh
+              {openRides.isFetching ? "Refreshing…" : "Refresh"}
             </button>
           </div>
+
           {openRides.data && !openRides.data.eligible ? (
             <p className="mt-2 text-xs text-warning">{openRides.data.reason}</p>
           ) : openRides.data && openRides.data.rides.length === 0 ? (
