@@ -5,6 +5,8 @@ import { useEffect } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { MapPanel } from "@/components/MapPanel";
+import { RideChat } from "@/components/RideChat";
+import { CarBadge } from "@/components/CarBadge";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acceptOffer,
