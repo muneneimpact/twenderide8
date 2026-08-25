@@ -37,9 +37,18 @@ export function PlaceSearch({
   const requestId = useRef(0);
   const justPicked = useRef(false);
 
+  // Keep the field in step when the caller picks a place another way (map pin).
   useEffect(() => {
-    const value = query.trim();
-    if (value.length < 3) {
+    if (value != null) setQuery(value);
+  }, [value]);
+
+  useEffect(() => {
+    if (justPicked.current) {
+      justPicked.current = false;
+      return;
+    }
+    const text = query.trim();
+    if (text.length < 3) {
       setResults([]);
       setBusy(false);
       return;
@@ -49,7 +58,7 @@ export function PlaceSearch({
     const timer = window.setTimeout(async () => {
       try {
         const places = (await search({
-          data: { query: value, ...(near ? { near: { lat: near.lat, lng: near.lng } } : {}) },
+          data: { query: text, ...(near ? { near: { lat: near.lat, lng: near.lng } } : {}) },
         })) as FoundPlace[];
         if (id === requestId.current) setResults(places);
       } catch {
@@ -57,10 +66,20 @@ export function PlaceSearch({
       } finally {
         if (id === requestId.current) setBusy(false);
       }
-    }, 250);
+    }, 200);
     return () => window.clearTimeout(timer);
     // near is intentionally read as a value snapshot each keystroke
   }, [query, near?.lat, near?.lng, search]);
+
+  /** One tap is enough: fired on pointer-down so a blur can't swallow it. */
+  function choose(place: FoundPlace) {
+    justPicked.current = true;
+    requestId.current += 1;
+    setResults([]);
+    setBusy(false);
+    setQuery(place.label);
+    onPick(place);
+  }
 
   return (
     <div className="relative">
@@ -71,30 +90,35 @@ export function PlaceSearch({
           setTouched(true);
         }}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+        autoComplete="off"
+        className={`w-full rounded-2xl border bg-background text-foreground outline-none focus:ring-2 focus:ring-ring ${
+          prominent
+            ? "border-2 border-primary/40 px-4 py-4 pr-24 text-lg font-semibold placeholder:font-semibold placeholder:text-foreground/55"
+            : "border-input px-3.5 py-2.5 text-sm"
+        }`}
       />
       {busy ? (
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-secondary px-2 py-1 text-[10px] font-medium text-muted-foreground">
           searching…
         </span>
       ) : null}
 
       {results.length > 0 && (
-        <ul className="glass-strong absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-2xl p-1">
+        <ul className="glass-strong absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-2xl p-1">
           {results.slice(0, 6).map((place) => (
             <li key={`${place.lat},${place.lng},${place.label}`}>
               <button
                 type="button"
-                onClick={() => {
-                  onPick(place);
-                  setQuery(place.label);
-                  setResults([]);
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  choose(place);
                 }}
-                className="block w-full rounded-xl px-3 py-2 text-left text-sm text-foreground hover:bg-accent"
+                onClick={() => choose(place)}
+                className="block w-full rounded-xl px-3 py-3 text-left text-foreground transition-colors hover:bg-accent active:bg-accent"
               >
-                <span className="font-medium">{place.label}</span>
+                <span className="block text-base font-semibold leading-tight">{place.label}</span>
                 {place.address ? (
-                  <span className="block truncate text-xs text-muted-foreground">{place.address}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">{place.address}</span>
                 ) : null}
               </button>
             </li>
@@ -109,3 +133,4 @@ export function PlaceSearch({
     </div>
   );
 }
+
