@@ -271,12 +271,12 @@ function DriverApply() {
             <ul className="mt-3 divide-y divide-border">
               {vehicles.map((v) => (
                 <li key={v.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <div>
-                    <p className="font-medium text-foreground">{v.plate_number}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[v.colour, v.make, v.model].filter(Boolean).join(" ") || v.vehicle_class}
-                    </p>
-                  </div>
+                  <CarBadge
+                    colour={v.colour}
+                    plate={v.plate_number}
+                    detail={[v.colour, v.make, v.model].filter(Boolean).join(" ") || v.vehicle_class}
+                  />
+
                   <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusTone[v.status] ?? ""}`}>
                     {v.status}
                   </span>
