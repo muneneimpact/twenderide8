@@ -518,6 +518,14 @@ function DriverHome() {
             {advancing.isError && (
               <p className="mt-2 text-xs text-destructive">{(advancing.error as Error).message}</p>
             )}
+            <div className="mt-4">
+              <RideChat
+                rideId={activeRide.id}
+                counterpartName={customer?.full_name ?? "your passenger"}
+                counterpartPhone={customer?.phone ?? null}
+              />
+            </div>
+
           </section>
         )}
 
