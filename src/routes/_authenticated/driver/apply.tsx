@@ -135,7 +135,6 @@ function DriverApply() {
   }
 
   const { driver, profile, vehicles, documentTypes, documents } = board.data!;
-  const required = documentTypes.filter((t) => t.required);
   const selectedType = documentTypes.find((t) => t.id === docType) ?? null;
   const photoRequired = Boolean(selectedType?.requires_image);
   const approvedCount = documents.filter((d) => d.status === "approved").length;
