@@ -212,8 +212,8 @@ function DriverApply() {
               className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm uppercase tracking-wide"
             />
 
-            <div className="grid grid-cols-3 gap-2">
-              {(["economy", "comfort", "xl"] as const).map((cls) => (
+            <div className="grid grid-cols-4 gap-2">
+              {(["boda", "economy", "comfort", "xl"] as const).map((cls) => (
                 <button
                   key={cls}
                   onClick={() => setVehicleClass(cls)}
