@@ -51,7 +51,7 @@ export const applyAsDriver = createServerFn({ method: "POST" })
     z
       .object({
         plate_number: z.string().min(4).max(16),
-        vehicle_class: z.enum(["economy", "comfort", "xl"]),
+        vehicle_class: z.enum(["boda", "economy", "comfort", "xl"]),
         make: z.string().max(40).optional(),
         model: z.string().max(40).optional(),
         colour: z.string().max(24).optional(),
