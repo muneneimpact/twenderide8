@@ -104,6 +104,10 @@ function DriverHome() {
         { event: "*", schema: "public", table: "rides", filter: `driver_id=eq.${driverId}` },
         invalidate,
       )
+      // Any new or changed request should refresh the open board straight away.
+      .on("postgres_changes", { event: "*", schema: "public", table: "rides" }, () => {
+        void queryClient.invalidateQueries({ queryKey: ["driver-open-rides"] });
+      })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
