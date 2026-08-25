@@ -204,11 +204,12 @@ function DriverApply() {
           <div className="mt-3 space-y-2">
             <input
               value={plate}
-              onChange={(e) => setPlate(e.target.value.toUpperCase())}
-              placeholder="Number plate e.g. KDA 123A"
+              onChange={(e) => setPlate(formatKenyanPlate(e.target.value))}
+              placeholder="Number plate e.g. KDG 568T"
               maxLength={16}
-              className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
+              className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm uppercase tracking-wide"
             />
+
             <div className="grid grid-cols-3 gap-2">
               {(["economy", "comfort", "xl"] as const).map((cls) => (
                 <button
