@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_authenticated/admin/pricing")({
   ),
 });
 
-type VehicleClass = "economy" | "comfort" | "xl";
+type VehicleClass = "boda" | "economy" | "comfort" | "xl";
 
 interface BandDraft {
   sort_order: number;
