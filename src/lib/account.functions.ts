@@ -70,7 +70,7 @@ export const applyAsDriver = createServerFn({ method: "POST" })
     const { data: vehicle, error } = await supabaseAdmin
       .from("vehicles")
       .insert({
-        plate_number: data.plate_number.toUpperCase().replace(/\s+/g, ""),
+        plate_number: formatKenyanPlate(data.plate_number),
         vehicle_class: data.vehicle_class,
         make: data.make ?? null,
         model: data.model ?? null,
