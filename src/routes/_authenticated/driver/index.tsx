@@ -76,6 +76,10 @@ function DriverHome() {
     queryKey: ["driver-open-rides"],
     queryFn: () => openFn({}),
     refetchInterval: 10000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   const home = useQuery({ queryKey: ["driver-home"], queryFn: () => fetchHome({}), refetchInterval: 15000 });
