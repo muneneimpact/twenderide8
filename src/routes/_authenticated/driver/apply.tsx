@@ -46,7 +46,7 @@ function DriverApply() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [plate, setPlate] = useState("");
-  const [vehicleClass, setVehicleClass] = useState<"economy" | "comfort" | "xl">("economy");
+  const [vehicleClass, setVehicleClass] = useState<"boda" | "economy" | "comfort" | "xl">("economy");
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [colour, setColour] = useState("");
