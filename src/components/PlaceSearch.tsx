@@ -18,17 +18,24 @@ export function PlaceSearch({
   placeholder,
   near,
   onPick,
+  prominent = false,
+  value,
 }: {
   placeholder: string;
   near?: { lat: number; lng: number } | null;
   onPick: (place: FoundPlace) => void;
+  /** Renders the field large and bold — used for the main "Where to?" input. */
+  prominent?: boolean;
+  /** Text to show when the caller already knows the chosen place. */
+  value?: string | null;
 }) {
   const search = useServerFn(searchPlaces);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(value ?? "");
   const [results, setResults] = useState<FoundPlace[]>([]);
   const [busy, setBusy] = useState(false);
   const [touched, setTouched] = useState(false);
   const requestId = useRef(0);
+  const justPicked = useRef(false);
 
   useEffect(() => {
     const value = query.trim();
