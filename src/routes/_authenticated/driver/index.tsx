@@ -313,10 +313,12 @@ function DriverHome() {
                         : "border border-white/20 bg-white/15 text-brand-foreground"
                     }`}
                   >
-                    <span className="font-semibold">{vehicle.plate_number}</span>
-                    <span className="ml-2 opacity-80">
-                      {[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ")}
-                    </span>
+                    <CarBadge
+                      colour={vehicle.colour}
+                      plate={vehicle.plate_number}
+                      detail={[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") || null}
+                    />
+
                     <span className="mt-0.5 block text-xs opacity-75">
                       {vehicle.vehicle_class} · {vehicle.status}
                       {active ? " · active" : ""}
