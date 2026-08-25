@@ -5,6 +5,8 @@ import { useState } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { applyAsDriver, getDriverOnboarding, submitDocument, updateProfile } from "@/lib/account.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { formatKenyanPlate } from "@/lib/plate";
+import { CarBadge } from "@/components/CarBadge";
 
 export const Route = createFileRoute("/_authenticated/driver/apply")({
   head: () => ({
