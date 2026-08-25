@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_authenticated/admin/pricing")({
   ),
 });
 
-type VehicleClass = "economy" | "comfort" | "xl";
+type VehicleClass = "boda" | "economy" | "comfort" | "xl";
 
 interface BandDraft {
   sort_order: number;
@@ -197,7 +197,7 @@ function PricingWorkspace() {
       <div className="hero-gradient px-4 pb-6 pt-5">
         <div className="mx-auto max-w-md">
           <div className="glass flex gap-1 p-1.5">
-            {(["economy", "comfort", "xl"] as const).map((key) => (
+            {(["boda", "economy", "comfort", "xl"] as const).map((key) => (
               <button
                 key={key}
                 onClick={() => setVehicleClass(key)}
@@ -259,26 +259,32 @@ function PricingWorkspace() {
               </select>
             </label>
           </div>
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={() => saveFare.mutate(false)}
-              disabled={saveFare.isPending}
-              className="flex-1 rounded-full border border-input px-3 py-2.5 text-sm font-medium text-foreground disabled:opacity-60"
-            >
-              Save draft
-            </button>
+          <div className="mt-3 space-y-2">
             <button
               onClick={() => saveFare.mutate(true)}
               disabled={saveFare.isPending}
-              className="flex-1 rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              className="w-full rounded-full bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
-              Save & publish
+              {saveFare.isPending ? "Saving…" : `Save & activate ${vehicleClass} pricing now`}
+            </button>
+            <button
+              onClick={() => saveFare.mutate(false)}
+              disabled={saveFare.isPending}
+              className="w-full rounded-full border border-input px-3 py-2.5 text-xs font-medium text-muted-foreground disabled:opacity-60"
+            >
+              Save as draft instead (not charged to customers)
             </button>
           </div>
+          {saveFare.isSuccess ? (
+            <p className="mt-2 text-xs text-success">
+              Saved. Activated prices apply to every new quote immediately.
+            </p>
+          ) : null}
           {saveFare.isError ? (
             <p className="mt-2 text-xs text-destructive">{(saveFare.error as Error).message}</p>
           ) : null}
         </section>
+
 
         {/* Distance bands */}
         <section className="surface-card p-4">

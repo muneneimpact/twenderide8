@@ -75,11 +75,12 @@ function RidesPage() {
           ))}
         </ul>
         <Link
-          to="/driver"
-          className="mt-6 block rounded-full border border-input px-4 py-3 text-center text-sm font-medium text-foreground"
+          to="/book"
+          className="mt-6 block rounded-full bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground"
         >
-          I drive for Twende — open driver console
+          Book another ride
         </Link>
+
       </div>
     </AppShell>
   );

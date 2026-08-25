@@ -61,6 +61,18 @@ export const getDriverHome = createServerFn({ method: "POST" })
       }
     }
 
+    // Contact card for the person being carried, so the driver can chat or call.
+    let customer: { id: string; full_name: string | null; phone: string | null } | null = null;
+    if (activeRide) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, phone")
+        .eq("id", activeRide.customer_id)
+        .maybeSingle();
+      customer = profile ?? { id: activeRide.customer_id, full_name: null, phone: null };
+    }
+
     return {
       driver,
       vehicles: vehicles ?? [],
@@ -69,6 +81,7 @@ export const getDriverHome = createServerFn({ method: "POST" })
       offers: offers ?? [],
       activeRide,
       activeRoute,
+      customer,
       recent: recent ?? [],
     };
   });

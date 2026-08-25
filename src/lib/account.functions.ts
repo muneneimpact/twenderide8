@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { formatKenyanPlate } from "@/lib/plate";
 
 /** Everything the shell needs to decide what a signed-in person may see. */
 export const getMe = createServerFn({ method: "POST" })
@@ -51,7 +52,7 @@ export const applyAsDriver = createServerFn({ method: "POST" })
     z
       .object({
         plate_number: z.string().min(4).max(16),
-        vehicle_class: z.enum(["economy", "comfort", "xl"]),
+        vehicle_class: z.enum(["boda", "economy", "comfort", "xl"]),
         make: z.string().max(40).optional(),
         model: z.string().max(40).optional(),
         colour: z.string().max(24).optional(),
@@ -70,7 +71,7 @@ export const applyAsDriver = createServerFn({ method: "POST" })
     const { data: vehicle, error } = await supabaseAdmin
       .from("vehicles")
       .insert({
-        plate_number: data.plate_number.toUpperCase().replace(/\s+/g, ""),
+        plate_number: formatKenyanPlate(data.plate_number),
         vehicle_class: data.vehicle_class,
         make: data.make ?? null,
         model: data.model ?? null,

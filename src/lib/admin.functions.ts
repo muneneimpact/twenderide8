@@ -570,7 +570,7 @@ export const saveFareConfig = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
-        vehicleClass: z.enum(["economy", "comfort", "xl"]),
+        vehicleClass: z.enum(["boda", "economy", "comfort", "xl"]),
         base_fare: z.number().min(0),
         per_km: z.number().min(0),
         per_minute: z.number().min(0),

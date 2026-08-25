@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { cancelRide, getRide, rateRide } from "@/lib/rides.functions";
 import { getPaymentStatus, startStkPush } from "@/lib/payments.functions";
 import { playAlert } from "@/lib/audio";
+import { CarBadge } from "@/components/CarBadge";
+import { RideChat } from "@/components/RideChat";
 
 const cancelReasons = [
   "Driver is taking too long",
@@ -181,19 +183,37 @@ function RideDetail() {
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold text-foreground">Your driver</h3>
             <p className="mt-1 text-sm text-foreground">{driver?.full_name ?? "Assigned driver"}</p>
-            {driver?.phone && (
-              <a href={`tel:${driver.phone}`} className="mt-1 inline-flex text-sm font-medium text-primary">
-                Call {driver.phone}
-              </a>
-            )}
             {vehicle && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ")} ·{" "}
-                {vehicle.plate_number}
-              </p>
+              <div className="mt-3">
+                <CarBadge
+                  colour={vehicle.colour}
+                  plate={vehicle.plate_number}
+                  detail={[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") || null}
+                />
+              </div>
+            )}
+            {driver?.phone && (
+              <a
+                href={`tel:${driver.phone}`}
+                className="mt-3 block w-full rounded-full bg-success px-4 py-2.5 text-center text-sm font-semibold text-white"
+              >
+                Call driver
+              </a>
             )}
           </section>
         )}
+
+        {driver ? (
+          <div className="mt-4">
+            <RideChat
+              rideId={ride.id}
+              counterpartName={driver.full_name ?? "your driver"}
+              counterpartPhone={driver.phone}
+              closed={ride.status === "trip_completed" || ride.status.startsWith("cancelled")}
+            />
+          </div>
+        ) : null}
+
 
         {ride.payment_method === "stk_push" && !["paid", "not_required"].includes(paymentStatus) && (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">

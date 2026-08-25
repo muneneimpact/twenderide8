@@ -5,6 +5,8 @@ import { useState } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { applyAsDriver, getDriverOnboarding, submitDocument, updateProfile } from "@/lib/account.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { formatKenyanPlate } from "@/lib/plate";
+import { CarBadge } from "@/components/CarBadge";
 
 export const Route = createFileRoute("/_authenticated/driver/apply")({
   head: () => ({
@@ -44,7 +46,7 @@ function DriverApply() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [plate, setPlate] = useState("");
-  const [vehicleClass, setVehicleClass] = useState<"economy" | "comfort" | "xl">("economy");
+  const [vehicleClass, setVehicleClass] = useState<"boda" | "economy" | "comfort" | "xl">("economy");
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [colour, setColour] = useState("");
@@ -135,7 +137,6 @@ function DriverApply() {
   }
 
   const { driver, profile, vehicles, documentTypes, documents } = board.data!;
-  const required = documentTypes.filter((t) => t.required);
   const selectedType = documentTypes.find((t) => t.id === docType) ?? null;
   const photoRequired = Boolean(selectedType?.requires_image);
   const approvedCount = documents.filter((d) => d.status === "approved").length;
@@ -205,13 +206,14 @@ function DriverApply() {
           <div className="mt-3 space-y-2">
             <input
               value={plate}
-              onChange={(e) => setPlate(e.target.value.toUpperCase())}
-              placeholder="Number plate e.g. KDA 123A"
+              onChange={(e) => setPlate(formatKenyanPlate(e.target.value))}
+              placeholder="Number plate e.g. KDG 568T"
               maxLength={16}
-              className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
+              className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm uppercase tracking-wide"
             />
-            <div className="grid grid-cols-3 gap-2">
-              {(["economy", "comfort", "xl"] as const).map((cls) => (
+
+            <div className="grid grid-cols-4 gap-2">
+              {(["boda", "economy", "comfort", "xl"] as const).map((cls) => (
                 <button
                   key={cls}
                   onClick={() => setVehicleClass(cls)}
@@ -269,12 +271,12 @@ function DriverApply() {
             <ul className="mt-3 divide-y divide-border">
               {vehicles.map((v) => (
                 <li key={v.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <div>
-                    <p className="font-medium text-foreground">{v.plate_number}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[v.colour, v.make, v.model].filter(Boolean).join(" ") || v.vehicle_class}
-                    </p>
-                  </div>
+                  <CarBadge
+                    colour={v.colour}
+                    plate={v.plate_number}
+                    detail={[v.colour, v.make, v.model].filter(Boolean).join(" ") || v.vehicle_class}
+                  />
+
                   <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusTone[v.status] ?? ""}`}>
                     {v.status}
                   </span>
@@ -288,9 +290,42 @@ function DriverApply() {
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">3 · Compliance documents</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Required: {required.map((t) => t.label).join(", ") || "none configured"}. National ID, driving licence and
-            certificate of good conduct need a clear photo; the rest only need a reference for now.
+            Tap a document below to add it. National ID, driving licence and certificate of good conduct need a clear
+            photo; the rest only need a reference for now.
           </p>
+          <ul className="mt-3 space-y-1.5">
+            {documentTypes.map((t) => {
+              const mine = documents.find((d) => d.document_type_id === t.id);
+              const selected = docType === t.id;
+              return (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => setDocType(t.id)}
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-left text-sm ${
+                      selected ? "bg-primary/10 ring-1 ring-primary" : "border border-input"
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-foreground">{t.label}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {t.required ? "Required" : "Optional"}
+                        {t.requires_image ? " · photo needed" : ""}
+                      </span>
+                    </span>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
+                        mine ? (statusTone[mine.status] ?? "") : "bg-secondary text-muted-foreground"
+                      }`}
+                    >
+                      {mine ? mine.status : "add"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
           <div className="mt-3 space-y-2">
             <select
               value={docType}

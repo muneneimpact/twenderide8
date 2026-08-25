@@ -5,6 +5,8 @@ import { useEffect } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { MapPanel } from "@/components/MapPanel";
+import { RideChat } from "@/components/RideChat";
+import { CarBadge } from "@/components/CarBadge";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acceptOffer,
@@ -76,6 +78,10 @@ function DriverHome() {
     queryKey: ["driver-open-rides"],
     queryFn: () => openFn({}),
     refetchInterval: 10000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   const home = useQuery({ queryKey: ["driver-home"], queryFn: () => fetchHome({}), refetchInterval: 15000 });
@@ -100,6 +106,10 @@ function DriverHome() {
         { event: "*", schema: "public", table: "rides", filter: `driver_id=eq.${driverId}` },
         invalidate,
       )
+      // Any new or changed request should refresh the open board straight away.
+      .on("postgres_changes", { event: "*", schema: "public", table: "rides" }, () => {
+        void queryClient.invalidateQueries({ queryKey: ["driver-open-rides"] });
+      })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
@@ -187,7 +197,7 @@ function DriverHome() {
     );
   }
 
-  const { driver, vehicles, wallet, offers, activeRide, activeRoute, recent, documents } = home.data!;
+  const { driver, vehicles, wallet, offers, activeRide, activeRoute, customer, recent, documents } = home.data!;
 
   if (!driver) {
     return (
@@ -303,10 +313,12 @@ function DriverHome() {
                         : "border border-white/20 bg-white/15 text-brand-foreground"
                     }`}
                   >
-                    <span className="font-semibold">{vehicle.plate_number}</span>
-                    <span className="ml-2 opacity-80">
-                      {[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ")}
-                    </span>
+                    <CarBadge
+                      colour={vehicle.colour}
+                      plate={vehicle.plate_number}
+                      detail={[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") || null}
+                    />
+
                     <span className="mt-0.5 block text-xs opacity-75">
                       {vehicle.vehicle_class} · {vehicle.status}
                       {active ? " · active" : ""}
@@ -366,17 +378,28 @@ function DriverHome() {
         {/* Open ride board */}
         <section className="surface-card p-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-foreground">Available ride requests</h3>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Available ride requests</h3>
+              <p className="text-[11px] text-muted-foreground">
+                {openRides.isFetching
+                  ? "Refreshing…"
+                  : openRides.dataUpdatedAt
+                    ? `Updated ${new Date(openRides.dataUpdatedAt).toLocaleTimeString()}`
+                    : "Waiting for requests"}
+              </p>
+            </div>
             <button
               onClick={() => {
                 primeAudio();
                 void openRides.refetch();
               }}
-              className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-muted-foreground"
+              disabled={openRides.isFetching}
+              className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-muted-foreground disabled:opacity-60"
             >
-              Refresh
+              {openRides.isFetching ? "Refreshing…" : "Refresh"}
             </button>
           </div>
+
           {openRides.data && !openRides.data.eligible ? (
             <p className="mt-2 text-xs text-warning">{openRides.data.reason}</p>
           ) : openRides.data && openRides.data.rides.length === 0 ? (
@@ -499,6 +522,14 @@ function DriverHome() {
             {advancing.isError && (
               <p className="mt-2 text-xs text-destructive">{(advancing.error as Error).message}</p>
             )}
+            <div className="mt-4">
+              <RideChat
+                rideId={activeRide.id}
+                counterpartName={customer?.full_name ?? "your passenger"}
+                counterpartPhone={customer?.phone ?? null}
+              />
+            </div>
+
           </section>
         )}
 

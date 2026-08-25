@@ -215,31 +215,39 @@ function BookPage() {
         </div>
         {locateError && <p className="mt-2 text-xs text-destructive">{locateError}</p>}
 
-        <div className="mt-3">
-          <PlaceSearch
-            placeholder={placing === "pickup" ? "Search pickup (e.g. Makutano)" : "Where to?"}
-            near={placing === "pickup" ? pickup ?? dropoff : pickup ?? dropoff}
-            onPick={(place) => {
-              const picked: Point = {
-                lat: place.lat,
-                lng: place.lng,
-                label: place.label,
-                address: place.address,
-              };
-              if (placing === "pickup") {
-                setPickup(picked);
-                setPlacing("dropoff");
-              } else {
-                setDropoff(picked);
-              }
-              quoting.reset();
-            }}
-          />
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            Type where you're going, or tap the map to drop the{" "}
+        <div className="mt-4">
+          <p className="font-display text-2xl font-bold leading-tight text-foreground">
+            {placing === "pickup" ? "Set your pickup" : "Where to?"}
+          </p>
+          <div className="mt-2">
+            <PlaceSearch
+              prominent
+              placeholder={placing === "pickup" ? "Search pickup (e.g. Makutano)" : "Type your destination"}
+              near={pickup ?? dropoff}
+              value={placing === "pickup" ? pickup?.label ?? null : dropoff?.label ?? null}
+              onPick={(place) => {
+                const picked: Point = {
+                  lat: place.lat,
+                  lng: place.lng,
+                  label: place.label,
+                  address: place.address,
+                };
+                if (placing === "pickup") {
+                  setPickup(picked);
+                  setPlacing("dropoff");
+                } else {
+                  setDropoff(picked);
+                }
+                quoting.reset();
+              }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Tap a suggestion once to choose it, or tap the map to drop the{" "}
             {placing === "pickup" ? "pickup" : "destination"} pin.
           </p>
         </div>
+
 
         <dl className="mt-4 space-y-1 rounded-lg border border-border bg-card p-3 text-sm">
           <div className="flex justify-between gap-4">
