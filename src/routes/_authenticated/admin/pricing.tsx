@@ -197,7 +197,7 @@ function PricingWorkspace() {
       <div className="hero-gradient px-4 pb-6 pt-5">
         <div className="mx-auto max-w-md">
           <div className="glass flex gap-1 p-1.5">
-            {(["economy", "comfort", "xl"] as const).map((key) => (
+            {(["boda", "economy", "comfort", "xl"] as const).map((key) => (
               <button
                 key={key}
                 onClick={() => setVehicleClass(key)}
