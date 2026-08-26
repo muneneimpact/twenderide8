@@ -99,13 +99,14 @@ export function PlaceSearch({
         }`}
       />
       {busy ? (
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-secondary px-2 py-1 text-[10px] font-medium text-muted-foreground">
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-secondary px-2 py-1 text-[10px] font-medium text-secondary-foreground">
           searching…
         </span>
       ) : null}
 
       {results.length > 0 && (
-        <ul className="glass-strong absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-2xl p-1">
+        <ul className="solid-panel absolute z-30 mt-1 max-h-72 w-full overflow-y-auto p-1">
+
           {results.slice(0, 6).map((place) => (
             <li key={`${place.lat},${place.lng},${place.label}`}>
               <button
