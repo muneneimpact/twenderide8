@@ -158,52 +158,53 @@
   }
 }
 
-/* ---- Twende Ride design system: Meru highland green + matatu gold ---- */
+/* ---- Twende Meru design system: brand green on clean white ---- */
 :root {
   --radius: 1rem;
-  --background: oklch(0.985 0.006 120);
-  --foreground: oklch(0.21 0.03 155);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.19 0.02 155);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.03 155);
+  --card-foreground: oklch(0.19 0.02 155);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.03 155);
-  --primary: oklch(0.42 0.1 158);
-  --primary-foreground: oklch(0.985 0.01 120);
-  --secondary: oklch(0.95 0.02 150);
-  --secondary-foreground: oklch(0.3 0.05 158);
-  --muted: oklch(0.955 0.012 140);
-  --muted-foreground: oklch(0.52 0.03 155);
-  --accent: oklch(0.93 0.06 92);
-  --accent-foreground: oklch(0.32 0.07 80);
+  --popover-foreground: oklch(0.19 0.02 155);
+  --primary: oklch(0.63 0.17 150);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.965 0.015 150);
+  --secondary-foreground: oklch(0.32 0.06 155);
+  --muted: oklch(0.968 0.008 150);
+  --muted-foreground: oklch(0.5 0.02 155);
+  --accent: oklch(0.95 0.05 150);
+  --accent-foreground: oklch(0.32 0.08 155);
   --destructive: oklch(0.55 0.2 25);
-  --destructive-foreground: oklch(0.985 0.01 120);
-  --border: oklch(0.9 0.015 145);
-  --input: oklch(0.9 0.015 145);
-  --ring: oklch(0.42 0.1 158);
-  --brand: oklch(0.42 0.1 158);
-  --brand-foreground: oklch(0.985 0.01 120);
-  --brand-soft: oklch(0.94 0.03 155);
-  --gold: oklch(0.79 0.15 82);
-  --gold-foreground: oklch(0.28 0.06 70);
-  --success: oklch(0.6 0.13 150);
-  --success-foreground: oklch(0.99 0.01 150);
-  --warning: oklch(0.78 0.14 70);
-  --warning-foreground: oklch(0.28 0.06 60);
-  --surface: oklch(0.975 0.01 150);
-  --surface-foreground: oklch(0.24 0.03 155);
-  --sidebar: oklch(0.975 0.01 150);
-  --sidebar-foreground: oklch(0.24 0.03 155);
-  --sidebar-primary: oklch(0.42 0.1 158);
-  --sidebar-primary-foreground: oklch(0.985 0.01 120);
-  --sidebar-accent: oklch(0.94 0.03 155);
-  --sidebar-accent-foreground: oklch(0.3 0.05 158);
-  --sidebar-border: oklch(0.9 0.015 145);
-  --sidebar-ring: oklch(0.42 0.1 158);
-  --gradient-hero: linear-gradient(155deg, oklch(0.34 0.09 160) 0%, oklch(0.45 0.11 155) 55%, oklch(0.62 0.13 120) 100%);
-  --gradient-gold: linear-gradient(120deg, oklch(0.82 0.15 85) 0%, oklch(0.74 0.15 60) 100%);
-  --shadow-card: 0 1px 2px oklch(0.3 0.04 155 / 0.06), 0 8px 24px -12px oklch(0.3 0.04 155 / 0.18);
-  --shadow-sheet: 0 -8px 40px -16px oklch(0.3 0.04 155 / 0.28);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.915 0.008 150);
+  --input: oklch(0.9 0.01 150);
+  --ring: oklch(0.63 0.17 150);
+  --brand: oklch(0.63 0.17 150);
+  --brand-foreground: oklch(1 0 0);
+  --brand-soft: oklch(0.95 0.05 150);
+  --gold: oklch(0.82 0.15 85);
+  --gold-foreground: oklch(0.3 0.06 70);
+  --success: oklch(0.63 0.17 150);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.8 0.14 75);
+  --warning-foreground: oklch(0.3 0.06 60);
+  --surface: oklch(0.98 0.008 150);
+  --surface-foreground: oklch(0.22 0.02 155);
+  --sidebar: oklch(0.98 0.008 150);
+  --sidebar-foreground: oklch(0.22 0.02 155);
+  --sidebar-primary: oklch(0.63 0.17 150);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.95 0.05 150);
+  --sidebar-accent-foreground: oklch(0.32 0.06 155);
+  --sidebar-border: oklch(0.915 0.008 150);
+  --sidebar-ring: oklch(0.63 0.17 150);
+  --gradient-hero: linear-gradient(150deg, oklch(0.55 0.15 152) 0%, oklch(0.63 0.17 150) 60%, oklch(0.72 0.16 145) 100%);
+  --gradient-gold: linear-gradient(120deg, oklch(0.84 0.15 88) 0%, oklch(0.76 0.15 62) 100%);
+  --shadow-card: 0 1px 2px oklch(0.2 0.02 155 / 0.05), 0 10px 26px -14px oklch(0.2 0.02 155 / 0.18);
+  --shadow-sheet: 0 -8px 40px -16px oklch(0.2 0.02 155 / 0.22);
 }
+
 
 body {
   font-family: var(--font-sans);
