@@ -338,23 +338,32 @@ function BookPage() {
         )}
 
 
-        <label className="mt-4 block">
-          <span className="text-xs font-medium text-muted-foreground">Pickup notes (optional)</span>
-          <input
-            value={pickupNotes}
-            onChange={(event) => setPickupNotes(event.target.value)}
-            placeholder="Gate colour, landmark, floor…"
-            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-          />
-        </label>
+        {pickup && dropoff ? (
+          <>
+            <label className="mt-4 block">
+              <span className="text-xs font-medium text-muted-foreground">Pickup notes (optional)</span>
+              <input
+                value={pickupNotes}
+                onChange={(event) => setPickupNotes(event.target.value)}
+                placeholder="Gate colour, landmark, floor…"
+                className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+              />
+            </label>
 
-        <button
-          disabled={!pickup || !dropoff || quoting.isPending}
-          onClick={() => quoting.mutate()}
-          className="mt-4 w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-        >
-          {quoting.isPending ? "Locking your fare…" : quote ? "Recalculate fare" : "Show my fare"}
-        </button>
+            <button
+              disabled={quoting.isPending}
+              onClick={() => quoting.mutate()}
+              className="mt-4 w-full rounded-full bg-primary px-4 py-3.5 text-sm font-bold text-primary-foreground shadow-sm disabled:opacity-60"
+            >
+              {quoting.isPending
+                ? "Locking your fare…"
+                : quote
+                  ? "Recalculate fare"
+                  : `Continue with ${CLASS_LABELS[vehicleClass].name}`}
+            </button>
+          </>
+        ) : null}
+
         {quoting.isError && (
           <p className="mt-2 text-sm text-destructive">{(quoting.error as Error).message}</p>
         )}
