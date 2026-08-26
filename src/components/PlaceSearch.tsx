@@ -48,7 +48,8 @@ export function PlaceSearch({
       return;
     }
     const text = query.trim();
-    if (text.length < 3) {
+    if (text.length < 2) {
+
       setResults([]);
       setBusy(false);
       return;
@@ -66,7 +67,7 @@ export function PlaceSearch({
       } finally {
         if (id === requestId.current) setBusy(false);
       }
-    }, 200);
+    }, 120);
     return () => window.clearTimeout(timer);
     // near is intentionally read as a value snapshot each keystroke
   }, [query, near?.lat, near?.lng, search]);
@@ -98,13 +99,14 @@ export function PlaceSearch({
         }`}
       />
       {busy ? (
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-secondary px-2 py-1 text-[10px] font-medium text-muted-foreground">
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-secondary px-2 py-1 text-[10px] font-medium text-secondary-foreground">
           searching…
         </span>
       ) : null}
 
       {results.length > 0 && (
-        <ul className="glass-strong absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-2xl p-1">
+        <ul className="solid-panel absolute z-30 mt-1 max-h-72 w-full overflow-y-auto p-1">
+
           {results.slice(0, 6).map((place) => (
             <li key={`${place.lat},${place.lng},${place.label}`}>
               <button
@@ -125,7 +127,7 @@ export function PlaceSearch({
           ))}
         </ul>
       )}
-      {touched && !busy && query.trim().length >= 3 && results.length === 0 ? (
+      {touched && !busy && query.trim().length >= 2 && results.length === 0 ? (
         <p className="mt-1 text-xs text-muted-foreground">
           No match yet — keep typing, or drop the pin on the map instead.
         </p>

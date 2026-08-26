@@ -208,7 +208,7 @@ function FinanceBoard() {
             <button
               onClick={() => adjust.mutate()}
               disabled={!walletId || !amount || reason.trim().length < 5 || adjust.isPending}
-              className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               {adjust.isPending ? "Posting…" : "Post ledger entry"}
             </button>

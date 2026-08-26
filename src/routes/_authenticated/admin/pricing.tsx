@@ -548,7 +548,7 @@ function PricingWorkspace() {
             <button
               onClick={() => setting.mutate()}
               disabled={settingKey.trim().length < 2 || setting.isPending}
-              className="w-full rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              className="w-full rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               Save setting
             </button>
