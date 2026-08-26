@@ -103,14 +103,14 @@ function StaffBoard() {
               <button
                 onClick={() => change.mutate(true)}
                 disabled={!email.includes("@") || change.isPending}
-                className="flex-1 rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                className="flex-1 rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
               >
                 Grant
               </button>
               <button
                 onClick={() => change.mutate(false)}
                 disabled={!email.includes("@") || change.isPending}
-                className="flex-1 rounded-full border border-destructive px-3 py-2.5 text-sm font-semibold text-destructive disabled:opacity-50"
+                className="flex-1 rounded-full border border-destructive px-3 py-2.5 text-sm font-semibold text-destructive disabled:opacity-60"
               >
                 Remove
               </button>
