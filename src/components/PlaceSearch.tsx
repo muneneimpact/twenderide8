@@ -48,7 +48,8 @@ export function PlaceSearch({
       return;
     }
     const text = query.trim();
-    if (text.length < 3) {
+    if (text.length < 2) {
+
       setResults([]);
       setBusy(false);
       return;
