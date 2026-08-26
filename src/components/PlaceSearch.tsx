@@ -67,7 +67,7 @@ export function PlaceSearch({
       } finally {
         if (id === requestId.current) setBusy(false);
       }
-    }, 200);
+    }, 120);
     return () => window.clearTimeout(timer);
     // near is intentionally read as a value snapshot each keystroke
   }, [query, near?.lat, near?.lng, search]);
