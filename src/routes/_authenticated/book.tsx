@@ -448,7 +448,7 @@ function BookPage() {
                 requesting.isPending || expired || (paymentMethod === "stk_push" && msisdn.trim().length < 9)
               }
               onClick={() => requesting.mutate()}
-              className="mt-4 w-full rounded-md bg-brand px-4 py-3 text-sm font-semibold text-brand-foreground disabled:opacity-50"
+              className="mt-4 w-full rounded-full bg-brand px-4 py-3.5 text-sm font-bold text-brand-foreground disabled:opacity-60"
             >
               {requesting.isPending ? "Finding a driver…" : "Request this taxi"}
             </button>
