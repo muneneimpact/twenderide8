@@ -127,7 +127,7 @@ export function PlaceSearch({
           ))}
         </ul>
       )}
-      {touched && !busy && query.trim().length >= 3 && results.length === 0 ? (
+      {touched && !busy && query.trim().length >= 2 && results.length === 0 ? (
         <p className="mt-1 text-xs text-muted-foreground">
           No match yet — keep typing, or drop the pin on the map instead.
         </p>
