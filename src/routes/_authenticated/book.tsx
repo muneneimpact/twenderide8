@@ -249,86 +249,94 @@ function BookPage() {
         </div>
 
 
-        <dl className="mt-4 space-y-1 rounded-lg border border-border bg-card p-3 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Pickup</dt>
-            <dd className="text-right text-foreground">{label(pickup)}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Destination</dt>
-            <dd className="text-right text-foreground">{label(dropoff)}</dd>
-          </div>
-        </dl>
+        {dropoff ? (
+          <dl className="mt-4 space-y-1 rounded-2xl border border-border bg-card p-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Pickup</dt>
+              <dd className="text-right text-foreground">{label(pickup)}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Destination</dt>
+              <dd className="text-right text-foreground">{label(dropoff)}</dd>
+            </div>
+          </dl>
+        ) : null}
 
-        <div className="mt-4">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-xs font-medium text-muted-foreground">Choose your ride</span>
-            {estimating.isPending ? (
-              <span className="text-xs text-muted-foreground">Checking prices…</span>
-            ) : estimating.data ? (
-              <span className="text-xs text-muted-foreground">
-                {estimating.data.distance_km.toFixed(1)} km · {Math.round(estimating.data.duration_minutes)} min
-              </span>
+        {/* The ride picker only appears once we know where the customer is going. */}
+        {pickup && dropoff ? (
+          <div className="mt-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-display text-lg font-bold text-foreground">Choose your ride</span>
+              {estimating.isPending ? (
+                <span className="text-xs text-muted-foreground">Checking prices…</span>
+              ) : estimating.data ? (
+                <span className="text-xs text-muted-foreground">
+                  {estimating.data.distance_km.toFixed(1)} km · {Math.round(estimating.data.duration_minutes)} min
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-2 space-y-2">
+              {(["boda", "economy", "comfort", "xl"] as const).map((option) => {
+                const priced = estimates.find((item) => item.vehicleClass === option);
+                const selected = vehicleClass === option;
+                const unavailable = priced ? !priced.available : false;
+                return (
+                  <button
+                    key={option}
+                    disabled={unavailable}
+                    onClick={() => {
+                      setVehicleClass(option);
+                      quoting.reset();
+                    }}
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-colors ${
+                      selected ? "border-primary bg-accent" : "border-border bg-card"
+                    } disabled:opacity-60`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-foreground">
+                        {CLASS_LABELS[option].name}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {unavailable ? "Not available on this route" : CLASS_LABELS[option].hint}
+                      </span>
+                      {priced && priced.available && priced.discount_percent > 0 ? (
+                        <span className="mt-1 inline-flex rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold text-gold-foreground">
+                          {priced.discount_label ?? `${priced.discount_percent}% off`}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="shrink-0 text-right">
+                      {priced && priced.available ? (
+                        <>
+                          {priced.discount_percent > 0 ? (
+                            <span className="block text-xs text-muted-foreground line-through">
+                              KES {priced.total_before_discount.toFixed(0)}
+                            </span>
+                          ) : null}
+                          <span className="font-display text-base font-bold text-foreground">
+                            KES {priced.total.toFixed(0)}
+                          </span>
+                        </>
+                      ) : estimating.isPending ? (
+                        <span className="text-xs text-muted-foreground">…</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {estimating.isError ? (
+              <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
             ) : null}
           </div>
-          <div className="mt-2 space-y-2">
-            {(["boda", "economy", "comfort", "xl"] as const).map((option) => {
-              const priced = estimates.find((item) => item.vehicleClass === option);
-              const selected = vehicleClass === option;
-              const unavailable = priced ? !priced.available : false;
-              return (
-                <button
-                  key={option}
-                  disabled={unavailable}
-                  onClick={() => {
-                    setVehicleClass(option);
-                    quoting.reset();
-                  }}
-                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
-                    selected
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-card"
-                  } disabled:opacity-45`}
-                >
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-foreground">
-                      {CLASS_LABELS[option].name}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {unavailable ? "Not available on this route" : CLASS_LABELS[option].hint}
-                    </span>
-                    {priced && priced.available && priced.discount_percent > 0 ? (
-                      <span className="mt-1 inline-flex rounded-full bg-gold/20 px-2 py-0.5 text-[10px] font-semibold text-gold-foreground">
-                        {priced.discount_label ?? `${priced.discount_percent}% off`}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="shrink-0 text-right">
-                    {priced && priced.available ? (
-                      <>
-                        {priced.discount_percent > 0 ? (
-                          <span className="block text-xs text-muted-foreground line-through">
-                            KES {priced.total_before_discount.toFixed(0)}
-                          </span>
-                        ) : null}
-                        <span className="font-display text-base font-semibold text-foreground">
-                          KES {priced.total.toFixed(0)}
-                        </span>
-                      </>
-                    ) : estimating.isPending ? (
-                      <span className="text-xs text-muted-foreground">…</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {estimating.isError ? (
-            <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
-          ) : null}
-        </div>
+        ) : (
+          <p className="mt-4 rounded-2xl border border-border bg-secondary px-3 py-3 text-sm text-secondary-foreground">
+            Tell us where you're going and we'll show every ride option with its price.
+          </p>
+        )}
+
 
         <label className="mt-4 block">
           <span className="text-xs font-medium text-muted-foreground">Pickup notes (optional)</span>
