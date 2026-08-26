@@ -293,103 +293,106 @@ function DriverApply() {
             Tap a document below to add it. National ID, driving licence and certificate of good conduct need a clear
             photo; the rest only need a reference for now.
           </p>
-          <ul className="mt-3 space-y-1.5">
+          <ul className="mt-3 space-y-2">
             {documentTypes.map((t) => {
               const mine = documents.find((d) => d.document_type_id === t.id);
               const selected = docType === t.id;
+              const needsPhoto = Boolean(t.requires_image);
               return (
-                <li key={t.id}>
+                <li
+                  key={t.id}
+                  className={`overflow-hidden rounded-2xl border ${
+                    selected ? "border-primary bg-accent" : "border-input bg-card"
+                  }`}
+                >
                   <button
                     type="button"
-                    onClick={() => setDocType(t.id)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-left text-sm ${
-                      selected ? "bg-primary/10 ring-1 ring-primary" : "border border-input"
-                    }`}
+                    onClick={() => {
+                      setDocType(selected ? "" : t.id);
+                      setDocRef("");
+                      setDocExpiry("");
+                      setDocFile(null);
+                      addDoc.reset();
+                    }}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate font-medium text-foreground">{t.label}</span>
+                      <span className="block truncate font-semibold text-foreground">{t.label}</span>
                       <span className="block text-xs text-muted-foreground">
                         {t.required ? "Required" : "Optional"}
-                        {t.requires_image ? " · photo needed" : ""}
+                        {needsPhoto ? " · photo needed" : ""}
                       </span>
                     </span>
                     <span
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-                        mine ? (statusTone[mine.status] ?? "") : "bg-secondary text-muted-foreground"
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        mine ? (statusTone[mine.status] ?? "") : "bg-secondary text-secondary-foreground"
                       }`}
                     >
-                      {mine ? mine.status : "add"}
+                      {mine ? mine.status : selected ? "close" : "add"}
                     </span>
                   </button>
+
+                  {/* The form opens right here so nothing has to be scrolled to. */}
+                  {selected && (
+                    <div className="space-y-2 border-t border-border bg-card px-3 py-3">
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        {needsPhoto ? "Photo of the document (required)" : "Photo of the document (optional)"}
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          capture="environment"
+                          onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                          className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground file:mr-3 file:rounded-full file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-foreground"
+                        />
+                      </label>
+                      {docFile && <p className="text-xs text-muted-foreground">Attached: {docFile.name}</p>}
+                      <input
+                        value={docRef}
+                        onChange={(e) => setDocRef(e.target.value)}
+                        placeholder="Document number / reference"
+                        maxLength={80}
+                        className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
+                      />
+                      <label className="block text-xs font-medium text-muted-foreground">
+                        Expiry date (if any)
+                        <input
+                          type="date"
+                          value={docExpiry}
+                          onChange={(e) => setDocExpiry(e.target.value)}
+                          className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground"
+                        />
+                      </label>
+                      {vehicles.length > 0 && (
+                        <select
+                          value={docVehicle}
+                          onChange={(e) => setDocVehicle(e.target.value)}
+                          className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
+                        >
+                          <option value="">Not vehicle-specific</option>
+                          {vehicles.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.plate_number}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        onClick={() => addDoc.mutate()}
+                        disabled={addDoc.isPending || docRef.trim().length < 3 || (needsPhoto && !docFile)}
+                        className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
+                      >
+                        {addDoc.isPending ? "Submitting…" : `Submit ${t.label}`}
+                      </button>
+                      {addDoc.isError && (
+                        <p className="text-xs text-destructive">{(addDoc.error as Error).message}</p>
+                      )}
+                    </div>
+                  )}
                 </li>
               );
             })}
           </ul>
 
-          <div className="mt-3 space-y-2">
-            <select
-              value={docType}
-              onChange={(e) => setDocType(e.target.value)}
-              className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
-            >
-              <option value="">Select document type</option>
-              {documentTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                  {t.required ? " (required)" : ""}
-                </option>
-              ))}
-            </select>
-            <label className="block text-xs text-muted-foreground">
-              {photoRequired ? "Photo of the document (required)" : "Photo of the document (optional)"}
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                capture="environment"
-                onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
-                className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground file:mr-3 file:rounded-full file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-medium"
-              />
-            </label>
-            {docFile && <p className="text-xs text-muted-foreground">Attached: {docFile.name}</p>}
-            <input
-              value={docRef}
-              onChange={(e) => setDocRef(e.target.value)}
-              placeholder="Document number / reference"
-              maxLength={80}
-              className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
-            />
-            <label className="block text-xs text-muted-foreground">
-              Expiry date (if any)
-              <input
-                type="date"
-                value={docExpiry}
-                onChange={(e) => setDocExpiry(e.target.value)}
-                className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground"
-              />
-            </label>
-            {vehicles.length > 0 && (
-              <select
-                value={docVehicle}
-                onChange={(e) => setDocVehicle(e.target.value)}
-                className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
-              >
-                <option value="">Not vehicle-specific</option>
-                {vehicles.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.plate_number}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              onClick={() => addDoc.mutate()}
-              disabled={addDoc.isPending || !docType || docRef.trim().length < 3 || (photoRequired && !docFile)}
-              className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              {addDoc.isPending ? "Submitting…" : "Submit document"}
-            </button>
-            {addDoc.isError && <p className="text-xs text-destructive">{(addDoc.error as Error).message}</p>}
-          </div>
 
           {documents.length > 0 && (
             <ul className="mt-3 divide-y divide-border">
