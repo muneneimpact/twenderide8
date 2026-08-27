@@ -281,8 +281,16 @@ export const requestRide = createServerFn({ method: "POST" })
           pricing: quote.pricing_snapshot,
           distance_km: quote.distance_km,
           duration_minutes: quote.duration_minutes,
+          discount_absorption: {
+            discount_amount: discountAmount,
+            absorbed_by_platform: Number(absorbed.toFixed(2)),
+            nominal_commission: nominalCommission,
+            commission_floor_percent: floorPercent,
+            promise_until: promoUntil,
+          },
           locked_at: new Date().toISOString(),
         } as never,
+
         total_fare: quote.total_fare,
         commission_percent: commissionPercent,
         commission_amount: commissionAmount,
