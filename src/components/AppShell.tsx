@@ -56,7 +56,7 @@ export function AppShell({
         </div>
         <button
           onClick={signOut}
-          className="glass rounded-full px-3.5 py-1.5 text-xs font-medium text-foreground transition-transform active:scale-95"
+          className="rounded-full border border-border bg-secondary px-3.5 py-1.5 text-xs font-medium text-foreground transition-transform active:scale-95"
         >
           Sign out
         </button>
@@ -65,7 +65,7 @@ export function AppShell({
       <div className="flex-1 pb-24">{children}</div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3">
-        <div className="glass-strong mx-auto flex max-w-md gap-1 overflow-x-auto p-1.5 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.25)]">
+        <div className="solid-panel mx-auto flex max-w-md gap-1 overflow-x-auto p-1.5 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.25)]">
           {visibleTabs.map((tab) => (
             <Link
               key={tab.to}

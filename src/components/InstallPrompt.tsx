@@ -28,7 +28,7 @@ export function InstallPrompt() {
 
   return (
     <div className="fixed inset-x-0 bottom-24 z-50 px-3">
-      <div className="glass-strong mx-auto flex max-w-md items-center gap-3 rounded-2xl p-3">
+      <div className="solid-panel mx-auto flex max-w-md items-center gap-3 rounded-2xl p-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">Install Twende Ride</p>
           <p className="truncate text-xs text-muted-foreground">Install the app for faster booking, full screen.</p>
