@@ -246,9 +246,26 @@ export const requestRide = createServerFn({ method: "POST" })
     const settings = await loadSettings();
     const snapshot = quote.pricing_snapshot as unknown as {
       config: { commission_percent: number; cancellation_fee: number; cancellation_free_seconds: number };
+      discount?: { percent: number; amount: number };
     };
     const commissionPercent = Number(snapshot.config.commission_percent);
-    const commissionAmount = Number(((Number(quote.total_fare) * commissionPercent) / 100).toFixed(2));
+    const charged = Number(quote.total_fare);
+    const discountAmount = Number(snapshot.discount?.amount ?? 0);
+    // Launch promise: Twende funds customer discounts out of its own commission
+    // so the driver or fleet still earns the full undiscounted fare. A floor
+    // keeps the platform share positive, and the promise ends on a set date.
+    const promoUntil = String(
+      settings["discount_absorption_until"] ?? new Date(Date.now() + 182 * 86400000).toISOString(),
+    );
+    const absorbing = discountAmount > 0 && Date.now() < new Date(promoUntil).getTime();
+    const nominalCommission = Number((((charged + discountAmount) * commissionPercent) / 100).toFixed(2));
+    const floorPercent = settingNumber(settings, "min_commission_percent", 5);
+    const commissionFloor = Number((((charged + discountAmount) * floorPercent) / 100).toFixed(2));
+    const absorbed = absorbing
+      ? Math.min(discountAmount, Math.max(0, nominalCommission - commissionFloor))
+      : 0;
+    const commissionAmount = Number(Math.max(0, nominalCommission - absorbed).toFixed(2));
+
 
     const { data: ride, error } = await supabaseAdmin
       .from("rides")
@@ -264,8 +281,16 @@ export const requestRide = createServerFn({ method: "POST" })
           pricing: quote.pricing_snapshot,
           distance_km: quote.distance_km,
           duration_minutes: quote.duration_minutes,
+          discount_absorption: {
+            discount_amount: discountAmount,
+            absorbed_by_platform: Number(absorbed.toFixed(2)),
+            nominal_commission: nominalCommission,
+            commission_floor_percent: floorPercent,
+            promise_until: promoUntil,
+          },
           locked_at: new Date().toISOString(),
         } as never,
+
         total_fare: quote.total_fare,
         commission_percent: commissionPercent,
         commission_amount: commissionAmount,
