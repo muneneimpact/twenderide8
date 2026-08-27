@@ -1,10 +1,10 @@
 /**
  * Map provider adapter (server-only).
  *
- * The production provider has not been supplied yet. The default adapter uses
- * open routing/geocoding services so precise pins, routes, and traffic-free
- * durations work today; swapping to a paid provider only requires another
- * implementation of MapProvider.
+ * Production provider: Google Maps Platform, reached through the Lovable
+ * connector gateway (Routes API, Places API New, Geocoding API). If the
+ * gateway or credentials are unavailable the adapter degrades to a
+ * straight-line estimate rather than failing a quote silently.
  */
 import type { LatLng } from "../geo";
 import { haversineKm, MERU_CENTRE } from "../geo";
@@ -33,10 +33,42 @@ export interface MapProvider {
   reverse(point: LatLng): Promise<PlaceResult | null>;
 }
 
-const USER_AGENT = "TwendeRide/1.0 (Meru, Kenya)";
+const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_maps";
+
+function credentials() {
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  const mapsKey = process.env["GOOGLE_MAPS_API_KEY"];
+  if (!lovableKey || !mapsKey) return null;
+  return {
+    Authorization: `Bearer ${lovableKey}`,
+    "X-Connection-Api-Key": mapsKey,
+  } satisfies Record<string, string>;
+}
+
+/** Surfaces the exact Google key restriction problem instead of a bare 500. */
+async function describeFailure(response: Response): Promise<string> {
+  const body = await response.text();
+  if (response.status === 403) {
+    try {
+      const details: Array<{ reason?: string }> =
+        (JSON.parse(body) as { error?: { details?: Array<{ reason?: string }> } }).error?.details ??
+        [];
+      const reason = details.find((detail) => detail.reason)?.reason;
+      if (reason === "API_KEY_HTTP_REFERRER_BLOCKED") {
+        return 'Google Maps server key is referrer-restricted. Set its application restrictions to "None" or "IP addresses".';
+      }
+      if (reason === "API_KEY_SERVICE_BLOCKED") {
+        return "Google Maps server key does not allow this API. Add it to the key's allowed-APIs list.";
+      }
+    } catch {
+      /* fall through to the generic message */
+    }
+  }
+  return `Google Maps request failed [${response.status}]: ${body.slice(0, 300)}`;
+}
 
 /** Straight-line fallback so a provider outage never blocks a quote silently. */
-function estimateRoute(from: LatLng, to: LatLng): RouteResult {
+function estimateRoute(from: LatLng, to: LatLng, note: string): RouteResult {
   const straight = haversineKm(from, to);
   const distance = Number((straight * 1.35).toFixed(3));
   return {
@@ -45,116 +77,111 @@ function estimateRoute(from: LatLng, to: LatLng): RouteResult {
     duration_minutes: Number((distance * 2.6).toFixed(2)),
     traffic_aware: false,
     polyline: null,
-    raw: { note: "Straight-line estimate used because the route provider was unreachable." },
+    raw: { note },
   };
 }
 
-/**
- * Look for a named place within a short walk of the pin (hotel, shop, fuel
- * station, school…) so the pickup reads like a landmark instead of the town.
- */
-async function nearestLandmark(point: LatLng): Promise<PlaceResult | null> {
-  const query =
-    `[out:json][timeout:8];(` +
-    `node(around:150,${point.lat},${point.lng})["name"]["amenity"];` +
-    `node(around:150,${point.lat},${point.lng})["name"]["shop"];` +
-    `node(around:150,${point.lat},${point.lng})["name"]["tourism"];` +
-    `way(around:150,${point.lat},${point.lng})["name"]["building"~"commercial|retail|hotel|hospital|school"];` +
-    `);out center 12;`;
-  try {
-    const response = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": USER_AGENT },
-      body: `data=${encodeURIComponent(query)}`,
-    });
-    if (!response.ok) return null;
-    const body = (await response.json()) as {
-      elements?: {
-        lat?: number;
-        lon?: number;
-        center?: { lat: number; lon: number };
-        tags?: Record<string, string>;
-      }[];
-    };
-    const candidates = (body.elements ?? [])
-      .map((element) => {
-        const lat = element.lat ?? element.center?.lat;
-        const lon = element.lon ?? element.center?.lon;
-        const name = element.tags?.["name"];
-        if (lat == null || lon == null || !name) return null;
-        const kind =
-          element.tags?.["amenity"] ?? element.tags?.["shop"] ?? element.tags?.["tourism"] ?? "place";
-        return { name, kind, lat, lon, distance: haversineKm(point, { lat, lng: lon }) };
-      })
-      .filter((value): value is NonNullable<typeof value> => value !== null)
-      .sort((a, b) => a.distance - b.distance);
-
-    const best = candidates[0];
-    if (!best) return null;
-    const metres = Math.round(best.distance * 1000);
-    return {
-      label: metres <= 25 ? best.name : `Near ${best.name}`,
-      address: `${best.name} (${best.kind.replace(/_/g, " ")}) · about ${metres} m away`,
-      lat: point.lat,
-      lng: point.lng,
-      kind: "landmark",
-    };
-  } catch {
-    return null;
-  }
-}
-
-export const openMapProvider: MapProvider = {
-  name: "osm",
+export const googleMapProvider: MapProvider = {
+  name: "google",
   async route(from, to) {
+    const headers = credentials();
+    if (!headers) {
+      return estimateRoute(from, to, "Google Maps credentials are not configured.");
+    }
     try {
-      const url =
-        `https://router.project-osrm.org/route/v1/driving/` +
-        `${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=polyline`;
-      const response = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
-      if (!response.ok) return estimateRoute(from, to);
+      const response = await fetch(`${GATEWAY_URL}/routes/directions/v2:computeRoutes`, {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "X-Goog-FieldMask":
+            "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
+        },
+        body: JSON.stringify({
+          origin: { location: { latLng: { latitude: from.lat, longitude: from.lng } } },
+          destination: { location: { latLng: { latitude: to.lat, longitude: to.lng } } },
+          travelMode: "DRIVE",
+          routingPreference: "TRAFFIC_AWARE",
+          polylineEncoding: "ENCODED_POLYLINE",
+          regionCode: "KE",
+        }),
+      });
+      if (!response.ok) {
+        return estimateRoute(from, to, await describeFailure(response));
+      }
       const body = (await response.json()) as {
-        routes?: { distance: number; duration: number; geometry?: string }[];
+        routes?: {
+          distanceMeters?: number;
+          duration?: string;
+          polyline?: { encodedPolyline?: string };
+        }[];
       };
       const route = body.routes?.[0];
-      if (!route) return estimateRoute(from, to);
+      if (!route?.distanceMeters) {
+        return estimateRoute(from, to, "Google returned no drivable route.");
+      }
+      const seconds = Number(String(route.duration ?? "0s").replace("s", ""));
       return {
-        provider: "osrm",
-        distance_km: Number((route.distance / 1000).toFixed(3)),
-        duration_minutes: Number((route.duration / 60).toFixed(2)),
-        traffic_aware: false,
-        polyline: route.geometry ?? null,
-        raw: { distance: route.distance, duration: route.duration },
+        provider: "google-routes",
+        distance_km: Number((route.distanceMeters / 1000).toFixed(3)),
+        duration_minutes: Number((seconds / 60).toFixed(2)),
+        traffic_aware: true,
+        polyline: route.polyline?.encodedPolyline ?? null,
+        raw: { distanceMeters: route.distanceMeters, duration: route.duration },
       };
     } catch {
-      return estimateRoute(from, to);
+      return estimateRoute(from, to, "Google Maps was unreachable.");
     }
   },
+
   async search(query, near = MERU_CENTRE) {
-    if (query.trim().length < 3) return [];
-    const viewbox = `${near.lng - 0.6},${near.lat + 0.6},${near.lng + 0.6},${near.lat - 0.6}`;
-    const url =
-      `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8` +
-      `&countrycodes=ke&viewbox=${viewbox}&bounded=0&q=${encodeURIComponent(query)}`;
+    if (query.trim().length < 2) return [];
+    const headers = credentials();
+    if (!headers) return [];
     try {
-      const response = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+      const response = await fetch(`${GATEWAY_URL}/places/v1/places:searchText`, {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "X-Goog-FieldMask":
+            "places.displayName,places.formattedAddress,places.location,places.primaryType",
+        },
+        body: JSON.stringify({
+          textQuery: query,
+          regionCode: "KE",
+          maxResultCount: 8,
+          locationBias: {
+            circle: {
+              center: { latitude: near.lat, longitude: near.lng },
+              radius: 50000,
+            },
+          },
+        }),
+      });
       if (!response.ok) return [];
       const body = (await response.json()) as {
-        display_name: string;
-        name?: string;
-        lat: string;
-        lon: string;
-        type?: string;
-        category?: string;
-      }[];
-      return body
-        .map((item) => ({
-          label: item.name && item.name.length > 0 ? item.name : item.display_name.split(",")[0]!,
-          address: item.display_name,
-          lat: Number(item.lat),
-          lng: Number(item.lon),
-          kind: item.category ?? item.type ?? "place",
-        }))
+        places?: {
+          displayName?: { text?: string };
+          formattedAddress?: string;
+          location?: { latitude: number; longitude: number };
+          primaryType?: string;
+        }[];
+      };
+      return (body.places ?? [])
+        .map((item) => {
+          const lat = item.location?.latitude;
+          const lng = item.location?.longitude;
+          if (lat == null || lng == null) return null;
+          return {
+            label: item.displayName?.text ?? item.formattedAddress ?? "Selected place",
+            address: item.formattedAddress ?? item.displayName?.text ?? "",
+            lat,
+            lng,
+            kind: item.primaryType ?? "place",
+          } satisfies PlaceResult;
+        })
+        .filter((value): value is PlaceResult => value !== null)
         .sort(
           (a, b) =>
             haversineKm(near, { lat: a.lat, lng: a.lng }) -
@@ -164,41 +191,70 @@ export const openMapProvider: MapProvider = {
       return [];
     }
   },
-  async reverse(point) {
-    // A pin should read like a place you'd tell a driver — a hotel, shop,
-    // petrol station or road — not just the town name.
-    const landmark = await nearestLandmark(point);
-    if (landmark) return landmark;
 
-    const url =
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1` +
-      `&lat=${point.lat}&lon=${point.lng}`;
+  async reverse(point) {
+    const headers = credentials();
+    if (!headers) return null;
+
+    // A pin should read like a place you'd tell a driver — a hotel, shop or
+    // road — so we try the nearest named place before the street address.
     try {
-      const response = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+      const nearby = await fetch(`${GATEWAY_URL}/places/v1/places:searchNearby`, {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.location",
+        },
+        body: JSON.stringify({
+          maxResultCount: 3,
+          rankPreference: "DISTANCE",
+          locationRestriction: {
+            circle: { center: { latitude: point.lat, longitude: point.lng }, radius: 200 },
+          },
+        }),
+      });
+      if (nearby.ok) {
+        const body = (await nearby.json()) as {
+          places?: {
+            displayName?: { text?: string };
+            formattedAddress?: string;
+            location?: { latitude: number; longitude: number };
+          }[];
+        };
+        const best = body.places?.[0];
+        const name = best?.displayName?.text;
+        if (best && name) {
+          const lat = best.location?.latitude ?? point.lat;
+          const lng = best.location?.longitude ?? point.lng;
+          const metres = Math.round(haversineKm(point, { lat, lng }) * 1000);
+          return {
+            label: metres <= 30 ? name : `Near ${name}`,
+            address: best.formattedAddress ?? `${name} · about ${metres} m away`,
+            lat: point.lat,
+            lng: point.lng,
+            kind: "landmark",
+          };
+        }
+      }
+    } catch {
+      /* fall back to geocoding below */
+    }
+
+    try {
+      const response = await fetch(
+        `${GATEWAY_URL}/maps/api/geocode/json?latlng=${point.lat},${point.lng}&region=ke`,
+        { headers },
+      );
       if (!response.ok) return null;
-      const item = (await response.json()) as {
-        display_name?: string;
-        name?: string;
-        address?: Record<string, string>;
+      const body = (await response.json()) as {
+        results?: { formatted_address?: string; address_components?: { long_name: string }[] }[];
       };
-      if (!item.display_name) return null;
-      const a = item.address ?? {};
-      const specific =
-        (item.name && item.name.length > 0 ? item.name : null) ??
-        a["amenity"] ??
-        a["shop"] ??
-        a["tourism"] ??
-        a["building"] ??
-        a["office"] ??
-        a["leisure"] ??
-        a["road"] ??
-        a["neighbourhood"] ??
-        a["suburb"] ??
-        item.display_name.split(",")[0]!;
-      const context = a["road"] && specific !== a["road"] ? `${specific}, ${a["road"]}` : specific;
+      const first = body.results?.[0];
+      if (!first?.formatted_address) return null;
       return {
-        label: context,
-        address: item.display_name,
+        label: first.address_components?.[0]?.long_name ?? first.formatted_address.split(",")[0]!,
+        address: first.formatted_address,
         lat: point.lat,
         lng: point.lng,
         kind: "reverse",
@@ -207,11 +263,8 @@ export const openMapProvider: MapProvider = {
       return null;
     }
   },
-
 };
 
 export function getMapProvider(): MapProvider {
-  // A commercial provider key would be read here from process.env inside the
-  // calling handler and returned as an alternative implementation.
-  return openMapProvider;
+  return googleMapProvider;
 }
