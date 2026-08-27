@@ -1,12 +1,12 @@
 /**
  * SMS and email adapters (server-only).
  *
- * PRODUCTION GATE: SMS provider documentation and the verified Resend sender
- * address have not been supplied. Messages are always persisted to the
- * notification outbox; delivery is marked blocked_provider_gate until the
- * provider is configured, so nothing silently claims a delivery that never
- * happened.
+ * SMS goes through TextSMS Kenya, email through Resend. Both are honest: when
+ * credentials are missing the result is blocked_provider_gate, never a
+ * simulated success. Rich, logged, idempotent sending lives in comms.server.ts;
+ * this module is the thin provider boundary.
  */
+import { textSmsConfigured, textSmsSend } from "./textsms.server";
 
 export interface OutboundMessage {
   to: string;
@@ -23,40 +23,48 @@ export interface DeliveryResult {
 }
 
 export function smsConfigured(): boolean {
-  return Boolean(process.env["SMS_API_KEY"] && process.env["SMS_SENDER_ID"]);
+  return textSmsConfigured();
 }
 
 export function emailConfigured(): boolean {
-  return Boolean(process.env["RESEND_API_KEY"] && process.env["RESEND_FROM_EMAIL"]);
+  return Boolean(process.env["RESEND_API_KEY"]);
 }
 
-export async function sendSms(_message: OutboundMessage): Promise<DeliveryResult> {
-  if (!smsConfigured()) {
+export async function sendSms(message: OutboundMessage): Promise<DeliveryResult> {
+  if (!textSmsConfigured()) {
     return {
       delivered: false,
       status: "blocked_provider_gate",
-      provider: "unconfigured",
-      message: "SMS provider documentation and credentials are not configured yet.",
+      provider: "textsms",
+      message: "TextSMS credentials are not configured yet, so no SMS was sent.",
     };
   }
-  // Real provider call is added here once the documentation is supplied.
-  return {
-    delivered: false,
-    status: "blocked_provider_gate",
-    provider: "unconfigured",
-    message: "SMS credentials are present but no provider contract has been implemented yet.",
-  };
+  try {
+    const result = await textSmsSend(message.to, message.body);
+    return {
+      delivered: result.accepted,
+      status: result.accepted ? "sent" : "failed",
+      provider: "textsms",
+      message: result.description,
+    };
+  } catch (error) {
+    return {
+      delivered: false,
+      status: "failed",
+      provider: "textsms",
+      message: error instanceof Error ? error.message : "SMS provider unreachable.",
+    };
+  }
 }
 
 export async function sendEmail(message: OutboundMessage): Promise<DeliveryResult> {
   const apiKey = process.env["RESEND_API_KEY"];
-  const from = process.env["RESEND_FROM_EMAIL"];
-  if (!apiKey || !from) {
+  if (!apiKey) {
     return {
       delivered: false,
       status: "blocked_provider_gate",
       provider: "resend",
-      message: "Resend API key or verified sender address is not configured yet.",
+      message: "Resend API key is not configured yet.",
     };
   }
   try {
@@ -64,19 +72,23 @@ export async function sendEmail(message: OutboundMessage): Promise<DeliveryResul
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from,
+        from: "Twende Meru Rides <ride@twendemeru.co.ke>",
         to: [message.to],
-        subject: message.subject ?? "Twende Ride",
+        reply_to: "ride@twendemeru.co.ke",
+        subject: message.subject ?? "Twende Meru Rides",
         text: message.body,
-        reply_to: process.env["RESEND_REPLY_TO"] ?? undefined,
       }),
     });
     if (!response.ok) {
+      const detail = await response.text();
       return {
         delivered: false,
         status: "failed",
         provider: "resend",
-        message: `Email provider rejected the message (status ${response.status}).`,
+        message:
+          response.status === 403
+            ? "Resend rejected the send: twendemeru.co.ke still needs DNS verification."
+            : `Email provider rejected the message (status ${response.status}). ${detail.slice(0, 160)}`,
       };
     }
     return { delivered: true, status: "sent", provider: "resend", message: "Email sent." };
