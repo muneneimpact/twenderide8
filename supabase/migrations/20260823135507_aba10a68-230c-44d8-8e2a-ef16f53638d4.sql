@@ -1,1 +1,0 @@
-ALTER TYPE public.vehicle_class ADD VALUE IF NOT EXISTS 'boda' BEFORE 'economy';
