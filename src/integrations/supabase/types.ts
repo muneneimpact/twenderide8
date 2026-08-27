@@ -47,6 +47,90 @@ export type Database = {
         }
         Relationships: []
       }
+      comms_log: {
+        Row: {
+          attempts: number
+          channel: string
+          created_at: string
+          delivered_at: string | null
+          error_description: string | null
+          event_type: string
+          id: string
+          idempotency_key: string
+          network_id: string | null
+          payment_intent_id: string | null
+          provider: string
+          provider_message_id: string | null
+          recipient: string
+          response_code: string | null
+          ride_id: string | null
+          sent_at: string | null
+          status: string
+          support_case_id: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          channel: string
+          created_at?: string
+          delivered_at?: string | null
+          error_description?: string | null
+          event_type: string
+          id?: string
+          idempotency_key: string
+          network_id?: string | null
+          payment_intent_id?: string | null
+          provider: string
+          provider_message_id?: string | null
+          recipient: string
+          response_code?: string | null
+          ride_id?: string | null
+          sent_at?: string | null
+          status?: string
+          support_case_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          channel?: string
+          created_at?: string
+          delivered_at?: string | null
+          error_description?: string | null
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          network_id?: string | null
+          payment_intent_id?: string | null
+          provider?: string
+          provider_message_id?: string | null
+          recipient?: string
+          response_code?: string | null
+          ride_id?: string | null
+          sent_at?: string | null
+          status?: string
+          support_case_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comms_log_payment_intent_id_fkey"
+            columns: ["payment_intent_id"]
+            isOneToOne: false
+            referencedRelation: "payment_intents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comms_log_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       distance_bands: {
         Row: {
           admin_label: string
@@ -824,6 +908,45 @@ export type Database = {
           },
         ]
       }
+      phone_verifications: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          last_sent_at: string
+          max_attempts: number
+          phone: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_sent_at?: string
+          max_attempts?: number
+          phone: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_sent_at?: string
+          max_attempts?: number
+          phone?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pricing_modifiers: {
         Row: {
           activation: string
@@ -892,6 +1015,7 @@ export type Database = {
           id: string
           locale: string
           phone: string | null
+          phone_verified_at: string | null
           updated_at: string
         }
         Insert: {
@@ -902,6 +1026,7 @@ export type Database = {
           id: string
           locale?: string
           phone?: string | null
+          phone_verified_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -912,6 +1037,7 @@ export type Database = {
           id?: string
           locale?: string
           phone?: string | null
+          phone_verified_at?: string | null
           updated_at?: string
         }
         Relationships: []
