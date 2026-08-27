@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadGoogleMaps } from "@/lib/google-maps";
+import { decodePolyline } from "@/lib/polyline";
 
 export interface MapPoint {
   lat: number;
@@ -10,11 +11,14 @@ interface TwendeMapProps {
   pickup: MapPoint | null;
   dropoff: MapPoint | null;
   driver?: (MapPoint & { accuracy_m?: number | null }) | null;
+  /** Encoded road route between pickup and dropoff, when the router returned one. */
+  polyline?: string | null;
   /** Which pin the user is currently placing; tapping the map moves it. */
   placing?: "pickup" | "dropoff" | null;
   onPlace?: (point: MapPoint) => void;
   className?: string;
 }
+
 
 const MERU: MapPoint = { lat: 0.0471, lng: 37.6497 };
 

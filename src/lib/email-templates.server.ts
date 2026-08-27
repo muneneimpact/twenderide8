@@ -93,7 +93,8 @@ export type EmailTemplate =
   | { code: "trip_receipt"; data: ReceiptData }
   | { code: "ride_cancelled"; data: { name: string; reference: string; reason: string; fee?: string | null } }
   | { code: "support_reply"; data: { name: string; reference?: string | null; message: string } }
-  | { code: "driver_onboarding"; data: { name: string; status: string; note?: string | null } };
+  | { code: "driver_onboarding"; data: { name: string; status: string; note?: string | null } }
+  | { code: "phone_verification"; data: { code: string; phone: string; minutes: number } };
 
 export function renderEmail(template: EmailTemplate): RenderedEmail {
   switch (template.code) {
@@ -208,5 +209,20 @@ export function renderEmail(template: EmailTemplate): RenderedEmail {
         text: `Your driver application status is now: ${d.status}.${d.note ? `\n\n${d.note}` : ""}\n\nSupport: ${SUPPORT}`,
       };
     }
+    case "phone_verification": {
+      const d = template.data;
+      return {
+        subject: `${d.code} is your Twende Meru verification code`,
+        html: shell(
+          "Verify your phone number",
+          heading("Verify your phone number") +
+            para(`Enter this code in the app to confirm ${d.phone}. It expires in ${d.minutes} minutes.`) +
+            `<div style="margin:16px 0;padding:16px;text-align:center;background:#f0fdf4;border-radius:12px;font-size:30px;letter-spacing:8px;font-weight:700;color:${ACCENT};">${escapeHtml(d.code)}</div>` +
+            para("If you did not request this code, ignore this email and do not share it with anyone."),
+        ),
+        text: `Your Twende Meru Rides verification code is ${d.code}. It expires in ${d.minutes} minutes. Do not share this code.\n\nSupport: ${SUPPORT}`,
+      };
+    }
   }
 }
+

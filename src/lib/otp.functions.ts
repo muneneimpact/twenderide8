@@ -19,14 +19,17 @@ export const requestPhoneOtp = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { normaliseKenyanPhone } = await import("./phone");
     const { textSmsConfigured } = await import("./adapters/textsms.server");
-    const { sendTransactionalSms } = await import("./comms.server");
+    const { sendTransactionalSms, sendTransactionalEmail, resendConfigured } = await import("./comms.server");
     const { hashOtp, randomOtp } = await import("./otp.server");
 
     const phone = normaliseKenyanPhone(data.phone);
+    const email = (context.claims as { email?: string } | null)?.email ?? null;
+    const canSms = textSmsConfigured();
+    const canEmail = resendConfigured() && Boolean(email);
 
-    if (!textSmsConfigured()) {
+    if (!canSms && !canEmail) {
       throw new Error(
-        "Phone verification is unavailable: the SMS provider is not configured yet. Please contact support.",
+        "Phone verification is unavailable: no SMS or email provider is configured yet. Please contact support.",
       );
     }
 
@@ -69,29 +72,53 @@ export const requestPhoneOtp = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error("Could not start phone verification. Please try again.");
 
-    const result = await sendTransactionalSms({
-      to: phone,
-      message: `Your Twende Meru Rides verification code is ${code}. It expires in 5 minutes. Do not share this code.`,
-      eventType: "phone_verification",
-      idempotencyKey: `otp:${record.id}`,
-      context: { userId: context.userId },
-    });
+    const smsResult = canSms
+      ? await sendTransactionalSms({
+          to: phone,
+          message: `Your Twende Meru Rides verification code is ${code}. It expires in 5 minutes. Do not share this code.`,
+          eventType: "phone_verification",
+          idempotencyKey: `otp:${record.id}`,
+          context: { userId: context.userId },
+        })
+      : null;
 
-    if (!result.sent) {
+    const emailResult =
+      canEmail && email
+        ? await sendTransactionalEmail({
+            to: email,
+            template: {
+              code: "phone_verification",
+              data: { code, phone, minutes: Math.round(OTP_TTL_SECONDS / 60) },
+            },
+            eventType: "phone_verification",
+            idempotencyKey: `otp-email:${record.id}`,
+            context: { userId: context.userId },
+          })
+        : null;
+
+    const sentBySms = Boolean(smsResult?.sent);
+    const sentByEmail = Boolean(emailResult?.sent);
+
+    if (!sentBySms && !sentByEmail) {
       await supabaseAdmin
         .from("phone_verifications")
         .update({ consumed_at: new Date().toISOString() })
         .eq("id", record.id);
-      throw new Error(`We could not send your verification SMS: ${result.detail}`);
+      const detail = smsResult?.detail ?? emailResult?.detail ?? "No delivery channel available.";
+      throw new Error(`We could not send your verification code: ${detail}`);
     }
 
     return {
       sent: true,
       phone,
+      sentBySms,
+      sentByEmail,
+      email: sentByEmail ? email : null,
       expiresInSeconds: OTP_TTL_SECONDS,
       resendAfterSeconds: RESEND_COOLDOWN_SECONDS,
     };
   });
+
 
 /** Checks a code and marks the phone verified only on an exact, unexpired match. */
 export const verifyPhoneOtp = createServerFn({ method: "POST" })
