@@ -93,7 +93,8 @@ export type EmailTemplate =
   | { code: "trip_receipt"; data: ReceiptData }
   | { code: "ride_cancelled"; data: { name: string; reference: string; reason: string; fee?: string | null } }
   | { code: "support_reply"; data: { name: string; reference?: string | null; message: string } }
-  | { code: "driver_onboarding"; data: { name: string; status: string; note?: string | null } };
+  | { code: "driver_onboarding"; data: { name: string; status: string; note?: string | null } }
+  | { code: "phone_verification"; data: { code: string; phone: string; minutes: number } };
 
 export function renderEmail(template: EmailTemplate): RenderedEmail {
   switch (template.code) {
