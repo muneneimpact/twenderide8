@@ -10,9 +10,14 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { renderEmail, type EmailTemplate } from "./email-templates.server";
 import { textSmsConfigured, textSmsSend, toMsisdn } from "./adapters/textsms.server";
 
-export const EMAIL_FROM = "Twende Meru Rides <ride@twendemeru.co.ke>";
+/**
+ * Sender identity. Defaults to the brand address; RESEND_FROM_EMAIL /
+ * RESEND_FROM_DOMAIN let operations point at an already-verified sending
+ * domain while twendemeru.co.ke DNS verification is still pending.
+ */
+export const EMAIL_FROM = process.env["RESEND_FROM_EMAIL"] ?? "Twende Meru Rides <ride@twendemeru.co.ke>";
 export const EMAIL_REPLY_TO = "ride@twendemeru.co.ke";
-export const EMAIL_DOMAIN = "twendemeru.co.ke";
+export const EMAIL_DOMAIN = process.env["RESEND_FROM_DOMAIN"] ?? "twendemeru.co.ke";
 
 export function resendConfigured(): boolean {
   return Boolean(process.env["RESEND_API_KEY"]);
