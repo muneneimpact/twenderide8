@@ -58,12 +58,13 @@ export function AuthForm({
     setNotice(null);
     try {
       if (mode === "signup" && allowSignUp) {
+        const normalisedPhone = normaliseKenyanPhone(phone);
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}${destination}`,
-            data: { full_name: fullName },
+            data: { full_name: fullName, phone: normalisedPhone },
           },
         });
         if (signUpError) throw signUpError;
