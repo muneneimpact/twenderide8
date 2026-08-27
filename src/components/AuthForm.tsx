@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { normaliseKenyanPhone } from "@/lib/phone";
 
 export interface AuthFormProps {
   eyebrow: string;
