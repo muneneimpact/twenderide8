@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { normaliseKenyanPhone } from "@/lib/phone";
 
 export interface AuthFormProps {
   eyebrow: string;
@@ -30,6 +31,7 @@ export function AuthForm({
   const navigate = useNavigate();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -57,12 +59,13 @@ export function AuthForm({
     setNotice(null);
     try {
       if (mode === "signup" && allowSignUp) {
+        const normalisedPhone = normaliseKenyanPhone(phone);
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}${destination}`,
-            data: { full_name: fullName },
+            data: { full_name: fullName, phone: normalisedPhone },
           },
         });
         if (signUpError) throw signUpError;
@@ -124,6 +127,24 @@ export function AuthForm({
                 autoComplete="name"
                 className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
               />
+            </label>
+          )}
+          {allowSignUp && mode === "signup" && (
+            <label className="block">
+              <span className="text-xs font-medium text-muted-foreground">Phone number</span>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                required
+                placeholder="0712 345 678"
+                autoComplete="tel"
+                className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+              />
+              <span className="mt-1 block text-[11px] text-muted-foreground">
+                We use this for ride updates and M-PESA payments.
+              </span>
             </label>
           )}
           <label className="block">
