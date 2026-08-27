@@ -133,7 +133,7 @@ export const getCommsHealth = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { requireRole, STAFF } = await import("./authz.server");
     const { textSmsConfigured } = await import("./adapters/textsms.server");
-    const { resendConfigured, EMAIL_FROM, EMAIL_DOMAIN } = await import("./comms.server");
+    const { resendConfigured, emailFrom, emailDomain } = await import("./comms.server");
     await requireRole(context.userId, STAFF);
     return {
       sms: {
@@ -146,10 +146,10 @@ export const getCommsHealth = createServerFn({ method: "POST" })
       email: {
         provider: "Resend",
         configured: resendConfigured(),
-        from: EMAIL_FROM,
-        domain: EMAIL_DOMAIN,
+        from: emailFrom(),
+        domain: emailDomain(),
         message: resendConfigured()
-          ? `Resend key present. ${EMAIL_DOMAIN} must be DNS-verified in Resend before mail is accepted.`
+          ? `Resend key present. ${emailDomain()} must be DNS-verified in Resend before mail is accepted.`
           : "Add RESEND_API_KEY to enable email.",
       },
     };

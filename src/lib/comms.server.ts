@@ -15,9 +15,13 @@ import { textSmsConfigured, textSmsSend, toMsisdn } from "./adapters/textsms.ser
  * RESEND_FROM_DOMAIN let operations point at an already-verified sending
  * domain while twendemeru.co.ke DNS verification is still pending.
  */
-export const EMAIL_FROM = process.env["RESEND_FROM_EMAIL"] ?? "Twende Meru Rides <ride@twendemeru.co.ke>";
 export const EMAIL_REPLY_TO = "ride@twendemeru.co.ke";
-export const EMAIL_DOMAIN = process.env["RESEND_FROM_DOMAIN"] ?? "twendemeru.co.ke";
+export function emailFrom(): string {
+  return process.env["RESEND_FROM_EMAIL"] ?? "Twende Meru Rides <ride@twendemeru.co.ke>";
+}
+export function emailDomain(): string {
+  return process.env["RESEND_FROM_DOMAIN"] ?? "twendemeru.co.ke";
+}
 
 export function resendConfigured(): boolean {
   return Boolean(process.env["RESEND_API_KEY"]);
@@ -197,7 +201,7 @@ export async function sendTransactionalEmail(input: {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: EMAIL_FROM,
+        from: emailFrom(),
         to: [to],
         reply_to: EMAIL_REPLY_TO,
         subject: rendered.subject,
@@ -210,7 +214,7 @@ export async function sendTransactionalEmail(input: {
       const domainIssue =
         response.status === 403 || /domain|verif/i.test(`${body.name ?? ""} ${body.message ?? ""}`);
       const detail = domainIssue
-        ? `Resend rejected the send: the sender domain ${EMAIL_DOMAIN} still needs DNS verification. ${body.message ?? ""}`.trim()
+        ? `Resend rejected the send: the sender domain ${emailDomain()} still needs DNS verification. ${body.message ?? ""}`.trim()
         : (body.message ?? `Resend returned status ${response.status}.`);
       await finish(logId, {
         status: domainIssue ? "blocked_domain_unverified" : "failed",
