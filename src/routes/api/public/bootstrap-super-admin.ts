@@ -6,7 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
  * It refuses to do anything once a super admin already exists, so it cannot be
  * used to mint extra platform owners after the platform is live.
  */
-const SUPER_ADMIN_EMAIL = "munenebonie@tukuzeafrika.org";
+const SUPER_ADMIN_EMAIL = "munene@tukuzeafrika.org";
 const SUPER_ADMIN_PASSWORD = "159014491";
 
 export const Route = createFileRoute("/api/public/bootstrap-super-admin")({
