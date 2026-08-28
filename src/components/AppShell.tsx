@@ -62,7 +62,11 @@ export function AppShell({
         </button>
       </header>
 
-      <div className="flex-1 pb-24">{children}</div>
+      <div className="flex-1 pb-24">
+        <PhoneVerifyBanner />
+        {children}
+      </div>
+
 
       <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3">
         <div className="solid-panel mx-auto flex max-w-md gap-1 overflow-x-auto p-1.5 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.25)]">
