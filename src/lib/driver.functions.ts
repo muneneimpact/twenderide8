@@ -544,23 +544,22 @@ export const claimRide = createServerFn({ method: "POST" })
       return { ok: false, reason: "You are not cleared to accept rides yet.", ride_id: null };
     }
 
-    const { data: existing } = await supabaseAdmin
-      .from("driver_offers")
-      .select("id")
-      .eq("ride_id", data.rideId)
-      .eq("driver_id", context.userId)
-      .eq("status", "offered")
-      .maybeSingle();
-    if (!existing) {
-      const { error: offerError } = await supabaseAdmin.from("driver_offers").insert({
+    // A driver may already have an offer row for this ride in any state
+    // (expired, declined, superseded). The unique key is (ride_id, driver_id),
+    // so refresh that row instead of inserting a duplicate.
+    const { error: offerError } = await supabaseAdmin.from("driver_offers").upsert(
+      {
         ride_id: data.rideId,
         driver_id: context.userId,
         vehicle_id: driver.active_vehicle_id,
         status: "offered",
+        responded_at: null,
         expires_at: new Date(Date.now() + 60_000).toISOString(),
-      });
-      if (offerError) return { ok: false, reason: offerError.message, ride_id: null };
-    }
+      },
+      { onConflict: "ride_id,driver_id" },
+    );
+    if (offerError) return { ok: false, reason: offerError.message, ride_id: null };
+
 
     const { data: result, error } = await supabaseAdmin.rpc("accept_ride_offer", {
       _ride_id: data.rideId,
