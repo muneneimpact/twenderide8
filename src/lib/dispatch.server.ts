@@ -67,16 +67,22 @@ export async function dispatchRide(
   if (candidates.length === 0) return { offers: 0, candidates: [] };
 
   const expiresAt = new Date(Date.now() + options.offerTimeoutSeconds * 1000).toISOString();
-  await supabaseAdmin.from("driver_offers").insert(
+  // Re-dispatching the same ride must refresh an existing offer row rather
+  // than collide with the (ride_id, driver_id) unique key.
+  await supabaseAdmin.from("driver_offers").upsert(
     candidates.map((candidate) => ({
       ride_id: rideId,
       driver_id: candidate.driver_id,
       vehicle_id: candidate.vehicle_id,
+      status: "offered",
+      responded_at: null,
       distance_km: candidate.distance_km,
       eta_minutes: candidate.eta_minutes,
       expires_at: expiresAt,
     })),
+    { onConflict: "ride_id,driver_id" },
   );
+
 
   for (const candidate of candidates) {
     await notify({
