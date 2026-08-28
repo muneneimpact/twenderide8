@@ -8,18 +8,34 @@ import { z } from "zod";
  * credentials are never returned to the browser.
  */
 
-export const getSmsBalance = createServerFn({ method: "POST" })
+/**
+ * Test send. We do not query provider balances — a single real transactional
+ * send to a chosen number is the honest readiness check.
+ */
+export const sendTestSms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input) =>
+    z
+      .object({
+        phone: z.string().min(9).max(20),
+        message: z.string().min(4).max(160).default("Twende Meru: test message. No action needed."),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
     const { requireRole, OPS } = await import("./authz.server");
-    const { textSmsBalance, textSmsConfigured } = await import("./adapters/textsms.server");
+    const { textSmsSend, textSmsConfigured } = await import("./adapters/textsms.server");
     await requireRole(context.userId, OPS);
-    if (!textSmsConfigured()) {
-      return { configured: false, credit: null, message: "SMS provider is not configured." };
-    }
-    const result = await textSmsBalance();
-    return { configured: true, credit: result.credit, message: "Balance retrieved from the provider." };
+    if (!textSmsConfigured()) throw new Error("SMS provider is not configured.");
+    const result = await textSmsSend(data.phone, data.message);
+    return {
+      accepted: result.accepted,
+      code: result.code,
+      detail: result.description,
+      messageId: result.messageId,
+    };
   });
+
 
 export const getSmsDeliveryReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
