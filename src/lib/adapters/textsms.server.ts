@@ -216,19 +216,3 @@ export async function textSmsDeliveryReport(messageID: string) {
       : "No delivery report returned.",
   };
 }
-
-/** SMS credit balance. Credentials are never echoed back to the caller. */
-export async function textSmsBalance() {
-  const creds = textSmsCredentials();
-  if (!creds) throw new Error("SMS provider is not configured.");
-  const { payload, httpStatus } = await post("getbalance", {
-    apikey: creds.apikey,
-    partnerID: creds.partnerID,
-  });
-  const row = (payload && typeof payload === "object" ? (payload as Unknown) : {}) as Unknown;
-  return {
-    httpStatus,
-    credit: str(row["credit"] ?? row["balance"]),
-    code: str(row["response-code"] ?? row["respose-code"]),
-  };
-}
