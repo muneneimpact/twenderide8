@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMe, type AppRole } from "@/hooks/useMe";
+import { PhoneVerifyBanner } from "@/components/PhoneVerifyBanner";
+
 
 type Tab = { to: string; label: string };
 
