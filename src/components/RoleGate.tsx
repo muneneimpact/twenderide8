@@ -45,7 +45,7 @@ export function RoleGate({
           <div className="surface-card p-5">
             <h2 className="text-sm font-semibold text-foreground">You don't have access to this area</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              {hint ?? "Ask a Twende Ride administrator to grant you the right role."}
+              {hint ?? "Ask a Twende Meru Rides administrator to grant you the right role."}
             </p>
             {actionTo && actionLabel ? (
               <Link

@@ -80,13 +80,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Twende Ride — Taxis in Meru" },
+      { title: "Twende Meru Rides — Taxis in Meru" },
       {
         name: "description",
         content: "Book taxis across Meru with the fare shown before you request. Pay by M-PESA or cash.",
       },
-      { name: "author", content: "Twende Ride" },
-      { property: "og:title", content: "Twende Ride — Taxis in Meru" },
+      { name: "author", content: "Twende Meru Rides" },
+      { property: "og:title", content: "Twende Meru Rides — Taxis in Meru" },
       {
         property: "og:description",
         content: "Book taxis across Meru with the fare shown before you request.",

@@ -17,13 +17,13 @@ import {
 export const Route = createFileRoute("/_authenticated/admin/pricing")({
   head: () => ({
     meta: [
-      { title: "Pricing controls — Twende Ride Meru" },
+      { title: "Pricing controls — Twende Meru Rides" },
       {
         name: "description",
         content:
           "Super admin pricing workspace: edit fare configuration, build progressive long-distance reduction bands, preview them and publish when they are correct.",
       },
-      { property: "og:title", content: "Pricing controls — Twende Ride" },
+      { property: "og:title", content: "Pricing controls — Twende Meru Rides" },
       { property: "og:description", content: "Fare configuration, long-distance bands, modifiers and settings." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

@@ -30,7 +30,7 @@ export function AppShell({
   title,
   children,
   tabs,
-  eyebrow = "Twende Ride",
+  eyebrow = "Twende Meru Rides",
 }: {
   title: string;
   children: ReactNode;

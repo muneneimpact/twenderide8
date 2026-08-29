@@ -9,13 +9,13 @@ import { getFleetBoard, updateFleetSettlement } from "@/lib/admin.functions";
 export const Route = createFileRoute("/_authenticated/fleet")({
   head: () => ({
     meta: [
-      { title: "Fleet board — Twende Ride Meru" },
+      { title: "Fleet board — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Fleet owners on Twende Ride: follow vehicles and drivers, set how earnings settle between fleet and driver, and read the fleet wallet ledger.",
+          "Fleet owners on Twende Meru Rides: follow vehicles and drivers, set how earnings settle between fleet and driver, and read the fleet wallet ledger.",
       },
-      { property: "og:title", content: "Fleet board — Twende Ride" },
+      { property: "og:title", content: "Fleet board — Twende Meru Rides" },
       { property: "og:description", content: "Vehicles, drivers, settlement rules and the fleet wallet." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -77,7 +77,7 @@ function FleetBoard() {
             <h2 className="font-display text-lg font-semibold text-foreground">No fleet yet</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Fleets are created by operations once your business details and documents have been checked. Ask
-              the Twende Ride team to register your business, then this board will show your vehicles, drivers
+              the Twende Meru Rides team to register your business, then this board will show your vehicles, drivers
               and wallet.
             </p>
           </section>

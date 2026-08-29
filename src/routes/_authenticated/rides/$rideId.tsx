@@ -23,13 +23,13 @@ const cancelReasons = [
 export const Route = createFileRoute("/_authenticated/rides/$rideId")({
   head: () => ({
     meta: [
-      { title: "Track your taxi — Twende Ride Meru" },
+      { title: "Track your taxi — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Watch your Twende Ride driver approach in real time, see the locked fare, pay by M-PESA or cancel.",
+          "Watch your Twende Meru Rides driver approach in real time, see the locked fare, pay by M-PESA or cancel.",
       },
-      { property: "og:title", content: "Track your taxi — Twende Ride" },
+      { property: "og:title", content: "Track your taxi — Twende Meru Rides" },
       { property: "og:description", content: "Live driver approach tracking and payment for your Meru taxi." },
     ],
   }),

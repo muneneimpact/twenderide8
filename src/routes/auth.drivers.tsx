@@ -4,14 +4,14 @@ import { AuthForm } from "@/components/AuthForm";
 export const Route = createFileRoute("/auth/drivers")({
   head: () => ({
     meta: [
-      { title: "Driver sign in — Twende Ride Meru" },
+      { title: "Driver sign in — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Twende Ride drivers: sign in to go online, accept trips in Meru and track your earnings, or register to start onboarding.",
+          "Twende Meru Rides drivers: sign in to go online, accept trips in Meru and track your earnings, or register to start onboarding.",
       },
-      { property: "og:title", content: "Driver sign in — Twende Ride" },
-      { property: "og:description", content: "Go online, take trips and track earnings with Twende Ride." },
+      { property: "og:title", content: "Driver sign in — Twende Meru Rides" },
+      { property: "og:description", content: "Go online, take trips and track earnings with Twende Meru Rides." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

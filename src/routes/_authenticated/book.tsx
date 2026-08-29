@@ -12,13 +12,13 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/_authenticated/book")({
   head: () => ({
     meta: [
-      { title: "Book a taxi — Twende Ride Meru" },
+      { title: "Book a taxi — Twende Meru Rides" },
       {
         name: "description",
         content:
           "Set your pickup pin and destination, see the itemised fare before you request, then pay by M-PESA or cash.",
       },
-      { property: "og:title", content: "Book a taxi — Twende Ride" },
+      { property: "og:title", content: "Book a taxi — Twende Meru Rides" },
       { property: "og:description", content: "Map-led taxi booking in Meru with a locked, itemised fare." },
     ],
   }),

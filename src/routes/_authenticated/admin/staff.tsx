@@ -18,13 +18,13 @@ const ROLES = [
 export const Route = createFileRoute("/_authenticated/admin/staff")({
   head: () => ({
     meta: [
-      { title: "Roles & audit trail — Twende Ride Meru" },
+      { title: "Roles & audit trail — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Super admin control over Twende Ride roles: grant or remove operations, finance, fleet and driver access, and read the audit trail of every privileged action.",
+          "Super admin control over Twende Meru Rides roles: grant or remove operations, finance, fleet and driver access, and read the audit trail of every privileged action.",
       },
-      { property: "og:title", content: "Roles & audit trail — Twende Ride" },
+      { property: "og:title", content: "Roles & audit trail — Twende Meru Rides" },
       { property: "og:description", content: "Grant roles and review every privileged action." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -78,7 +78,7 @@ function StaffBoard() {
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Grant or remove a role</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            The person must already have a Twende Ride account with this email address.
+            The person must already have a Twende Meru Rides account with this email address.
           </p>
           <div className="mt-3 space-y-2">
             <input

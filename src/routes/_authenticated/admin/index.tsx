@@ -9,13 +9,13 @@ import { getOpsBoard, opsCancelRide, resolveIncident, reviewApproval } from "@/l
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({
     meta: [
-      { title: "Operations board — Twende Ride Meru" },
+      { title: "Operations board — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Twende Ride operations: approve driver applications, vehicles and documents, monitor live rides and resolve incidents in Meru.",
+          "Twende Meru Rides operations: approve driver applications, vehicles and documents, monitor live rides and resolve incidents in Meru.",
       },
-      { property: "og:title", content: "Twende Ride operations board" },
+      { property: "og:title", content: "Twende Meru Rides operations board" },
       { property: "og:description", content: "Approve drivers, watch live dispatch and resolve incidents." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

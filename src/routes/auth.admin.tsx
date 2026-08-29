@@ -4,13 +4,13 @@ import { AuthForm } from "@/components/AuthForm";
 export const Route = createFileRoute("/auth/admin")({
   head: () => ({
     meta: [
-      { title: "Staff sign in — Twende Ride Meru" },
+      { title: "Staff sign in — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Twende Ride staff entrance: operations, finance and super admin sign-in for the Meru dispatch and pricing consoles.",
+          "Twende Meru Rides staff entrance: operations, finance and super admin sign-in for the Meru dispatch and pricing consoles.",
       },
-      { property: "og:title", content: "Staff sign in — Twende Ride" },
+      { property: "og:title", content: "Staff sign in — Twende Meru Rides" },
       { property: "og:description", content: "Operations, finance and super admin access." },
       { property: "og:type", content: "website" },
       { name: "robots", content: "noindex" },

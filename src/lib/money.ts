@@ -1,5 +1,5 @@
 /**
- * Fixed-precision money and percentage arithmetic for Twende Ride.
+ * Fixed-precision money and percentage arithmetic for Twende Meru Rides.
  *
  * All amounts are handled as bigint "micro units" (1 KES = 1_000_000 units) so
  * fare, commission, and ledger maths never depend on binary floating point.
