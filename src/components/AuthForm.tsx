@@ -327,9 +327,8 @@ export function AuthForm({
                   </button>
                 )}
               </div>
-
-              </p>
             </form>
+
           ) : (
             <form onSubmit={confirmCode} className="mt-6 space-y-3">
               <label className="auth-rise block">
