@@ -12,6 +12,7 @@ interface MapPanelProps {
   pickup: MapPanelPoint | null;
   dropoff: MapPanelPoint | null;
   driver?: (MapPanelPoint & { accuracy_m?: number | null }) | null;
+  nearbyDrivers?: Array<MapPanelPoint & { eta_minutes?: number | null }>;
   placing?: "pickup" | "dropoff" | null;
   onPlace?: (point: MapPanelPoint) => void;
   className?: string;
