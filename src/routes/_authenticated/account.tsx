@@ -205,6 +205,16 @@ function AccountPage() {
             />
           </div>
           <button
+            type="button"
+            onClick={() => useHere.mutate()}
+            disabled={useHere.isPending}
+            className="mt-2 w-full rounded-full border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-60"
+          >
+            {useHere.isPending ? "Finding you…" : "Use current location"}
+          </button>
+          {useHere.isError && <p className="mt-2 text-xs text-destructive">{(useHere.error as Error).message}</p>}
+
+          <button
             onClick={() => addPlace.mutate()}
             disabled={!place || addPlace.isPending}
             className="mt-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
