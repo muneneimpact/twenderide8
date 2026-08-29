@@ -22,7 +22,7 @@ export interface AuthFormProps {
 }
 
 const input =
-  "mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring";
+  "mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-shadow focus:ring-2 focus:ring-ring";
 
 /**
  * One sign-in surface reused by the customer, driver and staff entrances so
@@ -40,6 +40,7 @@ export function AuthForm({
 }: AuthFormProps) {
   const navigate = useNavigate();
   const channel = method ?? (allowSignUp ? "phone" : "password");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -97,7 +98,12 @@ export function AuthForm({
     setError(null);
     try {
       const result = await verifyPhoneLogin({
-        data: { phone: normaliseKenyanPhone(phone), code, fullName: fullName.trim() || undefined },
+        data: {
+          phone: normaliseKenyanPhone(phone),
+          code,
+          fullName: fullName.trim() || undefined,
+          email: email.trim() ? email.trim().toLowerCase() : undefined,
+        },
       });
       if (!result.verified) {
         setError(`That code is not right. ${result.attemptsLeft} attempt(s) left.`);
@@ -130,19 +136,52 @@ export function AuthForm({
     }
   }
 
+  const signingUp = allowSignUp && mode === "signup";
+
   return (
-    <main className="flex min-h-screen flex-col justify-center bg-background px-5 py-10">
-      <div className="mx-auto w-full max-w-sm">
-        <Link to="/" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          {eyebrow}
-        </Link>
-        <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground">{heading}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{blurb}</p>
+    <main className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-background px-5 py-10">
+      <div aria-hidden className="auth-aurora" />
+      <div className="relative mx-auto w-full max-w-sm">
+        <div className="auth-rise">
+          <Link to="/" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            {eyebrow}
+          </Link>
+          <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground">
+            {signingUp ? "Create your account" : heading}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {signingUp
+              ? "One Kenyan number, one account. We verify it with a code so your rides and receipts stay yours."
+              : blurb}
+          </p>
+        </div>
+
+        {allowSignUp && channel === "phone" && step === "phone" ? (
+          <div className="auth-rise auth-delay-1 mt-5 grid grid-cols-2 gap-1 rounded-full border border-border bg-secondary p-1">
+            {(["signin", "signup"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setMode(value);
+                  setError(null);
+                }}
+                className={`rounded-full px-3 py-2 text-sm font-semibold transition-all duration-300 ${
+                  mode === value
+                    ? "bg-primary text-primary-foreground shadow-[0_4px_16px_-6px_rgba(0,0,0,0.45)]"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {value === "signin" ? "Sign in" : (signUpCta ?? "Sign up")}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {channel === "phone" ? (
           step === "phone" ? (
-            <form onSubmit={sendCode} className="mt-6 space-y-3">
-              <label className="block">
+            <form key={mode} onSubmit={sendCode} className="mt-6 space-y-3">
+              <label className="auth-rise auth-delay-1 block">
                 <span className="text-xs font-medium text-muted-foreground">Phone number</span>
                 <input
                   type="tel"
@@ -158,34 +197,61 @@ export function AuthForm({
                   We use this for ride updates and verification.
                 </span>
               </label>
-              {allowSignUp && (
-                <label className="block">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Full name (new accounts only)
-                  </span>
-                  <input
-                    value={fullName}
-                    onChange={(event) => setFullName(event.target.value)}
-                    autoComplete="name"
-                    className={input}
-                  />
-                </label>
+
+              {signingUp && (
+                <>
+                  <label className="auth-rise auth-delay-2 block">
+                    <span className="text-xs font-medium text-muted-foreground">Full name</span>
+                    <input
+                      value={fullName}
+                      onChange={(event) => setFullName(event.target.value)}
+                      autoComplete="name"
+                      placeholder="Jane Mwende"
+                      className={input}
+                    />
+                  </label>
+                  <label className="auth-rise auth-delay-3 block">
+                    <span className="text-xs font-medium text-muted-foreground">Email (optional)</span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      className={input}
+                    />
+                    <span className="mt-1 block text-[11px] text-muted-foreground">
+                      Add it only if you want emailed receipts.
+                    </span>
+                  </label>
+                </>
               )}
-              {error && <p className="text-sm text-destructive">{error}</p>}
+
+              {error && <p className="auth-rise text-sm text-destructive">{error}</p>}
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                className="auth-rise auth-delay-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-transform active:scale-[0.98] disabled:opacity-60"
               >
-                {busy ? "Sending code…" : "Send code by SMS"}
+                {busy ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="auth-spinner" /> Sending code…
+                  </span>
+                ) : signingUp ? (
+                  "Create account with SMS code"
+                ) : (
+                  "Send code by SMS"
+                )}
               </button>
               <p className="text-center text-[11px] text-muted-foreground">
-                {signUpCta ? "New here? The same code creates your account." : null}
+                {signingUp
+                  ? "Already have an account? Choose Sign in — the same code works."
+                  : "New here? Choose Sign up and the same code creates your account."}
               </p>
             </form>
           ) : (
             <form onSubmit={confirmCode} className="mt-6 space-y-3">
-              <label className="block">
+              <label className="auth-rise block">
                 <span className="text-xs font-medium text-muted-foreground">6-digit code</span>
                 <input
                   inputMode="numeric"
@@ -199,14 +265,20 @@ export function AuthForm({
                   className={`${input} text-center text-lg tracking-[0.5em]`}
                 />
               </label>
-              {notice && <p className="text-sm text-foreground">{notice}</p>}
+              {notice && <p className="auth-rise auth-delay-1 text-sm text-foreground">{notice}</p>}
               {error && <p className="text-sm text-destructive">{error}</p>}
               <button
                 type="submit"
                 disabled={busy || code.length !== 6}
-                className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                className="auth-rise auth-delay-2 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-transform active:scale-[0.98] disabled:opacity-60"
               >
-                {busy ? "Verifying…" : "Verify and continue"}
+                {busy ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="auth-spinner" /> Verifying…
+                  </span>
+                ) : (
+                  "Verify and continue"
+                )}
               </button>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <button
@@ -233,7 +305,7 @@ export function AuthForm({
           )
         ) : (
           <form onSubmit={passwordSignIn} className="mt-6 space-y-3">
-            <label className="block">
+            <label className="auth-rise auth-delay-1 block">
               <span className="text-xs font-medium text-muted-foreground">Email</span>
               <input
                 type="email"
@@ -244,7 +316,7 @@ export function AuthForm({
                 className={input}
               />
             </label>
-            <label className="block">
+            <label className="auth-rise auth-delay-2 block">
               <span className="text-xs font-medium text-muted-foreground">Password</span>
               <input
                 type="password"
@@ -260,7 +332,7 @@ export function AuthForm({
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              className="auth-rise auth-delay-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-transform active:scale-[0.98] disabled:opacity-60"
             >
               {busy ? "Please wait…" : "Sign in"}
             </button>
