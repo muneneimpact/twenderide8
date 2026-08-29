@@ -11,6 +11,7 @@ type Tab = { to: string; label: string };
 const customerTabs: Tab[] = [
   { to: "/book", label: "Book" },
   { to: "/rides", label: "My rides" },
+  { to: "/account", label: "Account" },
 ];
 
 /** Tabs a person may use, derived from the roles the server reported. */
