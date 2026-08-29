@@ -157,29 +157,36 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
       .eq("phone", phone)
       .maybeSingle();
 
+    const contactEmail = data.email?.trim().toLowerCase() || null;
     let userId = existing?.id ?? null;
-    let email = existing?.email ?? null;
+    // The auth mailbox the one-time token is minted against.
+    let authEmail = existing?.email ?? null;
 
     if (!userId) {
-      email = syntheticEmail(phone);
+      // An email is optional; without one we mint a placeholder mailbox.
+      authEmail = contactEmail ?? syntheticEmail(phone);
       const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
+        email: authEmail,
         email_confirm: true,
         phone,
         phone_confirm: true,
         user_metadata: { full_name: data.fullName?.trim() || null, phone },
       });
       if (createError || !created.user) {
-        throw new Error(createError?.message ?? "Could not create your account. Please try again.");
+        throw new Error(
+          createError?.message?.toLowerCase().includes("already")
+            ? "That email is already linked to another account. Leave it blank or use a different one."
+            : (createError?.message ?? "Could not create your account. Please try again."),
+        );
       }
       userId = created.user.id;
     }
 
-    if (!email) {
+    if (!authEmail) {
       const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
-      email = authUser.user?.email ?? syntheticEmail(phone);
+      authEmail = authUser.user?.email ?? syntheticEmail(phone);
       if (!authUser.user?.email) {
-        await supabaseAdmin.auth.admin.updateUserById(userId, { email, email_confirm: true });
+        await supabaseAdmin.auth.admin.updateUserById(userId, { email: authEmail, email_confirm: true });
       }
     }
 
@@ -189,12 +196,14 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
         id: userId,
         phone,
         phone_verified_at: now,
-        email,
+        email: contactEmail ?? authEmail,
         ...(data.fullName?.trim() ? { full_name: data.fullName.trim() } : {}),
       });
     if (profileError) {
       throw new Error("This phone number is already linked to another account.");
     }
+    const email = authEmail;
+
 
     // A single-use token the browser swaps for a session — no password is moved.
     const { data: link, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
