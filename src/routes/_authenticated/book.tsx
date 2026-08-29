@@ -64,6 +64,22 @@ function BookPage() {
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [msisdn, setMsisdn] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [pendingDropoff, setPendingDropoff] = useState<Point | null>(null);
+  const [recents, setRecents] = useState<Point[]>(() => readRecents());
+  const searchInput = useRef<HTMLInputElement | null>(null);
+
+  // Saved places live with the customer, so Home and Office survive devices.
+  const saved = useQuery({
+    queryKey: ["saved-places"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("saved_places")
+        .select("id, label, address, lat, lng")
+        .order("created_at", { ascending: true });
+      return data ?? [];
+    },
+  });
 
   const resolvePoint = useCallback(
     async (point: { lat: number; lng: number }) => {
@@ -99,16 +115,27 @@ function BookPage() {
       }),
   });
 
+  // One tap: price the route on the server, keep that quote and start the
+  // driver search. The customer never has to "lock" a fare by hand.
   const requesting = useMutation({
-    mutationFn: () =>
-      requestFn({
+    mutationFn: async () => {
+      const priced = await quoteFn({
         data: {
-          quoteId: quoting.data!.quote.id,
+          pickup: { lat: pickup!.lat, lng: pickup!.lng, address: label(pickup) },
+          dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
+          vehicleClass,
+          pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
+        },
+      });
+      return requestFn({
+        data: {
+          quoteId: priced.quote.id,
           paymentMethod,
           msisdn: paymentMethod === "stk_push" ? msisdn : null,
           idempotencyKey: crypto.randomUUID(),
         },
-      }),
+      });
+    },
     onSuccess: (result) => {
       navigate({ to: "/rides/$rideId", params: { rideId: result.ride.id } });
     },
