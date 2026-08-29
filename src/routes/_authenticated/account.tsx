@@ -35,6 +35,8 @@ function AccountPage() {
   const meFn = useServerFn(getMe);
   const saveProfile = useServerFn(updateProfile);
   const raiseIncident = useServerFn(reportIncident);
+  const locate = useServerFn(reverseGeocode);
+
 
   const me = useQuery({ queryKey: ["me", "account"], queryFn: () => meFn() });
   const [fullName, setFullName] = useState("");
