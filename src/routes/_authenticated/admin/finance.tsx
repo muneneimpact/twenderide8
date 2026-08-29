@@ -9,13 +9,13 @@ import { adjustWallet, getFinanceBoard, reviewWithdrawal } from "@/lib/admin.fun
 export const Route = createFileRoute("/_authenticated/admin/finance")({
   head: () => ({
     meta: [
-      { title: "Finance board — Twende Ride Meru" },
+      { title: "Finance board — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Twende Ride finance: review driver and fleet wallets, approve or reject payouts, record adjustments and follow the immutable ledger.",
+          "Twende Meru Rides finance: review driver and fleet wallets, approve or reject payouts, record adjustments and follow the immutable ledger.",
       },
-      { property: "og:title", content: "Finance board — Twende Ride" },
+      { property: "og:title", content: "Finance board — Twende Meru Rides" },
       { property: "og:description", content: "Wallets, payouts, refunds and the immutable ledger." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

@@ -2,20 +2,20 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Twende Ride is a signed-in product: the entry point either sends you to the
+ * Twende Meru Rides is a signed-in product: the entry point either sends you to the
  * sign-in screen or straight into the app.
  */
 export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Twende Ride — Taxis in Meru with fares you can see first" },
+      { title: "Twende Meru Rides — Taxis in Meru with fares you can see first" },
       {
         name: "description",
         content:
-          "Sign in to Twende Ride to book taxis across Meru with a server-calculated fare shown before you request, M-PESA or cash payment and live driver tracking.",
+          "Sign in to Twende Meru Rides to book taxis across Meru with a server-calculated fare shown before you request, M-PESA or cash payment and live driver tracking.",
       },
-      { property: "og:title", content: "Twende Ride — Taxis in Meru" },
+      { property: "og:title", content: "Twende Meru Rides — Taxis in Meru" },
       {
         property: "og:description",
         content: "Sign in to see the full itemised fare before you request a taxi in Meru.",

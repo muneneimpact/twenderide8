@@ -9,14 +9,14 @@ import { getDriverWallet, requestWithdrawal } from "@/lib/driver.functions";
 export const Route = createFileRoute("/_authenticated/driver/wallet")({
   head: () => ({
     meta: [
-      { title: "Driver wallet & payouts — Twende Ride" },
+      { title: "Driver wallet & payouts — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "See your Twende Ride earnings ledger, commission entries and request an M-PESA payout to your registered number.",
+          "See your Twende Meru Rides earnings ledger, commission entries and request an M-PESA payout to your registered number.",
       },
-      { property: "og:title", content: "Driver wallet & payouts — Twende Ride" },
-      { property: "og:description", content: "Earnings ledger and M-PESA payout requests for Twende Ride drivers." },
+      { property: "og:title", content: "Driver wallet & payouts — Twende Meru Rides" },
+      { property: "og:description", content: "Earnings ledger and M-PESA payout requests for Twende Meru Rides drivers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

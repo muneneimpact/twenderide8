@@ -11,14 +11,14 @@ import { CarBadge } from "@/components/CarBadge";
 export const Route = createFileRoute("/_authenticated/driver/apply")({
   head: () => ({
     meta: [
-      { title: "Driver onboarding — Twende Ride Meru" },
+      { title: "Driver onboarding — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Apply to drive with Twende Ride in Meru: submit your contact details, vehicle and compliance documents for operations review.",
+          "Apply to drive with Twende Meru Rides in Meru: submit your contact details, vehicle and compliance documents for operations review.",
       },
-      { property: "og:title", content: "Become a Twende Ride driver" },
-      { property: "og:description", content: "Register your vehicle and documents for Twende Ride driver approval." },
+      { property: "og:title", content: "Become a Twende Meru Rides driver" },
+      { property: "og:description", content: "Register your vehicle and documents for Twende Meru Rides driver approval." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

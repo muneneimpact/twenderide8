@@ -7,13 +7,13 @@ import { listMyRides } from "@/lib/rides.functions";
 export const Route = createFileRoute("/_authenticated/rides/")({
   head: () => ({
     meta: [
-      { title: "My rides — Twende Ride Meru" },
+      { title: "My rides — Twende Meru Rides" },
       {
         name: "description",
-        content: "Every Twende Ride trip you have taken in Meru, with the fare charged and its payment status.",
+        content: "Every Twende Meru Rides trip you have taken in Meru, with the fare charged and its payment status.",
       },
-      { property: "og:title", content: "My rides — Twende Ride" },
-      { property: "og:description", content: "Your Twende Ride trip history and payment status." },
+      { property: "og:title", content: "My rides — Twende Meru Rides" },
+      { property: "og:description", content: "Your Twende Meru Rides trip history and payment status." },
     ],
   }),
   component: RidesPage,

@@ -25,14 +25,14 @@ import { playAlert, primeAudio } from "@/lib/audio";
 export const Route = createFileRoute("/_authenticated/driver/")({
   head: () => ({
     meta: [
-      { title: "Driver console — Twende Ride Meru" },
+      { title: "Driver console — Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Go online, accept nearby ride offers, run the trip lifecycle and track your Twende Ride earnings in Meru.",
+          "Go online, accept nearby ride offers, run the trip lifecycle and track your Twende Meru Rides earnings in Meru.",
       },
-      { property: "og:title", content: "Driver console — Twende Ride" },
-      { property: "og:description", content: "Accept offers, run trips and see earnings as a Twende Ride driver." },
+      { property: "og:title", content: "Driver console — Twende Meru Rides" },
+      { property: "og:description", content: "Accept offers, run trips and see earnings as a Twende Meru Rides driver." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

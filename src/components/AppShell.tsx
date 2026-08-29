@@ -30,7 +30,7 @@ export function AppShell({
   title,
   children,
   tabs,
-  eyebrow = "Twende Ride",
+  eyebrow = "Twende Meru Rides",
 }: {
   title: string;
   children: ReactNode;
@@ -64,13 +64,13 @@ export function AppShell({
         </button>
       </header>
 
-      <div className="flex-1 pb-24">
+      <div className="flex-1 pb-28">
         <PhoneVerifyGate>{children}</PhoneVerifyGate>
       </div>
 
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3">
-        <div className="solid-panel mx-auto flex max-w-md gap-1 overflow-x-auto p-1.5 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.25)]">
+      <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto flex max-w-md gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-1.5 shadow-[0_10px_36px_-10px_rgba(0,0,0,0.45)]">
           {visibleTabs.map((tab) => (
             <Link
               key={tab.to}

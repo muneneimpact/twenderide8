@@ -1,6 +1,6 @@
 {
-  "name": "Twende Ride — Taxis in Meru",
-  "short_name": "Twende",
+  "name": "Twende Meru Rides",
+  "short_name": "Twende Meru",
   "description": "Book taxis across Meru with the fare shown before you request. Pay by M-PESA or cash.",
   "id": "/",
   "start_url": "/",
