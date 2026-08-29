@@ -1,6 +1,7 @@
-/** Server-only dispatch: eligible-driver search and offer creation. */
+/** Server-only dispatch: hex-indexed driver search, road ranking, offers. */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { haversineKm } from "./geo";
+import { hexKey, hexOf, hexRing, ringsWithin } from "./hex";
 import { notify } from "./notifications.server";
 
 export interface DispatchResult {
@@ -8,15 +9,30 @@ export interface DispatchResult {
   candidates: { driver_id: string; distance_km: number; eta_minutes: number }[];
 }
 
-export async function dispatchRide(
-  rideId: string,
-  pickup: { lat: number; lng: number },
-  vehicleClass: "boda" | "economy" | "comfort" | "xl",
-  options: { radiusKm: number; offerTimeoutSeconds: number; cashRide: boolean },
-): Promise<DispatchResult> {
+/** Never chase a driver who is further away than this, whatever the settings say. */
+export const MAX_DISPATCH_RADIUS_KM = 5;
+/** Enough candidates to survive a couple of declines without spamming the city. */
+const TARGET_CANDIDATES = 3;
+/** A driver this close is offered the job alone — no need to wake anyone else. */
+const SOLO_OFFER_KM = 1.5;
+/** Cap on paid road-distance lookups per dispatch. */
+const MAX_ROAD_LOOKUPS = 4;
+
+interface EligibleDriver {
+  driver_id: string;
+  vehicle_id: string;
+  lat: number;
+  lng: number;
+}
+
+/** Approved, online, idle drivers of the right class who are not already engaged. */
+async function eligibleDrivers(
+  vehicleClass: string,
+  cashRide: boolean,
+): Promise<EligibleDriver[]> {
   const { data: drivers } = await supabaseAdmin
     .from("drivers")
-    .select("id, active_vehicle_id, last_lat, last_lng, last_location_at, cash_jobs_blocked, status, is_online")
+    .select("id, active_vehicle_id, last_lat, last_lng, cash_jobs_blocked, status, is_online")
     .eq("is_online", true)
     .eq("status", "approved")
     .not("active_vehicle_id", "is", null);
@@ -30,41 +46,116 @@ export async function dispatchRide(
     ).data?.map((row) => row.driver_id) ?? [],
   );
 
+  // Concurrency: a driver holding a live offer for another request is not
+  // offered a second one, so simultaneous bookings fan out to distinct drivers.
+  const { data: pending } = await supabaseAdmin
+    .from("driver_offers")
+    .select("driver_id")
+    .eq("status", "offered")
+    .gt("expires_at", new Date().toISOString());
+  for (const row of pending ?? []) busy.add(row.driver_id);
+
   const vehicleIds = (drivers ?? []).map((d) => d.active_vehicle_id).filter(Boolean) as string[];
   const { data: vehicles } = vehicleIds.length
-    ? await supabaseAdmin
-        .from("vehicles")
-        .select("id, vehicle_class, status")
-        .in("id", vehicleIds)
+    ? await supabaseAdmin.from("vehicles").select("id, vehicle_class, status").in("id", vehicleIds)
     : { data: [] };
   const vehicleMap = new Map((vehicles ?? []).map((v) => [v.id, v]));
 
-  const candidates = (drivers ?? [])
+  return (drivers ?? [])
     .filter((driver) => {
       if (busy.has(driver.id)) return false;
-      if (options.cashRide && driver.cash_jobs_blocked) return false;
+      if (cashRide && driver.cash_jobs_blocked) return false;
       if (driver.last_lat == null || driver.last_lng == null) return false;
       const vehicle = driver.active_vehicle_id ? vehicleMap.get(driver.active_vehicle_id) : null;
-      if (!vehicle || vehicle.status !== "approved" || vehicle.vehicle_class !== vehicleClass) return false;
-      return true;
+      return Boolean(vehicle && vehicle.status === "approved" && vehicle.vehicle_class === vehicleClass);
     })
-    .map((driver) => {
-      const distance = haversineKm(pickup, {
-        lat: Number(driver.last_lat),
-        lng: Number(driver.last_lng),
-      });
-      return {
-        driver_id: driver.id,
-        vehicle_id: driver.active_vehicle_id as string,
-        distance_km: Number(distance.toFixed(3)),
-        eta_minutes: Number((distance * 2.8 + 1).toFixed(1)),
-      };
-    })
-    .filter((candidate) => candidate.distance_km <= options.radiusKm)
-    .sort((a, b) => a.distance_km - b.distance_km)
-    .slice(0, 5);
+    .map((driver) => ({
+      driver_id: driver.id,
+      vehicle_id: driver.active_vehicle_id as string,
+      lat: Number(driver.last_lat),
+      lng: Number(driver.last_lng),
+    }));
+}
 
-  if (candidates.length === 0) return { offers: 0, candidates: [] };
+/**
+ * Walks hex rings outward from the pickup hex, collecting drivers until we have
+ * enough candidates or we run out of rings inside the radius.
+ */
+export function searchHexRings(
+  pickup: { lat: number; lng: number },
+  drivers: EligibleDriver[],
+  radiusKm: number,
+  target = TARGET_CANDIDATES,
+): Array<EligibleDriver & { straight_km: number }> {
+  const bins = new Map<string, EligibleDriver[]>();
+  for (const driver of drivers) {
+    const key = hexKey(hexOf(driver));
+    const bin = bins.get(key);
+    if (bin) bin.push(driver);
+    else bins.set(key, [driver]);
+  }
+
+  const centre = hexOf(pickup);
+  const found: Array<EligibleDriver & { straight_km: number }> = [];
+  const maxRings = ringsWithin(radiusKm);
+
+  for (let ring = 0; ring <= maxRings; ring += 1) {
+    for (const hex of hexRing(centre, ring)) {
+      for (const driver of bins.get(hexKey(hex)) ?? []) {
+        const straight = haversineKm(pickup, driver);
+        if (straight > radiusKm) continue;
+        found.push({ ...driver, straight_km: Number(straight.toFixed(3)) });
+      }
+    }
+    if (found.length >= target && ring >= 1) break;
+  }
+
+  return found.sort((a, b) => a.straight_km - b.straight_km);
+}
+
+export async function dispatchRide(
+  rideId: string,
+  pickup: { lat: number; lng: number },
+  vehicleClass: "boda" | "economy" | "comfort" | "xl",
+  options: { radiusKm: number; offerTimeoutSeconds: number; cashRide: boolean },
+): Promise<DispatchResult> {
+  const radiusKm = Math.min(options.radiusKm, MAX_DISPATCH_RADIUS_KM);
+  const drivers = await eligibleDrivers(vehicleClass, options.cashRide);
+  const nearby = searchHexRings(pickup, drivers, radiusKm).slice(0, MAX_ROAD_LOOKUPS);
+  if (nearby.length === 0) return { offers: 0, candidates: [] };
+
+  // Rank the short list by how far the driver must actually drive on the road,
+  // not by how the crow flies. Only the short list costs a provider call.
+  const { getMapProvider } = await import("./adapters/map.server");
+  const provider = getMapProvider();
+  const ranked = await Promise.all(
+    nearby.map(async (driver) => {
+      try {
+        const route = await provider.route({ lat: driver.lat, lng: driver.lng }, pickup);
+        return {
+          ...driver,
+          road_km: Number(route.distance_km.toFixed(3)),
+          eta_minutes: Number(route.duration_minutes.toFixed(1)),
+        };
+      } catch {
+        return {
+          ...driver,
+          road_km: Number((driver.straight_km * 1.35).toFixed(3)),
+          eta_minutes: Number((driver.straight_km * 2.8 + 1).toFixed(1)),
+        };
+      }
+    }),
+  );
+  ranked.sort((a, b) => a.eta_minutes - b.eta_minutes || a.road_km - b.road_km);
+
+  const best = ranked[0]!;
+  const offerCount = best.road_km <= SOLO_OFFER_KM ? 1 : Math.min(ranked.length, TARGET_CANDIDATES);
+  const candidates = ranked.slice(0, offerCount).map((driver) => ({
+    driver_id: driver.driver_id,
+    vehicle_id: driver.vehicle_id,
+    distance_km: driver.road_km,
+    eta_minutes: driver.eta_minutes,
+  }));
 
   const expiresAt = new Date(Date.now() + options.offerTimeoutSeconds * 1000).toISOString();
   // Re-dispatching the same ride must refresh an existing offer row rather
@@ -83,19 +174,25 @@ export async function dispatchRide(
     { onConflict: "ride_id,driver_id" },
   );
 
-
   for (const candidate of candidates) {
     await notify({
       userId: candidate.driver_id,
       templateCode: "ride_offer",
       title: "New ride request",
-      body: `A customer needs a taxi ${candidate.distance_km.toFixed(1)} km away.`,
+      body: `A customer needs a taxi ${candidate.distance_km.toFixed(1)} km away (about ${Math.round(candidate.eta_minutes)} min).`,
       rideId,
       dedupeKey: `offer:${rideId}:${candidate.driver_id}`,
     });
   }
 
-  return { offers: candidates.length, candidates };
+  return {
+    offers: candidates.length,
+    candidates: candidates.map(({ driver_id, distance_km, eta_minutes }) => ({
+      driver_id,
+      distance_km,
+      eta_minutes,
+    })),
+  };
 }
 
 /** Expires stale offers and rides that never found a driver. */
