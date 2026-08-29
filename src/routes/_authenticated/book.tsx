@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
 import { createQuote, estimateClasses, requestRide, reverseGeocode } from "@/lib/rides.functions";
+import { validatePromoCode } from "@/lib/admin.functions";
+import type { PromoState } from "@/lib/discounts";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { nearbyDrivers } from "@/lib/nearby.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,6 +91,18 @@ function BookPage() {
   const [pendingDropoff, setPendingDropoff] = useState<Point | null>(null);
   const [recents, setRecents] = useState<Point[]>(() => readRecents());
   const searchInput = useRef<HTMLInputElement | null>(null);
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string;
+    name: string;
+    discount_percent: number;
+    discount_amount: number;
+    total_before_discount: number;
+    total_fare: number;
+    promotionId: string;
+  } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoStatus, setPromoStatus] = useState<PromoState | null>(null);
 
   // Saved places live with the customer, so Home and Office survive devices.
   const saved = useQuery({
@@ -136,6 +150,39 @@ function BookPage() {
       }),
   });
 
+  const promoFn = useServerFn(validatePromoCode);
+  const applyingPromo = useMutation({
+    mutationFn: async () => {
+      const fare =
+        chosen?.available ? chosen.total : (estimates.find((o) => o.vehicleClass === vehicleClass)?.total ?? 0);
+      return promoFn({ data: { code: promoInput.trim().toUpperCase(), totalFare: fare } });
+    },
+    onSuccess: (result) => {
+      setPromoError(null);
+      if (!result.valid) {
+        setAppliedPromo(null);
+        setPromoStatus(result.state);
+        setPromoError(result.message);
+        return;
+      }
+      setPromoStatus("active");
+      setAppliedPromo({
+        code: result.code,
+        name: result.name,
+        discount_percent: result.discount_percent,
+        discount_amount: result.discount_amount,
+        total_before_discount: result.total_before_discount,
+        total_fare: result.total_fare,
+        promotionId: result.promotionId,
+      });
+    },
+    onError: (err: Error) => {
+      setAppliedPromo(null);
+      setPromoStatus(null);
+      setPromoError(err.message);
+    },
+  });
+
   // One tap: price the route on the server, keep that quote and start the
   // driver search. The customer never has to "lock" a fare by hand.
   const requesting = useMutation({
@@ -146,6 +193,7 @@ function BookPage() {
           dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
           vehicleClass,
           pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
+          ...(appliedPromo?.code ? { promoCode: appliedPromo.code } : {}),
         },
       });
       return requestFn({
@@ -507,6 +555,52 @@ function BookPage() {
                 ? "Paying by M-PESA settles the whole trip — nothing more to pay the driver."
                 : "Cash means you settle with the driver at the end of the trip."}
             </p>
+
+            {/* Promo code */}
+            <div className="mt-4">
+              <span className="text-xs font-medium text-muted-foreground">Promo code</span>
+              <div className="mt-1 flex gap-2">
+                <input
+                  value={promoInput}
+                  onChange={(e) => {
+                    setPromoInput(e.target.value);
+                    setPromoError(null);
+                  }}
+                  placeholder="Enter a code"
+                  className="flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-sm uppercase"
+                />
+                <button
+                  onClick={() => applyingPromo.mutate()}
+                  disabled={applyingPromo.isPending || promoInput.trim().length < 2 || !chosen?.available}
+                  className="rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold"
+                >
+                  {applyingPromo.isPending ? "Checking…" : "Apply"}
+                </button>
+              </div>
+              {appliedPromo ? (
+                <div className="mt-2 rounded-xl bg-success/10 px-3 py-2.5 text-xs text-success">
+                  <p className="font-semibold">
+                    {appliedPromo.code} applied — {appliedPromo.discount_percent}% off
+                  </p>
+                  <p>
+                    You save KES {appliedPromo.discount_amount.toFixed(2)} — new fare KES{" "}
+                    {appliedPromo.total_fare.toFixed(2)}.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setAppliedPromo(null);
+                      setPromoInput("");
+                      setPromoError(null);
+                      setPromoStatus(null);
+                    }}
+                    className="mt-1 underline"
+                  >
+                    Remove code
+                  </button>
+                </div>
+              ) : null}
+              {promoError ? <p className="mt-2 text-xs text-destructive">{promoError}</p> : null}
+            </div>
 
             {/* No separate fare lock: this prices the route and finds a driver. */}
             <button

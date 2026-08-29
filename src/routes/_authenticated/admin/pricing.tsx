@@ -12,7 +12,12 @@ import {
   saveFareConfig,
   setModifier,
   setSystemSetting,
+  listPromotions,
+  savePromotion,
+  togglePromotion,
+  deletePromotion,
 } from "@/lib/admin.functions";
+import { promoState, type PromoState } from "@/lib/discounts";
 
 export const Route = createFileRoute("/_authenticated/admin/pricing")({
   head: () => ({
@@ -557,7 +562,368 @@ function PricingWorkspace() {
             ) : null}
           </div>
         </section>
+
+        <PromotionsBoard />
       </div>
     </AppShell>
+  );
+}
+
+interface PromoForm {
+  id?: string;
+  code: string;
+  name: string;
+  description: string;
+  discount_percent: string;
+  max_discount_percent: string;
+  max_discount_amount: string;
+  min_fare: string;
+  valid_from: string;
+  valid_until: string;
+  usage_limit: string;
+  applies_to: VehicleClass[];
+  active: boolean;
+}
+
+const emptyPromo = (): PromoForm => ({
+  code: "",
+  name: "",
+  description: "",
+  discount_percent: "10",
+  max_discount_percent: "20",
+  max_discount_amount: "",
+  min_fare: "",
+  valid_from: new Date().toISOString().slice(0, 16),
+  valid_until: "",
+  usage_limit: "",
+  applies_to: [],
+  active: true,
+});
+
+const promoStateLabel: Record<PromoState, { label: string; className: string }> = {
+  active: { label: "Live", className: "bg-success/15 text-success" },
+  expired: { label: "Expired", className: "bg-destructive/15 text-destructive" },
+  not_started: { label: "Scheduled", className: "bg-warning/15 text-warning" },
+  usage_exhausted: { label: "Used up", className: "bg-muted text-muted-foreground" },
+  invalid: { label: "Inactive", className: "bg-muted text-muted-foreground" },
+};
+
+function PromotionsBoard() {
+  const queryClient = useQueryClient();
+  const fetchPromos = useServerFn(listPromotions);
+  const saveFn = useServerFn(savePromotion);
+  const toggleFn = useServerFn(togglePromotion);
+  const deleteFn = useServerFn(deletePromotion);
+
+  const [editing, setEditing] = useState<PromoForm | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const promos = useQuery({ queryKey: ["promotions"], queryFn: () => fetchPromos({}) });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["promotions"] });
+
+  const save = useMutation({
+    mutationFn: () =>
+      saveFn({
+        data: {
+          ...(editing?.id ? { id: editing.id } : {}),
+          code: editing!.code,
+          name: editing!.name,
+          description: editing!.description.trim() || null,
+          discount_percent: Number(editing!.discount_percent) || 0,
+          max_discount_percent: Number(editing!.max_discount_percent) || 0,
+          max_discount_amount: editing!.max_discount_amount ? Number(editing!.max_discount_amount) : null,
+          min_fare: editing!.min_fare ? Number(editing!.min_fare) : null,
+          valid_from: editing!.valid_from,
+          valid_until: editing!.valid_until || null,
+          usage_limit: editing!.usage_limit ? Number(editing!.usage_limit) : null,
+          applies_to: editing!.applies_to,
+          active: editing!.active,
+        },
+      }),
+    onSuccess: () => {
+      setEditing(null);
+      setCreating(false);
+      invalidate();
+    },
+  });
+
+  const toggle = useMutation({
+    mutationFn: (vars: { id: string; active: boolean }) => toggleFn({ data: vars }),
+    onSuccess: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: invalidate,
+  });
+
+  const list = promos.data ?? [];
+
+  return (
+    <section className="surface-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Offers & promotions</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Create codes with a hard maximum discount. A code can never reduce a fare beyond its configured cap.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setEditing(emptyPromo());
+            setCreating(true);
+          }}
+          className="shrink-0 rounded-full bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground"
+        >
+          New offer
+        </button>
+      </div>
+
+      {promos.isPending ? (
+        <p className="mt-3 text-xs text-muted-foreground">Loading offers…</p>
+      ) : list.length === 0 ? (
+        <p className="mt-3 text-xs text-muted-foreground">No offers yet. Create one to start offering discounts.</p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {list.map((promo) => {
+            const state = promoState(promo);
+            const meta = promoStateLabel[state];
+            return (
+              <li key={promo.id} className="rounded-2xl border border-border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">
+                      {promo.code} · {promo.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {Number(promo.discount_percent)}% off, capped at {Number(promo.max_discount_percent)}% ·{" "}
+                      {promo.usage_count}
+                      {promo.usage_limit ? `/${promo.usage_limit}` : ""} used
+                    </p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${meta.className}`}>
+                    {meta.label}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      setEditing({
+                        id: promo.id,
+                        code: promo.code,
+                        name: promo.name,
+                        description: promo.description ?? "",
+                        discount_percent: String(promo.discount_percent),
+                        max_discount_percent: String(promo.max_discount_percent),
+                        max_discount_amount: promo.max_discount_amount != null ? String(promo.max_discount_amount) : "",
+                        min_fare: promo.min_fare != null ? String(promo.min_fare) : "",
+                        valid_from: promo.valid_from.slice(0, 16),
+                        valid_until: promo.valid_until ? promo.valid_until.slice(0, 16) : "",
+                        usage_limit: promo.usage_limit != null ? String(promo.usage_limit) : "",
+                        applies_to: (promo.applies_to ?? []) as VehicleClass[],
+                        active: promo.active,
+                      });
+                      setCreating(false);
+                    }}
+                    className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => toggle.mutate({ id: promo.id, active: !promo.active })}
+                    disabled={toggle.isPending}
+                    className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-60"
+                  >
+                    {promo.active ? "Pause" : "Activate"}
+                  </button>
+                  <button
+                    onClick={() => remove.mutate(promo.id)}
+                    disabled={remove.isPending}
+                    className="rounded-full border border-destructive px-3 py-1.5 text-xs font-medium text-destructive disabled:opacity-60"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {creating || editing ? (
+        <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
+          <h4 className="text-sm font-semibold text-foreground">{creating ? "New offer" : "Edit offer"}</h4>
+          <div className="mt-3 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-[11px] text-muted-foreground">Code</span>
+                <input
+                  value={editing!.code}
+                  onChange={(e) => setEditing({ ...editing!, code: e.target.value.toUpperCase() })}
+                  placeholder="MERU20"
+                  className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm uppercase"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-muted-foreground">Name</span>
+                <input
+                  value={editing!.name}
+                  onChange={(e) => setEditing({ ...editing!, name: e.target.value })}
+                  placeholder="Meru launch"
+                  className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="text-[11px] text-muted-foreground">Description</span>
+              <input
+                value={editing!.description}
+                onChange={(e) => setEditing({ ...editing!, description: e.target.value })}
+                placeholder="Shown to customers when they apply this code"
+                className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-[11px] text-muted-foreground">Discount %</span>
+                <input
+                  value={editing!.discount_percent}
+                  onChange={(e) => setEditing({ ...editing!, discount_percent: e.target.value })}
+                  inputMode="decimal"
+                  className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] font-semibold text-foreground">Max discount %</span>
+                <input
+                  value={editing!.max_discount_percent}
+                  onChange={(e) => setEditing({ ...editing!, max_discount_percent: e.target.value })}
+                  inputMode="decimal"
+                  className="mt-0.5 w-full rounded-xl border border-primary bg-primary/5 px-2.5 py-2 text-sm font-semibold"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-[11px] text-muted-foreground">Max amount (KES)</span>
+                <input
+                  value={editing!.max_discount_amount}
+                  onChange={(e) => setEditing({ ...editing!, max_discount_amount: e.target.value })}
+                  inputMode="decimal"
+                  placeholder="optional"
+                  className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-muted-foreground">Min fare (KES)</span>
+                <input
+                  value={editing!.min_fare}
+                  onChange={(e) => setEditing({ ...editing!, min_fare: e.target.value })}
+                  inputMode="decimal"
+                  placeholder="optional"
+                  className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-[11px] text-muted-foreground">Valid from</span>
+                <input
+                  type="datetime-local"
+                  value={editing!.valid_from}
+                  onChange={(e) => setEditing({ ...editing!, valid_from: e.target.value })}
+                  className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-muted-foreground">Valid until (blank = never)</span>
+                <input
+                  type="datetime-local"
+                  value={editing!.valid_until}
+                  onChange={(e) => setEditing({ ...editing!, valid_until: e.target.value })}
+                  className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="text-[11px] text-muted-foreground">Usage limit (blank = unlimited)</span>
+              <input
+                value={editing!.usage_limit}
+                onChange={(e) => setEditing({ ...editing!, usage_limit: e.target.value })}
+                inputMode="numeric"
+                placeholder="optional"
+                className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+              />
+            </label>
+            <div>
+              <span className="text-[11px] text-muted-foreground">Applies to</span>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {(["boda", "economy", "comfort", "xl"] as const).map((vc) => {
+                  const selected = editing!.applies_to.includes(vc);
+                  return (
+                    <button
+                      key={vc}
+                      type="button"
+                      onClick={() =>
+                        setEditing({
+                          ...editing!,
+                          applies_to: selected
+                            ? editing!.applies_to.filter((x) => x !== vc)
+                            : [...editing!.applies_to, vc],
+                        })
+                      }
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                        selected ? "bg-primary text-primary-foreground" : "border border-input text-muted-foreground"
+                      }`}
+                    >
+                      {vc}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={editing!.active}
+                onChange={(e) => setEditing({ ...editing!, active: e.target.checked })}
+                className="h-4 w-4"
+              />
+              <span className="text-foreground">Active</span>
+            </label>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => save.mutate()}
+                disabled={save.isPending || !editing!.code.trim() || !editing!.name.trim()}
+                className="flex-1 rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {save.isPending ? "Saving…" : creating ? "Create offer" : "Save changes"}
+              </button>
+              <button
+                onClick={() => {
+                  setEditing(null);
+                  setCreating(false);
+                }}
+                className="rounded-full border border-input px-3 py-2.5 text-sm font-medium text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+            {save.isError ? (
+              <p className="text-xs text-destructive">{(save.error as Error).message}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {save.isSuccess && <p className="mt-2 text-xs text-success">Offer saved.</p>}
+      {toggle.isError ? (
+        <p className="mt-2 text-xs text-destructive">{(toggle.error as Error).message}</p>
+      ) : null}
+      {remove.isError ? (
+        <p className="mt-2 text-xs text-destructive">{(remove.error as Error).message}</p>
+      ) : null}
+    </section>
   );
 }

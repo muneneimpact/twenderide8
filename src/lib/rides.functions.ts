@@ -13,6 +13,7 @@ const quoteSchema = z.object({
   dropoff: pointSchema,
   vehicleClass: z.enum(["boda", "economy", "comfort", "xl"]).default("economy"),
   pickupNotes: z.string().max(400).optional().nullable(),
+  promoCode: z.string().trim().max(40).optional().nullable(),
 });
 
 const requestSchema = z.object({
@@ -151,20 +152,52 @@ export const createQuote = createServerFn({ method: "POST" })
       modifiers: pricing.modifiers,
     });
 
-    // Same deterministic draw the comparison cards used, so the price never moves.
-    const discount = drawDiscount(
-      `${context.userId}:${nairobiDayKey()}:${data.vehicleClass}`,
-      settingNumber(pricing.settings, "random_discount_max_percent", 20),
-      settingNumber(pricing.settings, "random_discount_chance_percent", 35),
-    );
-    const priced = applyDiscount(computed.total_fare, discount?.percent ?? 0);
+    // A valid promo code takes precedence over the deterministic daily draw. The
+    // server is the only authority that decides whether a code may be used and
+    // it enforces the offer's configured maximum discount.
+    let discountPercent = 0;
+    let discountLabel: string | null = null;
+    let promoInfo: { promotionId: string; code: string; name: string } | null = null;
+
+    if (data.promoCode) {
+      const { promoState, applyPromo } = await import("./discounts");
+      const code = data.promoCode.toUpperCase();
+      const { data: promoRows } = await supabaseAdmin
+        .from("promotions")
+        .select("*")
+        .eq("code", code)
+        .limit(1);
+      const promo = promoRows?.[0];
+      if (promo && promoState(promo) === "active") {
+        const applied = applyPromo(computed.total_fare, promo);
+        if (!applied.blocked_min_fare) {
+          discountPercent = applied.discount_percent;
+          discountLabel = `${promo.code} applied`;
+          promoInfo = { promotionId: promo.id, code: promo.code, name: promo.name };
+        }
+      }
+    }
+
+    // Only fall back to the deterministic daily draw when no promo was applied.
+    if (!promoInfo) {
+      const discount = drawDiscount(
+        `${context.userId}:${nairobiDayKey()}:${data.vehicleClass}`,
+        settingNumber(pricing.settings, "random_discount_max_percent", 20),
+        settingNumber(pricing.settings, "random_discount_chance_percent", 35),
+      );
+      discountPercent = discount?.percent ?? 0;
+      discountLabel = discount?.label ?? null;
+    }
+
+    const priced = applyDiscount(computed.total_fare, discountPercent);
     const breakdown = {
       ...computed,
       total_fare: priced.total_fare,
       discount_percent: priced.discount_percent,
       discount_amount: priced.discount_amount,
-      discount_label: discount?.label ?? null,
+      discount_label: discountLabel,
       total_before_discount: priced.total_before_discount,
+      ...(promoInfo ? { promo: promoInfo } : {}),
     };
 
     const validitySeconds = settingNumber(pricing.settings, "quote_validity_seconds", 300);
@@ -194,7 +227,11 @@ export const createQuote = createServerFn({ method: "POST" })
           config: pricing.config,
           policy: pricing.policy,
           modifiers: pricing.modifiers,
-          discount: { percent: priced.discount_percent, amount: priced.discount_amount },
+          discount: {
+            percent: priced.discount_percent,
+            amount: priced.discount_amount,
+            ...(promoInfo ? { promo: promoInfo } : {}),
+          },
           traffic_aware: route.traffic_aware,
         } as never,
         expires_at: new Date(Date.now() + validitySeconds * 1000).toISOString(),
