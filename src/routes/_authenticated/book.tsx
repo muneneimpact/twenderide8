@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
 import { createQuote, estimateClasses, requestRide, reverseGeocode } from "@/lib/rides.functions";
 import { PlaceSearch } from "@/components/PlaceSearch";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/book")({
   head: () => ({
@@ -61,6 +62,18 @@ function BookPage() {
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [msisdn, setMsisdn] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(0);
+
+  const resolvePoint = useCallback(
+    async (point: { lat: number; lng: number }) => {
+      // Geolocation can resolve during the brief hand-off between the route
+      // guard and client auth hydration. Never call a protected server
+      // function until the bearer token is available.
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) return null;
+      return reverse({ data: point });
+    },
+    [reverse],
+  );
 
   const quoting = useMutation({
     mutationFn: () =>
@@ -118,7 +131,8 @@ function BookPage() {
     else setDropoff(next);
     quoting.reset();
     try {
-      const resolved = await reverse({ data: point });
+      const resolved = await resolvePoint(point);
+      if (!resolved) return;
       const enriched: Point = { ...point, label: resolved.label, address: resolved.address };
       if (target === "pickup") setPickup(enriched);
       else setDropoff(enriched);
@@ -143,7 +157,8 @@ function BookPage() {
         setLocating(false);
         quoting.reset();
         try {
-          const resolved = await reverse({ data: point });
+          const resolved = await resolvePoint(point);
+          if (!resolved) return;
           setPickup({ ...point, label: resolved.label, address: resolved.address });
         } catch {
           // Coordinates stay authoritative even without a friendly name.
@@ -156,7 +171,7 @@ function BookPage() {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reverse]);
+  }, [resolvePoint]);
 
   useEffect(() => {
     useCurrentLocation();
