@@ -11,6 +11,7 @@ type Tab = { to: string; label: string };
 const customerTabs: Tab[] = [
   { to: "/book", label: "Book" },
   { to: "/rides", label: "My rides" },
+  { to: "/account", label: "Account" },
 ];
 
 /** Tabs a person may use, derived from the roles the server reported. */
@@ -31,11 +32,14 @@ export function AppShell({
   children,
   tabs,
   eyebrow = "Twende Meru Rides",
+  hideNav = false,
 }: {
   title: string;
   children: ReactNode;
   tabs?: Tab[];
   eyebrow?: string;
+  /** Full-screen flows (destination search) take over the bottom of the screen. */
+  hideNav?: boolean;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -64,11 +68,12 @@ export function AppShell({
         </button>
       </header>
 
-      <div className="flex-1 pb-28">
+      <div className={hideNav ? "flex-1" : "flex-1 pb-28"}>
         <PhoneVerifyGate>{children}</PhoneVerifyGate>
       </div>
 
 
+      {!hideNav && (
       <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-md gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-1.5 shadow-[0_10px_36px_-10px_rgba(0,0,0,0.45)]">
           {visibleTabs.map((tab) => (
@@ -87,6 +92,7 @@ export function AppShell({
           ))}
         </div>
       </nav>
+      )}
     </div>
   );
 }
