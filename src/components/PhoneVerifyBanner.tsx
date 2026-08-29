@@ -11,7 +11,7 @@ import { useMe } from "@/hooks/useMe";
  * the message and the code matching.
  */
 export function PhoneVerifyGate({ children }: { children: ReactNode }) {
-  const { me, isLoading, refetch } = useMe();
+  const { me, isLoading, refetch, isStaff } = useMe();
   const queryClient = useQueryClient();
   const send = useServerFn(requestPhoneOtp);
   const check = useServerFn(verifyPhoneOtp);
@@ -58,6 +58,9 @@ export function PhoneVerifyGate({ children }: { children: ReactNode }) {
     onError: (err: Error) => setError(err.message),
   });
 
+  // Staff sign in with email + password, never by phone. They should not be
+  // forced through the customer-facing phone-verification flow.
+  if (isStaff) return <>{children}</>;
   if (isLoading || !me) return <>{children}</>;
   if (profile?.phone_verified_at) return <>{children}</>;
 
