@@ -292,39 +292,62 @@ function BookPage() {
         </div>
         {locateError && <p className="mt-2 text-xs text-destructive">{locateError}</p>}
 
-        <div className="mt-4">
-          <p className="font-display text-2xl font-bold leading-tight text-foreground">
-            {placing === "pickup" ? "Set your pickup" : "Where to?"}
-          </p>
-          <div className="mt-2">
-            <PlaceSearch
-              prominent
-              placeholder={placing === "pickup" ? "Search pickup (e.g. Makutano)" : "Type your destination"}
-              near={pickup ?? dropoff}
-              value={placing === "pickup" ? pickup?.label ?? null : dropoff?.label ?? null}
-              onPick={(place) => {
-                const picked: Point = {
-                  lat: place.lat,
-                  lng: place.lng,
-                  label: place.label,
-                  address: place.address,
-                };
-                if (placing === "pickup") {
-                  setPickup(picked);
-                  setPlacing("dropoff");
-                } else {
-                  setDropoff(picked);
-                }
-                quoting.reset();
-              }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Tap a suggestion once to choose it, or tap the map to drop the{" "}
-            {placing === "pickup" ? "pickup" : "destination"} pin.
-          </p>
-        </div>
+        {/* Where to is the whole job: one big tap opens a full-screen search. */}
+        <button
+          onClick={() => {
+            setPlacing("dropoff");
+            setPendingDropoff(dropoff);
+            setSearchOpen(true);
+            window.setTimeout(() => searchInput.current?.focus(), 60);
+          }}
+          className="mt-4 w-full rounded-2xl border-2 border-border bg-card px-4 py-4 text-left"
+        >
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Destination
+          </span>
+          <span className="mt-0.5 block truncate font-display text-2xl font-bold leading-tight text-foreground">
+            {dropoff ? label(dropoff) : "Where to?"}
+          </span>
+        </button>
 
+        {/* Recent and saved destinations, straight from the customer's own data. */}
+        {!dropoff && (recents.length > 0 || (saved.data?.length ?? 0) > 0) ? (
+          <div className="mt-3 space-y-1.5">
+            {(saved.data ?? []).map((place) => (
+              <button
+                key={place.id}
+                onClick={() =>
+                  chooseDestination({
+                    lat: Number(place.lat),
+                    lng: Number(place.lng),
+                    label: place.label,
+                    address: place.address,
+                  })
+                }
+                className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+              >
+                <span className="text-base">★</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-foreground">{place.label}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{place.address ?? "Saved place"}</span>
+                </span>
+              </button>
+            ))}
+            {recents.map((place, index) => (
+              <button
+                key={`${label(place)}-${index}`}
+                onClick={() => chooseDestination(place)}
+                className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+              >
+                <span className="text-base">↻</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-foreground">{label(place)}</span>
+                  <span className="block truncate text-xs text-muted-foreground">Recent</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {dropoff ? (
           <dl className="mt-4 space-y-1 rounded-2xl border border-border bg-card p-3 text-sm">
@@ -336,8 +359,23 @@ function BookPage() {
               <dt className="text-muted-foreground">Destination</dt>
               <dd className="text-right text-foreground">{label(dropoff)}</dd>
             </div>
+            {estimating.data ? (
+              <>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Distance</dt>
+                  <dd className="text-right text-foreground">{estimating.data.distance_km.toFixed(1)} km</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Estimated fare</dt>
+                  <dd className="text-right font-semibold text-foreground">
+                    {chosen && chosen.available ? `KES ${chosen.total.toFixed(2)}` : "—"}
+                  </dd>
+                </div>
+              </>
+            ) : null}
           </dl>
         ) : null}
+
 
         {/* The ride picker only appears once we know where the customer is going. */}
         {pickup && dropoff ? (
