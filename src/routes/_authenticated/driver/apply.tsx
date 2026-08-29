@@ -356,9 +356,9 @@ function DriverApply() {
           )}
         </section>
 
-        {/* Step 3 — documents */}
+        {/* Step 4 — documents */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">3 · Compliance documents</h3>
+          <h3 className="text-sm font-semibold text-foreground">4 · Compliance documents</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Tap a document below to add it. National ID, driving licence and certificate of good conduct need a clear
             photo; the rest only need a reference for now.
