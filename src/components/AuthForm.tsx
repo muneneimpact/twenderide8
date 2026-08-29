@@ -198,25 +198,24 @@ export function AuthForm({
             {eyebrow}
           </Link>
           <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground">
-            {signingUp ? "Create your account" : heading}
+            {resetting ? "Reset your password" : signingUp ? "Create your account" : heading}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {signingUp
-              ? "One Kenyan number, one account. We verify it with a code so your rides and receipts stay yours."
-              : blurb}
+            {resetting
+              ? "We text a 6-digit code to your number, then you choose a new password."
+              : signingUp
+                ? "One Kenyan number, one account. We verify it with a code so your rides and receipts stay yours."
+                : blurb}
           </p>
         </div>
 
-        {allowSignUp && channel === "phone" && step === "phone" ? (
+        {allowSignUp && channel === "phone" && step === "form" && !resetting ? (
           <div className="auth-rise auth-delay-1 mt-5 grid grid-cols-2 gap-1 rounded-full border border-border bg-secondary p-1">
             {(["signin", "signup"] as const).map((value) => (
               <button
                 key={value}
                 type="button"
-                onClick={() => {
-                  setMode(value);
-                  setError(null);
-                }}
+                onClick={() => switchMode(value)}
                 className={`rounded-full px-3 py-2 text-sm font-semibold transition-all duration-300 ${
                   mode === value
                     ? "bg-primary text-primary-foreground shadow-[0_4px_16px_-6px_rgba(0,0,0,0.45)]"
@@ -230,8 +229,12 @@ export function AuthForm({
         ) : null}
 
         {channel === "phone" ? (
-          step === "phone" ? (
-            <form key={mode} onSubmit={sendCode} className="mt-6 space-y-3">
+          step === "form" ? (
+            <form
+              key={mode}
+              onSubmit={mode === "signin" ? phonePasswordSignIn : sendCode}
+              className="mt-6 space-y-3"
+            >
               <label className="auth-rise auth-delay-1 block">
                 <span className="text-xs font-medium text-muted-foreground">Phone number</span>
                 <input
@@ -261,7 +264,7 @@ export function AuthForm({
                       className={input}
                     />
                   </label>
-                  <label className="auth-rise auth-delay-3 block">
+                  <label className="auth-rise auth-delay-2 block">
                     <span className="text-xs font-medium text-muted-foreground">Email (optional)</span>
                     <input
                       type="email"
@@ -278,6 +281,23 @@ export function AuthForm({
                 </>
               )}
 
+              <label className="auth-rise auth-delay-3 block">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {mode === "signin" ? "Password" : "New password"}
+                </span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  minLength={8}
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  placeholder="At least 8 characters"
+                  className={input}
+                />
+              </label>
+
+              {notice && <p className="auth-rise text-sm text-foreground">{notice}</p>}
               {error && <p className="auth-rise text-sm text-destructive">{error}</p>}
               <button
                 type="submit"
@@ -286,18 +306,28 @@ export function AuthForm({
               >
                 {busy ? (
                   <span className="inline-flex items-center gap-2">
-                    <span className="auth-spinner" /> Sending code…
+                    <span className="auth-spinner" /> {mode === "signin" ? "Signing in…" : "Sending code…"}
                   </span>
-                ) : signingUp ? (
-                  "Create account with SMS code"
+                ) : mode === "signin" ? (
+                  "Sign in"
+                ) : resetting ? (
+                  "Send code to reset password"
                 ) : (
-                  "Send code by SMS"
+                  "Create account"
                 )}
               </button>
-              <p className="text-center text-[11px] text-muted-foreground">
-                {signingUp
-                  ? "Already have an account? Choose Sign in — the same code works."
-                  : "New here? Choose Sign up and the same code creates your account."}
+              <div className="flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
+                {resetting ? (
+                  <button type="button" onClick={() => switchMode("signin")} className="underline">
+                    Back to sign in
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => switchMode("forgot")} className="underline">
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+
               </p>
             </form>
           ) : (
