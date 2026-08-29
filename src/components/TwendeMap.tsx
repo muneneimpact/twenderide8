@@ -11,6 +11,8 @@ interface TwendeMapProps {
   pickup: MapPoint | null;
   dropoff: MapPoint | null;
   driver?: (MapPoint & { accuracy_m?: number | null }) | null;
+  /** Anonymised nearby drivers who are online and free, drawn as small cars. */
+  nearbyDrivers?: Array<MapPoint & { eta_minutes?: number | null }>;
   /** Encoded road route between pickup and dropoff, when the router returned one. */
   polyline?: string | null;
   /** Which pin the user is currently placing; tapping the map moves it. */
@@ -18,6 +20,7 @@ interface TwendeMapProps {
   onPlace?: (point: MapPoint) => void;
   className?: string;
 }
+
 
 
 const MERU: MapPoint = { lat: 0.0471, lng: 37.6497 };
