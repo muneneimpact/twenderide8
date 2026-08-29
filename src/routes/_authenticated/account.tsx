@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { getMe, reportIncident, updateProfile } from "@/lib/account.functions";
+import { reverseGeocode } from "@/lib/rides.functions";
+
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/account")({
