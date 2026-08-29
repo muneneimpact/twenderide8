@@ -103,9 +103,11 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
         phone: z.string().min(9).max(20),
         code: z.string().regex(/^\d{6}$/),
         fullName: z.string().max(120).optional(),
+        email: z.string().email().max(160).optional(),
       })
       .parse(input),
   )
+
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { normaliseKenyanPhone } = await import("./phone");
