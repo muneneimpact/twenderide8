@@ -47,8 +47,11 @@ function DriverApply() {
   const applyFn = useServerFn(applyAsDriver);
   const docFn = useServerFn(submitDocument);
   const profileFn = useServerFn(updateProfile);
+  const photoFn = useServerFn(saveDriverPhoto);
+  const myPhotoFn = useServerFn(getMyPhotoUrl);
 
   const board = useQuery({ queryKey: ["driver-onboarding"], queryFn: () => fetchOnboarding({}) });
+  const photo = useQuery({ queryKey: ["driver-photo"], queryFn: () => myPhotoFn({}) });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["driver-onboarding"] });
 
   const [fullName, setFullName] = useState("");
@@ -64,6 +67,29 @@ function DriverApply() {
   const [docExpiry, setDocExpiry] = useState("");
   const [docVehicle, setDocVehicle] = useState("");
   const [docFile, setDocFile] = useState<File | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+
+  /** Riders see this photo once they are matched, so it is stored on the profile. */
+  const savePhoto = useMutation({
+    mutationFn: async () => {
+      if (!photoFile) throw new Error("Choose a photo first.");
+      const { data: session } = await supabase.auth.getUser();
+      const userId = session.user?.id;
+      if (!userId) throw new Error("Your session expired. Sign in again.");
+      const extension = photoFile.name.split(".").pop()?.toLowerCase() ?? "jpg";
+      const path = `${userId}/profile-photo-${Date.now()}.${extension}`;
+      const { error } = await supabase.storage
+        .from("driver-documents")
+        .upload(path, photoFile, { contentType: photoFile.type || "image/jpeg", upsert: true });
+      if (error) throw new Error(`Photo upload failed: ${error.message}`);
+      return photoFn({ data: { filePath: path } });
+    },
+    onSuccess: () => {
+      setPhotoFile(null);
+      void photo.refetch();
+    },
+  });
+
 
   const contact = useMutation({
     mutationFn: () =>
