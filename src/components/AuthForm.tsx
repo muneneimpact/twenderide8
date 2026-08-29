@@ -364,7 +364,8 @@ export function AuthForm({
                 <button
                   type="button"
                   onClick={() => {
-                    setStep("phone");
+                    setStep("form");
+
                     setCode("");
                     setError(null);
                   }}
