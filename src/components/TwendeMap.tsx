@@ -155,6 +155,28 @@ export default function TwendeMap({
       points.push(driver);
     }
 
+    for (const nearby of nearbyDrivers ?? []) {
+      const car = new maps.Marker({
+        position: { lat: nearby.lat, lng: nearby.lng },
+        map: instance,
+        icon: {
+          path: "M-9,-3 L-7,-7 L7,-7 L9,-3 L9,4 L6,4 L6,6 L3,6 L3,4 L-3,4 L-3,6 L-6,6 L-6,4 L-9,4 Z",
+          fillColor: "#0f4c81",
+          fillOpacity: 0.95,
+          strokeColor: "#ffffff",
+          strokeWeight: 1.5,
+          scale: 0.9,
+          anchor: new maps.Point(0, 0),
+        },
+        title:
+          nearby.eta_minutes != null
+            ? `Available driver — about ${Math.round(nearby.eta_minutes)} min away`
+            : "Available driver",
+        zIndex: 1,
+      });
+      overlays.current.push(car);
+    }
+
     if (points.length === 1) {
       instance.setCenter(points[0]!);
       instance.setZoom(15);
@@ -163,7 +185,7 @@ export default function TwendeMap({
       points.forEach((point) => bounds.extend(point));
       instance.fitBounds(bounds, 48);
     }
-  }, [pickup, dropoff, driver, ready]);
+  }, [pickup, dropoff, driver, nearbyDrivers, ready]);
 
   return (
     <div className={`relative ${className ?? "h-full w-full"}`}>
