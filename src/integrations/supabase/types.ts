@@ -1050,6 +1050,7 @@ export type Database = {
           full_name: string | null
           id: string
           locale: string
+          password_set_at: string | null
           phone: string | null
           phone_verified_at: string | null
           updated_at: string
@@ -1061,6 +1062,7 @@ export type Database = {
           full_name?: string | null
           id: string
           locale?: string
+          password_set_at?: string | null
           phone?: string | null
           phone_verified_at?: string | null
           updated_at?: string
@@ -1072,6 +1074,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           locale?: string
+          password_set_at?: string | null
           phone?: string | null
           phone_verified_at?: string | null
           updated_at?: string
