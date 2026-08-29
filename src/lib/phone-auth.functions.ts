@@ -159,8 +159,10 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
 
     const contactEmail = data.email?.trim().toLowerCase() || null;
     let userId = existing?.id ?? null;
-    // The auth mailbox the one-time token is minted against.
-    let authEmail = existing?.email ?? null;
+    // The auth mailbox the one-time token is minted against (resolved from auth,
+    // never from the profile, so a contact email can differ safely).
+    let authEmail: string | null = null;
+
 
     if (!userId) {
       // An email is optional; without one we mint a placeholder mailbox.
