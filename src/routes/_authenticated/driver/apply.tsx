@@ -3,7 +3,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
-import { applyAsDriver, getDriverOnboarding, submitDocument, updateProfile } from "@/lib/account.functions";
+import {
+  applyAsDriver,
+  getDriverOnboarding,
+  getMyPhotoUrl,
+  saveDriverPhoto,
+  submitDocument,
+  updateProfile,
+} from "@/lib/account.functions";
+
 import { supabase } from "@/integrations/supabase/client";
 import { formatKenyanPlate } from "@/lib/plate";
 import { CarBadge } from "@/components/CarBadge";
