@@ -277,7 +277,8 @@ export const advanceRide = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { settleRide } = await import("./ledger.server");
-    const { notify, emailReceipt, audit } = await import("./notifications.server");
+    const { notify, emailTemplate, audit } = await import("./notifications.server");
+    const { checkTripMilestone } = await import("./milestones.server");
 
     const { data: ride } = await supabaseAdmin
       .from("rides")
@@ -332,11 +333,36 @@ export const advanceRide = createServerFn({ method: "POST" })
         rideId: ride.id,
         critical: true,
       });
-      await emailReceipt(
-        ride.customer_id,
-        `Twende Ride receipt — ${ride.reference}`,
-        `Your trip ${ride.reference} is complete. Total: KES ${Number(ride.total_fare).toFixed(2)}.`,
-      );
+      const { data: quote } = await supabaseAdmin
+        .from("route_quotes")
+        .select("pickup_address, dropoff_address, distance_km")
+        .eq("id", ride.quote_id)
+        .maybeSingle();
+      const { data: customer } = await supabaseAdmin
+        .from("profiles")
+        .select("full_name")
+        .eq("id", ride.customer_id)
+        .maybeSingle();
+      await emailTemplate({
+        userId: ride.customer_id,
+        template: {
+          code: "trip_receipt",
+          data: {
+            customerName: customer?.full_name ?? "Customer",
+            reference: ride.reference,
+            when: new Date(now).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" }),
+            pickup: quote?.pickup_address ?? "Pickup point",
+            dropoff: quote?.dropoff_address ?? "Destination",
+            distanceKm: Number(quote?.distance_km ?? 0),
+            fare: `KES ${Number(ride.total_fare).toFixed(2)}`,
+            paymentMethod: ride.payment_method === "cash" ? "Cash" : "M-PESA",
+          },
+        },
+        eventType: "trip_receipt",
+        idempotencyKey: `trip-receipt:${ride.id}`,
+        rideId: ride.id,
+      });
+      await checkTripMilestone(ride.customer_id);
       await audit(context.userId, "ride_completed", "ride", ride.id, settlement);
       return { status: data.next, settlement };
     }

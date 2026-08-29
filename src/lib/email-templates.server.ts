@@ -94,7 +94,8 @@ export type EmailTemplate =
   | { code: "ride_cancelled"; data: { name: string; reference: string; reason: string; fee?: string | null } }
   | { code: "support_reply"; data: { name: string; reference?: string | null; message: string } }
   | { code: "driver_onboarding"; data: { name: string; status: string; note?: string | null } }
-  | { code: "phone_verification"; data: { code: string; phone: string; minutes: number } };
+  | { code: "phone_verification"; data: { code: string; phone: string; minutes: number } }
+  | { code: "milestone_thanks"; data: { name: string; trips: number } };
 
 export function renderEmail(template: EmailTemplate): RenderedEmail {
   switch (template.code) {
@@ -221,6 +222,19 @@ export function renderEmail(template: EmailTemplate): RenderedEmail {
             para("If you did not request this code, ignore this email and do not share it with anyone."),
         ),
         text: `Your Twende Meru Rides verification code is ${d.code}. It expires in ${d.minutes} minutes. Do not share this code.\n\nSupport: ${SUPPORT}`,
+      };
+    }
+    case "milestone_thanks": {
+      const d = template.data;
+      return {
+        subject: `Asante ${d.name} - ${d.trips} trips with Twende Meru Rides`,
+        html: shell(
+          "Thank you for riding with us",
+          heading(`Asante sana, ${d.name}`) +
+            para(`You have now completed ${d.trips} trips with Twende Meru Rides. Thank you for trusting us with your journeys around Meru.`) +
+            para("Our drivers appreciate every trip you book. Karibu tena."),
+        ),
+        text: `Asante sana ${d.name}. You have completed ${d.trips} trips with Twende Meru Rides. Thank you for riding with us.\n\nSupport: ${SUPPORT}`,
       };
     }
   }
