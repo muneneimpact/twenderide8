@@ -158,12 +158,27 @@ export const verifyPhoneOtp = createServerFn({ method: "POST" })
       return { verified: false, attemptsLeft: Math.max(0, record.max_attempts - record.attempts - 1) };
     }
 
+    // One number, one account: a verified phone can never be claimed twice.
+    const { data: taken } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("phone", record.phone)
+      .neq("id", context.userId)
+      .maybeSingle();
+    if (taken) {
+      throw new Error("That number already belongs to another Twende account.");
+    }
+
     const now = new Date().toISOString();
     await supabaseAdmin.from("phone_verifications").update({ consumed_at: now }).eq("id", record.id);
-    await supabaseAdmin
+    const { error: saveError } = await supabaseAdmin
       .from("profiles")
       .update({ phone: record.phone, phone_verified_at: now })
       .eq("id", context.userId);
+    if (saveError) {
+      // The partial unique index is the final arbiter under concurrency.
+      throw new Error("That number already belongs to another Twende account.");
+    }
 
     return { verified: true, phone: record.phone };
   });

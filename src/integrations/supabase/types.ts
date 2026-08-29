@@ -908,6 +908,42 @@ export type Database = {
           },
         ]
       }
+      phone_login_otps: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          last_sent_at: string
+          max_attempts: number
+          phone: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_sent_at?: string
+          max_attempts?: number
+          phone: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_sent_at?: string
+          max_attempts?: number
+          phone?: string
+        }
+        Relationships: []
+      }
       phone_verifications: {
         Row: {
           attempts: number

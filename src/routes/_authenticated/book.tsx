@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
 import { createQuote, estimateClasses, requestRide, reverseGeocode } from "@/lib/rides.functions";
 import { PlaceSearch } from "@/components/PlaceSearch";
+import { nearbyDrivers } from "@/lib/nearby.functions";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/book")({
@@ -51,6 +52,7 @@ function BookPage() {
   const estimateFn = useServerFn(estimateClasses);
   const quoteFn = useServerFn(createQuote);
   const requestFn = useServerFn(requestRide);
+  const nearbyFn = useServerFn(nearbyDrivers);
 
   const [placing, setPlacing] = useState<"pickup" | "dropoff">("dropoff");
   const [locating, setLocating] = useState(true);
@@ -185,6 +187,20 @@ function BookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
 
+  // Live, anonymised supply around the pickup: the rider sees real cars, and
+  // the hex-bounded server query keeps map-provider usage flat.
+  const supply = useQuery({
+    queryKey: ["nearby-drivers", pickup?.lat.toFixed(3), pickup?.lng.toFixed(3), vehicleClass],
+    enabled: Boolean(pickup),
+    refetchInterval: 20000,
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session?.access_token) return { drivers: [], radiusKm: 5 };
+      return nearbyFn({ data: { lat: pickup!.lat, lng: pickup!.lng, vehicleClass } });
+    },
+  });
+  const nearby = supply.data?.drivers ?? [];
+
   const estimates = estimating.data?.options ?? [];
   const expired = Boolean(quote) && secondsLeft <= 0;
 
@@ -194,6 +210,7 @@ function BookPage() {
         <MapPanel
           pickup={pickup}
           dropoff={dropoff}
+          nearbyDrivers={nearby}
           placing={placing}
           onPlace={placePin}
           className="h-64 w-full"
