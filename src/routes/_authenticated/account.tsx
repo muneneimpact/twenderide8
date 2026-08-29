@@ -34,7 +34,7 @@ function AccountPage() {
   const saveProfile = useServerFn(updateProfile);
   const raiseIncident = useServerFn(reportIncident);
 
-  const me = useQuery({ queryKey: ["me", "account"], queryFn: () => meFn({ data: {} }) });
+  const me = useQuery({ queryKey: ["me", "account"], queryFn: () => meFn() });
   const [fullName, setFullName] = useState("");
   const [placeLabel, setPlaceLabel] = useState("Home");
   const [place, setPlace] = useState<{ lat: number; lng: number; label: string; address: string | null } | null>(
@@ -109,7 +109,7 @@ function AccountPage() {
     mutationFn: () =>
       raiseIncident({
         data: {
-          category: "support",
+          category: "other" as const,
           description: issue.trim(),
           ...(rideId ? { rideId } : {}),
         },
