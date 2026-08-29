@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isValidKenyanPhone, maskPhone, normaliseKenyanPhone } from "@/lib/phone";
-import { startPhoneLogin, verifyPhoneLogin } from "@/lib/phone-auth.functions";
+import { signInWithPhonePassword, startPhoneLogin, verifyPhoneLogin } from "@/lib/phone-auth.functions";
 
 export interface AuthFormProps {
   eyebrow: string;
@@ -15,14 +15,17 @@ export interface AuthFormProps {
   signUpCta?: string;
   footer?: React.ReactNode;
   /**
-   * Riders and drivers sign in with an SMS code, which registers and verifies
-   * their number in one step. Staff accounts keep email and password.
+   * Riders and drivers sign in with their phone number and password. An SMS code
+   * is only used to create the account or to reset a forgotten password. Staff
+   * accounts keep email and password.
    */
   method?: "phone" | "password";
 }
 
 const input =
   "mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-shadow focus:ring-2 focus:ring-ring";
+
+type Mode = "signin" | "signup" | "forgot";
 
 /**
  * One sign-in surface reused by the customer, driver and staff entrances so
@@ -40,8 +43,8 @@ export function AuthForm({
 }: AuthFormProps) {
   const navigate = useNavigate();
   const channel = method ?? (allowSignUp ? "phone" : "password");
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [step, setStep] = useState<"phone" | "code">("phone");
+  const [mode, setMode] = useState<Mode>("signin");
+  const [step, setStep] = useState<"form" | "code">("form");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -72,6 +75,15 @@ export function AuthForm({
     return () => clearInterval(timer);
   }, [resendIn]);
 
+  function switchMode(next: Mode) {
+    setMode(next);
+    setStep("form");
+    setCode("");
+    setError(null);
+    setNotice(null);
+  }
+
+  /** Sends the SMS code used to create an account or reset a password. */
   async function sendCode(event?: React.FormEvent) {
     event?.preventDefault();
     setBusy(true);
@@ -81,6 +93,7 @@ export function AuthForm({
       if (!isValidKenyanPhone(phone)) {
         throw new Error("Enter a valid Kenyan mobile number, for example 0712 345 678.");
       }
+      if (password.length < 8) throw new Error("Choose a password of at least 8 characters.");
       const result = await startPhoneLogin({ data: { phone: normaliseKenyanPhone(phone) } });
       setStep("code");
       setResendIn(result.resendAfterSeconds);
@@ -92,6 +105,7 @@ export function AuthForm({
     }
   }
 
+  /** Confirms the code, then creates the account or stores the new password. */
   async function confirmCode(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -101,6 +115,8 @@ export function AuthForm({
         data: {
           phone: normaliseKenyanPhone(phone),
           code,
+          password,
+          intent: mode === "forgot" ? "reset" : "signup",
           fullName: fullName.trim() || undefined,
           email: email.trim() ? email.trim().toLowerCase() : undefined,
         },
@@ -122,6 +138,39 @@ export function AuthForm({
     }
   }
 
+  /** Everyday sign in: phone number plus password, no SMS code needed. */
+  async function phonePasswordSignIn(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      if (!isValidKenyanPhone(phone)) {
+        throw new Error("Enter a valid Kenyan mobile number, for example 0712 345 678.");
+      }
+      const result = await signInWithPhonePassword({
+        data: { phone: normaliseKenyanPhone(phone), password },
+      });
+      if (result.needsPassword) {
+        setMode("forgot");
+        setStep("form");
+        setPassword("");
+        setNotice("This account has no password yet. Set one now and we will text you a code to confirm it.");
+        return;
+      }
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken,
+      });
+      if (sessionError) throw sessionError;
+      navigate({ to: destination, replace: true });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not sign you in. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function passwordSignIn(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -137,6 +186,8 @@ export function AuthForm({
   }
 
   const signingUp = allowSignUp && mode === "signup";
+  const resetting = mode === "forgot";
+
 
   return (
     <main className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-background px-5 py-10">
@@ -147,25 +198,24 @@ export function AuthForm({
             {eyebrow}
           </Link>
           <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground">
-            {signingUp ? "Create your account" : heading}
+            {resetting ? "Reset your password" : signingUp ? "Create your account" : heading}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {signingUp
-              ? "One Kenyan number, one account. We verify it with a code so your rides and receipts stay yours."
-              : blurb}
+            {resetting
+              ? "We text a 6-digit code to your number, then you choose a new password."
+              : signingUp
+                ? "One Kenyan number, one account. We verify it with a code so your rides and receipts stay yours."
+                : blurb}
           </p>
         </div>
 
-        {allowSignUp && channel === "phone" && step === "phone" ? (
+        {allowSignUp && channel === "phone" && step === "form" && !resetting ? (
           <div className="auth-rise auth-delay-1 mt-5 grid grid-cols-2 gap-1 rounded-full border border-border bg-secondary p-1">
             {(["signin", "signup"] as const).map((value) => (
               <button
                 key={value}
                 type="button"
-                onClick={() => {
-                  setMode(value);
-                  setError(null);
-                }}
+                onClick={() => switchMode(value)}
                 className={`rounded-full px-3 py-2 text-sm font-semibold transition-all duration-300 ${
                   mode === value
                     ? "bg-primary text-primary-foreground shadow-[0_4px_16px_-6px_rgba(0,0,0,0.45)]"
@@ -179,8 +229,12 @@ export function AuthForm({
         ) : null}
 
         {channel === "phone" ? (
-          step === "phone" ? (
-            <form key={mode} onSubmit={sendCode} className="mt-6 space-y-3">
+          step === "form" ? (
+            <form
+              key={mode}
+              onSubmit={mode === "signin" ? phonePasswordSignIn : sendCode}
+              className="mt-6 space-y-3"
+            >
               <label className="auth-rise auth-delay-1 block">
                 <span className="text-xs font-medium text-muted-foreground">Phone number</span>
                 <input
@@ -210,7 +264,7 @@ export function AuthForm({
                       className={input}
                     />
                   </label>
-                  <label className="auth-rise auth-delay-3 block">
+                  <label className="auth-rise auth-delay-2 block">
                     <span className="text-xs font-medium text-muted-foreground">Email (optional)</span>
                     <input
                       type="email"
@@ -227,6 +281,23 @@ export function AuthForm({
                 </>
               )}
 
+              <label className="auth-rise auth-delay-3 block">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {mode === "signin" ? "Password" : "New password"}
+                </span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  minLength={8}
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  placeholder="At least 8 characters"
+                  className={input}
+                />
+              </label>
+
+              {notice && <p className="auth-rise text-sm text-foreground">{notice}</p>}
               {error && <p className="auth-rise text-sm text-destructive">{error}</p>}
               <button
                 type="submit"
@@ -235,20 +306,29 @@ export function AuthForm({
               >
                 {busy ? (
                   <span className="inline-flex items-center gap-2">
-                    <span className="auth-spinner" /> Sending code…
+                    <span className="auth-spinner" /> {mode === "signin" ? "Signing in…" : "Sending code…"}
                   </span>
-                ) : signingUp ? (
-                  "Create account with SMS code"
+                ) : mode === "signin" ? (
+                  "Sign in"
+                ) : resetting ? (
+                  "Send code to reset password"
                 ) : (
-                  "Send code by SMS"
+                  "Create account"
                 )}
               </button>
-              <p className="text-center text-[11px] text-muted-foreground">
-                {signingUp
-                  ? "Already have an account? Choose Sign in — the same code works."
-                  : "New here? Choose Sign up and the same code creates your account."}
-              </p>
+              <div className="flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
+                {resetting ? (
+                  <button type="button" onClick={() => switchMode("signin")} className="underline">
+                    Back to sign in
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => switchMode("forgot")} className="underline">
+                    Forgot password?
+                  </button>
+                )}
+              </div>
             </form>
+
           ) : (
             <form onSubmit={confirmCode} className="mt-6 space-y-3">
               <label className="auth-rise block">
@@ -284,7 +364,8 @@ export function AuthForm({
                 <button
                   type="button"
                   onClick={() => {
-                    setStep("phone");
+                    setStep("form");
+
                     setCode("");
                     setError(null);
                   }}

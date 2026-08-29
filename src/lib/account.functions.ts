@@ -254,3 +254,40 @@ export const submitDocument = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+
+/**
+ * Stores the driver's profile photo. The file already sits in the driver's own
+ * folder in the private documents bucket; the rider only ever sees a short-lived
+ * signed link generated when they are matched with this driver.
+ */
+export const saveDriverPhoto = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ filePath: z.string().min(3).max(300) }).parse(input))
+  .handler(async ({ data, context }) => {
+    if (!data.filePath.startsWith(`${context.userId}/`)) {
+      throw new Error("That upload does not belong to your account.");
+    }
+    const { error } = await context.supabase
+      .from("profiles")
+      .update({ avatar_url: data.filePath })
+      .eq("id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/** A short-lived link to the signed-in driver's own photo, for previewing it. */
+export const getMyPhotoUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("avatar_url")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!profile?.avatar_url) return { url: null as string | null };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed } = await supabaseAdmin.storage
+      .from("driver-documents")
+      .createSignedUrl(profile.avatar_url, 3600);
+    return { url: signed?.signedUrl ?? null };
+  });

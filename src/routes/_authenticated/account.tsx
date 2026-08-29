@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { getMe, reportIncident, updateProfile } from "@/lib/account.functions";
+import { reverseGeocode } from "@/lib/rides.functions";
+
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/account")({
@@ -33,6 +35,8 @@ function AccountPage() {
   const meFn = useServerFn(getMe);
   const saveProfile = useServerFn(updateProfile);
   const raiseIncident = useServerFn(reportIncident);
+  const locate = useServerFn(reverseGeocode);
+
 
   const me = useQuery({ queryKey: ["me", "account"], queryFn: () => meFn() });
   const [fullName, setFullName] = useState("");
@@ -97,6 +101,33 @@ function AccountPage() {
     },
   });
 
+  /** Drops the phone's current position straight into the place being saved. */
+  const useHere = useMutation({
+    mutationFn: async () => {
+      if (typeof navigator === "undefined" || !navigator.geolocation) {
+        throw new Error("This device cannot share its location.");
+      }
+      const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 15000,
+        }),
+      ).catch(() => {
+        throw new Error("We could not read your location. Allow location access and try again.");
+      });
+      const found = await locate({
+        data: { lat: position.coords.latitude, lng: position.coords.longitude },
+      });
+      setPlace({
+        lat: found.lat,
+        lng: found.lng,
+        label: found.label ?? "Current location",
+        address: found.address,
+      });
+    },
+  });
+
   const removePlace = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("saved_places").delete().eq("id", id);
@@ -104,6 +135,7 @@ function AccountPage() {
     },
     onSuccess: () => void places.refetch(),
   });
+
 
   const support = useMutation({
     mutationFn: () =>
@@ -200,6 +232,16 @@ function AccountPage() {
               }
             />
           </div>
+          <button
+            type="button"
+            onClick={() => useHere.mutate()}
+            disabled={useHere.isPending}
+            className="mt-2 w-full rounded-full border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-60"
+          >
+            {useHere.isPending ? "Finding you…" : "Use current location"}
+          </button>
+          {useHere.isError && <p className="mt-2 text-xs text-destructive">{(useHere.error as Error).message}</p>}
+
           <button
             onClick={() => addPlace.mutate()}
             disabled={!place || addPlace.isPending}

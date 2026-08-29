@@ -182,7 +182,21 @@ function RideDetail() {
         {(driver || vehicle) && (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold text-foreground">Your driver</h3>
-            <p className="mt-1 text-sm text-foreground">{driver?.full_name ?? "Assigned driver"}</p>
+            <div className="mt-2 flex items-center gap-3">
+              {driver?.photoUrl ? (
+                <img
+                  src={driver.photoUrl}
+                  alt={`Photo of ${driver.full_name ?? "your driver"}`}
+                  className="h-14 w-14 shrink-0 rounded-full border border-border object-cover"
+                />
+              ) : (
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-secondary text-lg font-bold text-secondary-foreground">
+                  {(driver?.full_name ?? "D").charAt(0).toUpperCase()}
+                </span>
+              )}
+              <p className="text-sm font-semibold text-foreground">{driver?.full_name ?? "Assigned driver"}</p>
+            </div>
+
             {vehicle && (
               <div className="mt-3">
                 <CarBadge

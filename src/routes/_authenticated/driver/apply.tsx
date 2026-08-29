@@ -3,7 +3,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
-import { applyAsDriver, getDriverOnboarding, submitDocument, updateProfile } from "@/lib/account.functions";
+import {
+  applyAsDriver,
+  getDriverOnboarding,
+  getMyPhotoUrl,
+  saveDriverPhoto,
+  submitDocument,
+  updateProfile,
+} from "@/lib/account.functions";
+
 import { supabase } from "@/integrations/supabase/client";
 import { formatKenyanPlate } from "@/lib/plate";
 import { CarBadge } from "@/components/CarBadge";
@@ -39,8 +47,11 @@ function DriverApply() {
   const applyFn = useServerFn(applyAsDriver);
   const docFn = useServerFn(submitDocument);
   const profileFn = useServerFn(updateProfile);
+  const photoFn = useServerFn(saveDriverPhoto);
+  const myPhotoFn = useServerFn(getMyPhotoUrl);
 
   const board = useQuery({ queryKey: ["driver-onboarding"], queryFn: () => fetchOnboarding({}) });
+  const photo = useQuery({ queryKey: ["driver-photo"], queryFn: () => myPhotoFn({}) });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["driver-onboarding"] });
 
   const [fullName, setFullName] = useState("");
@@ -56,6 +67,29 @@ function DriverApply() {
   const [docExpiry, setDocExpiry] = useState("");
   const [docVehicle, setDocVehicle] = useState("");
   const [docFile, setDocFile] = useState<File | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+
+  /** Riders see this photo once they are matched, so it is stored on the profile. */
+  const savePhoto = useMutation({
+    mutationFn: async () => {
+      if (!photoFile) throw new Error("Choose a photo first.");
+      const { data: session } = await supabase.auth.getUser();
+      const userId = session.user?.id;
+      if (!userId) throw new Error("Your session expired. Sign in again.");
+      const extension = photoFile.name.split(".").pop()?.toLowerCase() ?? "jpg";
+      const path = `${userId}/profile-photo-${Date.now()}.${extension}`;
+      const { error } = await supabase.storage
+        .from("driver-documents")
+        .upload(path, photoFile, { contentType: photoFile.type || "image/jpeg", upsert: true });
+      if (error) throw new Error(`Photo upload failed: ${error.message}`);
+      return photoFn({ data: { filePath: path } });
+    },
+    onSuccess: () => {
+      setPhotoFile(null);
+      void photo.refetch();
+    },
+  });
+
 
   const contact = useMutation({
     mutationFn: () =>
@@ -198,9 +232,47 @@ function DriverApply() {
           </div>
         </section>
 
-        {/* Step 2 — vehicle */}
+        {/* Step 2 — driver photo, shown to the rider once matched */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">2 · Vehicle</h3>
+          <h3 className="text-sm font-semibold text-foreground">2 · Your photo</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A clear face photo, no cap or sunglasses. Riders see it when you are matched with them so they know who
+            is picking them up.
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            {photo.data?.url ? (
+              <img
+                src={photo.data.url}
+                alt="Your driver photo"
+                className="h-20 w-20 shrink-0 rounded-full border border-border object-cover"
+              />
+            ) : (
+              <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+                No photo
+              </span>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              capture="user"
+              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+              className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground file:mr-3 file:rounded-full file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-foreground"
+            />
+          </div>
+          <button
+            onClick={() => savePhoto.mutate()}
+            disabled={savePhoto.isPending || !photoFile}
+            className="mt-3 w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          >
+            {savePhoto.isPending ? "Uploading…" : photo.data?.url ? "Replace photo" : "Save photo"}
+          </button>
+          {savePhoto.isError && <p className="mt-2 text-xs text-destructive">{(savePhoto.error as Error).message}</p>}
+        </section>
+
+        {/* Step 3 — vehicle */}
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">3 · Vehicle</h3>
+
           <div className="mt-3 space-y-2">
             <input
               value={plate}
@@ -284,9 +356,9 @@ function DriverApply() {
           )}
         </section>
 
-        {/* Step 3 — documents */}
+        {/* Step 4 — documents */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">3 · Compliance documents</h3>
+          <h3 className="text-sm font-semibold text-foreground">4 · Compliance documents</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Tap a document below to add it. National ID, driving licence and certificate of good conduct need a clear
             photo; the rest only need a reference for now.

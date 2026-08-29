@@ -96,12 +96,86 @@ export const startPhoneLogin = createServerFn({ method: "POST" })
  * token the browser exchanges for a session. The phone is stored verified and
  * is unique across the platform, so the same number can never hold two accounts.
  */
+export const checkPhoneAccount = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ phone: z.string().min(9).max(20) }).parse(input))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { normaliseKenyanPhone } = await import("./phone");
+    const phone = normaliseKenyanPhone(data.phone);
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, password_set_at")
+      .eq("phone", phone)
+      .maybeSingle();
+    return { exists: Boolean(profile), hasPassword: Boolean(profile?.password_set_at), phone };
+  });
+
+/**
+ * Password sign in for riders and drivers. The account is found by phone, and
+ * the password is checked by Supabase itself — never compared here.
+ */
+export const signInWithPhonePassword = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ phone: z.string().min(9).max(20), password: z.string().min(8).max(72) }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { createClient } = await import("@supabase/supabase-js");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { normaliseKenyanPhone } = await import("./phone");
+
+    const phone = normaliseKenyanPhone(data.phone);
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, password_set_at")
+      .eq("phone", phone)
+      .maybeSingle();
+    if (!profile) throw new Error("No account uses that number yet. Create one first.");
+    if (!profile.password_set_at) {
+      return { needsPassword: true as const };
+    }
+
+    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+    const email = authUser.user?.email;
+    if (!email) throw new Error("Use Forgot password to finish setting up this account.");
+
+    const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
+    const client = createClient(process.env["SUPABASE_URL"]!, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: (input, init) => {
+          const headers = new Headers(init?.headers);
+          if (key.startsWith("sb_") && headers.get("Authorization") === `Bearer ${key}`) {
+            headers.delete("Authorization");
+          }
+          headers.set("apikey", key);
+          return fetch(input, { ...init, headers });
+        },
+      },
+    });
+
+    const { data: session, error } = await client.auth.signInWithPassword({ email, password: data.password });
+    if (error || !session.session) throw new Error("That password is not right. Try again or reset it.");
+    return {
+      needsPassword: false as const,
+      accessToken: session.session.access_token,
+      refreshToken: session.session.refresh_token,
+    };
+  });
+
+/**
+ * Verifies the SMS code and finishes one of three jobs: creating an account with
+ * a password, resetting a forgotten password, or adding a password to an account
+ * that never had one. The phone stays unique, so a registered number is never
+ * silently taken over by a second sign-up.
+ */
 export const verifyPhoneLogin = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
         phone: z.string().min(9).max(20),
         code: z.string().regex(/^\d{6}$/),
+        intent: z.enum(["signup", "reset"]).default("signup"),
+        password: z.string().min(8).max(72),
         fullName: z.string().max(120).optional(),
         email: z.string().email().max(160).optional(),
       })
@@ -150,12 +224,21 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
     const now = new Date().toISOString();
     await supabaseAdmin.from("phone_login_otps").update({ consumed_at: now }).eq("id", record.id);
 
-    // One phone, one account: an existing verified profile always wins.
+    // One phone, one account: an existing profile is never overwritten by a sign-up.
     const { data: existing } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, full_name")
+      .select("id, email, full_name, password_set_at")
       .eq("phone", phone)
       .maybeSingle();
+
+    if (existing && data.intent === "signup") {
+      throw new Error(
+        "That number already has an account. Sign in with your password, or use Forgot password to set a new one.",
+      );
+    }
+    if (!existing && data.intent === "reset") {
+      throw new Error("No account uses that number yet. Create one instead.");
+    }
 
     const contactEmail = data.email?.trim().toLowerCase() || null;
     let userId = existing?.id ?? null;
@@ -163,12 +246,12 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
     // never from the profile, so a contact email can differ safely).
     let authEmail: string | null = null;
 
-
     if (!userId) {
       // An email is optional; without one we mint a placeholder mailbox.
       authEmail = contactEmail ?? syntheticEmail(phone);
       const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: authEmail,
+        password: data.password,
         email_confirm: true,
         phone,
         phone_confirm: true,
@@ -187,30 +270,30 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
     if (!authEmail) {
       const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
       authEmail = authUser.user?.email ?? syntheticEmail(phone);
-      if (!authUser.user?.email) {
-        await supabaseAdmin.auth.admin.updateUserById(userId, { email: authEmail, email_confirm: true });
-      }
+      // Existing account: set the new password now that the code is verified.
+      await supabaseAdmin.auth.admin.updateUserById(userId, {
+        email: authEmail,
+        email_confirm: true,
+        password: data.password,
+      });
     }
 
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .upsert({
-        id: userId,
-        phone,
-        phone_verified_at: now,
-        email: contactEmail ?? authEmail,
-        ...(data.fullName?.trim() ? { full_name: data.fullName.trim() } : {}),
-      });
+    const { error: profileError } = await supabaseAdmin.from("profiles").upsert({
+      id: userId,
+      phone,
+      phone_verified_at: now,
+      password_set_at: now,
+      email: contactEmail ?? existing?.email ?? authEmail,
+      ...(data.fullName?.trim() ? { full_name: data.fullName.trim() } : {}),
+    });
     if (profileError) {
       throw new Error("This phone number is already linked to another account.");
     }
-    const email = authEmail;
-
 
     // A single-use token the browser swaps for a session — no password is moved.
     const { data: link, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
-      email,
+      email: authEmail,
     });
     if (linkError || !link.properties?.hashed_token) {
       throw new Error("Could not complete sign in. Please try again.");
@@ -218,3 +301,4 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
 
     return { verified: true as const, phone, tokenHash: link.properties.hashed_token };
   });
+

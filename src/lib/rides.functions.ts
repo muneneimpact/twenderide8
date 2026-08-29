@@ -376,16 +376,28 @@ export const getRide = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    let driver: { full_name: string | null; phone: string | null } | null = null;
+    let driver: { full_name: string | null; phone: string | null; photoUrl: string | null } | null = null;
     let vehicle: { plate_number: string; make: string | null; model: string | null; colour: string | null } | null = null;
     if (ride.driver_id) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, phone")
+        .select("full_name, phone, avatar_url")
         .eq("id", ride.driver_id)
         .maybeSingle();
-      driver = profile ?? null;
+      if (profile) {
+        // The photo lives in a private bucket, so the rider gets a short-lived link.
+        let photoUrl: string | null = null;
+        if (profile.avatar_url) {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data: signed } = await supabaseAdmin.storage
+            .from("driver-documents")
+            .createSignedUrl(profile.avatar_url, 3600);
+          photoUrl = signed?.signedUrl ?? null;
+        }
+        driver = { full_name: profile.full_name, phone: profile.phone, photoUrl };
+      }
     }
+
     if (ride.vehicle_id) {
       const { data: v } = await supabase
         .from("vehicles")
