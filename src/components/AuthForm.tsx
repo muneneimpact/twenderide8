@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isValidKenyanPhone, maskPhone, normaliseKenyanPhone } from "@/lib/phone";
-import { startPhoneLogin, verifyPhoneLogin } from "@/lib/phone-auth.functions";
+import { signInWithPhonePassword, startPhoneLogin, verifyPhoneLogin } from "@/lib/phone-auth.functions";
 
 export interface AuthFormProps {
   eyebrow: string;
@@ -15,14 +15,17 @@ export interface AuthFormProps {
   signUpCta?: string;
   footer?: React.ReactNode;
   /**
-   * Riders and drivers sign in with an SMS code, which registers and verifies
-   * their number in one step. Staff accounts keep email and password.
+   * Riders and drivers sign in with their phone number and password. An SMS code
+   * is only used to create the account or to reset a forgotten password. Staff
+   * accounts keep email and password.
    */
   method?: "phone" | "password";
 }
 
 const input =
   "mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-shadow focus:ring-2 focus:ring-ring";
+
+type Mode = "signin" | "signup" | "forgot";
 
 /**
  * One sign-in surface reused by the customer, driver and staff entrances so
@@ -40,8 +43,8 @@ export function AuthForm({
 }: AuthFormProps) {
   const navigate = useNavigate();
   const channel = method ?? (allowSignUp ? "phone" : "password");
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [step, setStep] = useState<"phone" | "code">("phone");
+  const [mode, setMode] = useState<Mode>("signin");
+  const [step, setStep] = useState<"form" | "code">("form");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -72,6 +75,15 @@ export function AuthForm({
     return () => clearInterval(timer);
   }, [resendIn]);
 
+  function switchMode(next: Mode) {
+    setMode(next);
+    setStep("form");
+    setCode("");
+    setError(null);
+    setNotice(null);
+  }
+
+  /** Sends the SMS code used to create an account or reset a password. */
   async function sendCode(event?: React.FormEvent) {
     event?.preventDefault();
     setBusy(true);
@@ -81,6 +93,7 @@ export function AuthForm({
       if (!isValidKenyanPhone(phone)) {
         throw new Error("Enter a valid Kenyan mobile number, for example 0712 345 678.");
       }
+      if (password.length < 8) throw new Error("Choose a password of at least 8 characters.");
       const result = await startPhoneLogin({ data: { phone: normaliseKenyanPhone(phone) } });
       setStep("code");
       setResendIn(result.resendAfterSeconds);
@@ -92,6 +105,7 @@ export function AuthForm({
     }
   }
 
+  /** Confirms the code, then creates the account or stores the new password. */
   async function confirmCode(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -101,6 +115,8 @@ export function AuthForm({
         data: {
           phone: normaliseKenyanPhone(phone),
           code,
+          password,
+          intent: mode === "forgot" ? "reset" : "signup",
           fullName: fullName.trim() || undefined,
           email: email.trim() ? email.trim().toLowerCase() : undefined,
         },
@@ -122,6 +138,39 @@ export function AuthForm({
     }
   }
 
+  /** Everyday sign in: phone number plus password, no SMS code needed. */
+  async function phonePasswordSignIn(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      if (!isValidKenyanPhone(phone)) {
+        throw new Error("Enter a valid Kenyan mobile number, for example 0712 345 678.");
+      }
+      const result = await signInWithPhonePassword({
+        data: { phone: normaliseKenyanPhone(phone), password },
+      });
+      if (result.needsPassword) {
+        setMode("forgot");
+        setStep("form");
+        setPassword("");
+        setNotice("This account has no password yet. Set one now and we will text you a code to confirm it.");
+        return;
+      }
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken,
+      });
+      if (sessionError) throw sessionError;
+      navigate({ to: destination, replace: true });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not sign you in. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function passwordSignIn(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -137,6 +186,8 @@ export function AuthForm({
   }
 
   const signingUp = allowSignUp && mode === "signup";
+  const resetting = mode === "forgot";
+
 
   return (
     <main className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-background px-5 py-10">
