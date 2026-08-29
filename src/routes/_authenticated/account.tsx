@@ -101,6 +101,33 @@ function AccountPage() {
     },
   });
 
+  /** Drops the phone's current position straight into the place being saved. */
+  const useHere = useMutation({
+    mutationFn: async () => {
+      if (typeof navigator === "undefined" || !navigator.geolocation) {
+        throw new Error("This device cannot share its location.");
+      }
+      const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 15000,
+        }),
+      ).catch(() => {
+        throw new Error("We could not read your location. Allow location access and try again.");
+      });
+      const found = await locate({
+        data: { lat: position.coords.latitude, lng: position.coords.longitude },
+      });
+      setPlace({
+        lat: found.lat,
+        lng: found.lng,
+        label: found.label ?? "Current location",
+        address: found.address,
+      });
+    },
+  });
+
   const removePlace = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("saved_places").delete().eq("id", id);
@@ -108,6 +135,7 @@ function AccountPage() {
     },
     onSuccess: () => void places.refetch(),
   });
+
 
   const support = useMutation({
     mutationFn: () =>
