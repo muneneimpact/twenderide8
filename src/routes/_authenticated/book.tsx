@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
 import { createQuote, estimateClasses, requestRide, reverseGeocode } from "@/lib/rides.functions";
@@ -41,6 +41,28 @@ interface Point {
   address?: string | null;
 }
 
+const RECENTS_KEY = "twende.recent-destinations";
+
+/** Recent destinations are a convenience only, so they live on the device. */
+function readRecents(): Point[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(RECENTS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Point[]) : [];
+    return Array.isArray(parsed) ? parsed.slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRecents(points: Point[]) {
+  try {
+    window.localStorage.setItem(RECENTS_KEY, JSON.stringify(points.slice(0, 5)));
+  } catch {
+    // A full or blocked storage quota must never break booking.
+  }
+}
+
 function label(point: Point | null) {
   if (!point) return "Not set";
   return point.label ?? point.address ?? `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
@@ -63,7 +85,6 @@ function BookPage() {
   const [pickupNotes, setPickupNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [msisdn, setMsisdn] = useState("");
-  const [secondsLeft, setSecondsLeft] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [pendingDropoff, setPendingDropoff] = useState<Point | null>(null);
   const [recents, setRecents] = useState<Point[]>(() => readRecents());
@@ -141,18 +162,6 @@ function BookPage() {
     },
   });
 
-  const quote = quoting.data;
-
-  // The quote is only valid for the window the server stamped on it.
-  useEffect(() => {
-    if (!quote) return;
-    const expiry = new Date(quote.quote.expires_at).getTime();
-    const tick = () => setSecondsLeft(Math.max(0, Math.round((expiry - Date.now()) / 1000)));
-    tick();
-    const timer = window.setInterval(tick, 1000);
-    return () => window.clearInterval(timer);
-  }, [quote]);
-
   async function placePin(point: { lat: number; lng: number }) {
     const target = placing;
     const next: Point = { ...point };
@@ -229,7 +238,16 @@ function BookPage() {
   const nearby = supply.data?.drivers ?? [];
 
   const estimates = estimating.data?.options ?? [];
-  const expired = Boolean(quote) && secondsLeft <= 0;
+  const chosen = estimates.find((item) => item.vehicleClass === vehicleClass);
+
+  function chooseDestination(point: Point) {
+    setDropoff(point);
+    setSearchOpen(false);
+    quoting.reset();
+    const next = [point, ...recents.filter((item) => label(item) !== label(point))].slice(0, 5);
+    setRecents(next);
+    writeRecents(next);
+  }
 
   return (
     <AppShell title="Book a taxi">
