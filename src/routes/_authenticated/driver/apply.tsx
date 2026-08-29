@@ -232,9 +232,47 @@ function DriverApply() {
           </div>
         </section>
 
-        {/* Step 2 — vehicle */}
+        {/* Step 2 — driver photo, shown to the rider once matched */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">2 · Vehicle</h3>
+          <h3 className="text-sm font-semibold text-foreground">2 · Your photo</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A clear face photo, no cap or sunglasses. Riders see it when you are matched with them so they know who
+            is picking them up.
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            {photo.data?.url ? (
+              <img
+                src={photo.data.url}
+                alt="Your driver photo"
+                className="h-20 w-20 shrink-0 rounded-full border border-border object-cover"
+              />
+            ) : (
+              <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+                No photo
+              </span>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              capture="user"
+              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+              className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground file:mr-3 file:rounded-full file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-foreground"
+            />
+          </div>
+          <button
+            onClick={() => savePhoto.mutate()}
+            disabled={savePhoto.isPending || !photoFile}
+            className="mt-3 w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          >
+            {savePhoto.isPending ? "Uploading…" : photo.data?.url ? "Replace photo" : "Save photo"}
+          </button>
+          {savePhoto.isError && <p className="mt-2 text-xs text-destructive">{(savePhoto.error as Error).message}</p>}
+        </section>
+
+        {/* Step 3 — vehicle */}
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">3 · Vehicle</h3>
+
           <div className="mt-3 space-y-2">
             <input
               value={plate}
