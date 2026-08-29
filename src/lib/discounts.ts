@@ -55,3 +55,69 @@ export function applyDiscount(total: number, percent: number): DiscountedTotal {
     total_fare: Number(Math.max(0, total - amount).toFixed(2)),
   };
 }
+
+/* ------------------------------ PROMOTIONS ------------------------------ */
+
+export type PromoState = "active" | "expired" | "not_started" | "usage_exhausted" | "invalid";
+
+export interface PromoRow {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  discount_percent: number;
+  max_discount_percent: number;
+  max_discount_amount: number | null;
+  min_fare: number | null;
+  valid_from: string;
+  valid_until: string | null;
+  usage_limit: number | null;
+  usage_count: number;
+  applies_to: string[];
+  active: boolean;
+}
+
+/**
+ * Server-side state check for a promo. The browser can render the labels, but
+ * the server is the only authority that decides whether a code may be used.
+ */
+export function promoState(
+  promo: Pick<PromoRow, "active" | "valid_from" | "valid_until" | "usage_limit" | "usage_count">,
+  now = new Date(),
+): PromoState {
+  if (!promo.active) return "invalid";
+  if (now < new Date(promo.valid_from)) return "not_started";
+  if (promo.valid_until && now > new Date(promo.valid_until)) return "expired";
+  if (promo.usage_limit !== null && promo.usage_count >= promo.usage_limit) return "usage_exhausted";
+  return "active";
+}
+
+/**
+ * Applies a promo to a fare, honouring both the offer's percentage cap and its
+ * optional absolute cap. The effective discount is the smallest of the
+ * headline percent, the configured max percent, and any KES cap.
+ */
+export function applyPromo(
+  total: number,
+  promo: Pick<
+    PromoRow,
+    "discount_percent" | "max_discount_percent" | "max_discount_amount" | "min_fare"
+  >,
+): { discount_percent: number; discount_amount: number; total_fare: number; blocked_min_fare: boolean } {
+  if (promo.min_fare !== null && total < promo.min_fare) {
+    return { discount_percent: 0, discount_amount: 0, total_fare: total, blocked_min_fare: true };
+  }
+  const headline = Math.max(0, Number(promo.discount_percent));
+  const capPercent = Math.max(0, Math.min(100, Number(promo.max_discount_percent)));
+  const effectivePercent = Math.min(headline, capPercent);
+  let amount = Math.round(total * effectivePercent) / 100;
+  if (promo.max_discount_amount !== null) {
+    amount = Math.min(amount, Number(promo.max_discount_amount));
+  }
+  return {
+    discount_percent: effectivePercent,
+    discount_amount: Number(amount.toFixed(2)),
+    total_fare: Number(Math.max(0, total - amount).toFixed(2)),
+    blocked_min_fare: false,
+  };
+}

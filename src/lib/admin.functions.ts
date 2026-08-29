@@ -755,6 +755,175 @@ export const setUserRole = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/* ------------------------------ PROMOTIONS ------------------------------ */
+
+const promoInput = z.object({
+  id: z.string().uuid().optional(),
+  code: z.string().trim().min(2).max(40).transform((v) => v.toUpperCase()),
+  name: z.string().trim().min(2).max(120),
+  description: z.string().max(500).optional().nullable(),
+  discount_percent: z.number().min(0).max(100),
+  max_discount_percent: z.number().min(0).max(100),
+  max_discount_amount: z.number().min(0).optional().nullable(),
+  min_fare: z.number().min(0).optional().nullable(),
+  valid_from: z.string().min(1),
+  valid_until: z.string().min(1).optional().nullable(),
+  usage_limit: z.number().int().positive().optional().nullable(),
+  applies_to: z.array(z.enum(["boda", "economy", "comfort", "xl"])).default([]),
+  active: z.boolean().default(true),
+});
+
+export const listPromotions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole, SUPER } = await import("./authz.server");
+    await requireRole(context.userId, SUPER);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = (await supabaseAdmin
+      .from("promotions" as "profiles")
+      .select("*")
+      .order("created_at", { ascending: false })) as { data: unknown[] | null };
+    return (data ?? []) as import("./discounts").PromoRow[];
+  });
+
+export const savePromotion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => promoInput.parse(input))
+  .handler(async ({ data: input, context }) => {
+    const { requireRole, SUPER } = await import("./authz.server");
+    await requireRole(context.userId, SUPER);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { audit } = await import("./notifications.server");
+
+    const payload = {
+      code: input.code,
+      name: input.name,
+      description: input.description ?? null,
+      discount_percent: input.discount_percent,
+      max_discount_percent: input.max_discount_percent,
+      max_discount_amount: input.max_discount_amount ?? null,
+      min_fare: input.min_fare ?? null,
+      valid_from: input.valid_from,
+      valid_until: input.valid_until ?? null,
+      usage_limit: input.usage_limit ?? null,
+      applies_to: input.applies_to,
+      active: input.active,
+    };
+
+    let promotionId = input.id;
+    if (promotionId) {
+      const { error } = await supabaseAdmin
+        .from("promotions" as "profiles")
+        .update(payload as never)
+        .eq("id", promotionId);
+      if (error) throw new Error(error.message);
+    } else {
+      const { data: created, error } = await supabaseAdmin
+        .from("promotions" as "profiles")
+        .insert({ ...payload, created_by: context.userId } as never)
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      promotionId = (created as unknown as { id: string }).id;
+    }
+
+    await audit(context.userId, input.id ? "promotion_updated" : "promotion_created", "promotion", promotionId!, {
+      code: input.code,
+      max_discount_percent: input.max_discount_percent,
+    });
+    return { id: promotionId };
+  });
+
+export const togglePromotion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ id: z.string().uuid(), active: z.boolean() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { requireRole, SUPER } = await import("./authz.server");
+    await requireRole(context.userId, SUPER);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { audit } = await import("./notifications.server");
+    const { error } = await supabaseAdmin
+      .from("promotions" as "profiles")
+      .update({ active: data.active } as never)
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    await audit(context.userId, data.active ? "promotion_activated" : "promotion_deactivated", "promotion", data.id);
+    return { ok: true };
+  });
+
+export const deletePromotion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { requireRole, SUPER } = await import("./authz.server");
+    await requireRole(context.userId, SUPER);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { audit } = await import("./notifications.server");
+    const { error } = await supabaseAdmin.from("promotions" as "profiles").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    await audit(context.userId, "promotion_deleted", "promotion", data.id);
+    return { ok: true };
+  });
+
+/**
+ * Customer-facing validation: confirms a code is usable on the given fare and
+ * returns the discounted amount. The server applies the configured max caps.
+ */
+export const validatePromoCode = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ code: z.string().trim().min(2).max(40), totalFare: z.number().min(0) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { promoState, applyPromo } = await import("./discounts");
+
+    const code = data.code.toUpperCase();
+    const { data: rows } = await supabaseAdmin
+      .from("promotions")
+      .select("*")
+      .eq("code", code)
+      .limit(1);
+    const promo = rows?.[0];
+    if (!promo) {
+      return { valid: false as const, state: "invalid" as const, message: "That code is not recognised." };
+    }
+
+    const state = promoState(promo);
+    if (state !== "active") {
+      const message =
+        state === "expired"
+          ? "That code has expired."
+          : state === "not_started"
+            ? "That code is not live yet."
+            : state === "usage_exhausted"
+              ? "That code has reached its usage limit."
+              : "That code is not currently active.";
+      return { valid: false as const, state, message };
+    }
+
+    const priced = applyPromo(data.totalFare, promo);
+    if (priced.blocked_min_fare) {
+      return {
+        valid: false as const,
+        state: "invalid" as const,
+        message: `This code needs a fare of at least KES ${Number(promo.min_fare).toFixed(2)}.`,
+      };
+    }
+
+    return {
+      valid: true as const,
+      state: "active" as const,
+      promotionId: promo.id,
+      code: promo.code,
+      name: promo.name,
+      discount_percent: priced.discount_percent,
+      discount_amount: priced.discount_amount,
+      total_before_discount: data.totalFare,
+      total_fare: priced.total_fare,
+    };
+  });
+
 /* ------------------------------ FLEET OWNER ------------------------------ */
 
 export const getFleetBoard = createServerFn({ method: "POST" })
