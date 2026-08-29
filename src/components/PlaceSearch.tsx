@@ -20,6 +20,7 @@ export function PlaceSearch({
   onPick,
   prominent = false,
   value,
+  inputRef,
 }: {
   placeholder: string;
   near?: { lat: number; lng: number } | null;
@@ -28,6 +29,8 @@ export function PlaceSearch({
   prominent?: boolean;
   /** Text to show when the caller already knows the chosen place. */
   value?: string | null;
+  /** Lets a full-screen search focus or dismiss the keyboard itself. */
+  inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   const search = useServerFn(searchPlaces);
   const [query, setQuery] = useState(value ?? "");
@@ -85,6 +88,7 @@ export function PlaceSearch({
   return (
     <div className="relative">
       <input
+        ref={inputRef}
         value={query}
         onChange={(event) => {
           setQuery(event.target.value);
