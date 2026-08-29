@@ -11,7 +11,7 @@ const pointSchema = z.object({
 const quoteSchema = z.object({
   pickup: pointSchema,
   dropoff: pointSchema,
-  vehicleClass: z.enum(["boda", "economy", "comfort", "xl"]).default("economy"),
+  vehicleClass: z.enum(["go", "plus", "comfort", "xl", "boda", "e_boda"]).default("go"),
   pickupNotes: z.string().max(400).optional().nullable(),
   promoCode: z.string().trim().max(40).optional().nullable(),
 });
@@ -73,7 +73,7 @@ export const estimateClasses = createServerFn({ method: "POST" })
     const route = await getMapProvider().route(data.pickup, data.dropoff);
     if (route.distance_km <= 0) throw new Error("Pickup and destination are too close to price a ride.");
 
-    const classes = ["boda", "economy", "comfort", "xl"] as const;
+    const classes = ["go", "plus", "comfort", "xl", "boda", "e_boda"] as const;
     const day = nairobiDayKey();
     const options: {
       vehicleClass: (typeof classes)[number];

@@ -21,6 +21,8 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminFinanceRouteImport } from './routes/_authenticated/admin/finance'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin/pricing'
 import { Route as AuthenticatedAdminStaffRouteImport } from './routes/_authenticated/admin/staff'
+import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin/support'
+import { Route as AuthenticatedAdminUnattendedRouteImport } from './routes/_authenticated/admin/unattended'
 import { Route as AuthenticatedDriverIndexRouteImport } from './routes/_authenticated/driver/index'
 import { Route as AuthenticatedDriverApplyRouteImport } from './routes/_authenticated/driver/apply'
 import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authenticated/driver/wallet'
@@ -89,6 +91,18 @@ const AuthenticatedAdminStaffRoute = AuthenticatedAdminStaffRouteImport.update({
   path: '/admin/staff',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminSupportRoute =
+  AuthenticatedAdminSupportRouteImport.update({
+    id: '/admin/support',
+    path: '/admin/support',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminUnattendedRoute =
+  AuthenticatedAdminUnattendedRouteImport.update({
+    id: '/admin/unattended',
+    path: '/admin/unattended',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDriverIndexRoute =
   AuthenticatedDriverIndexRouteImport.update({
     id: '/driver/',
@@ -136,6 +150,8 @@ export interface FileRoutesByFullPath {
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
+  '/admin/support': typeof AuthenticatedAdminSupportRoute
+  '/admin/unattended': typeof AuthenticatedAdminUnattendedRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -155,6 +171,8 @@ export interface FileRoutesByTo {
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
+  '/admin/support': typeof AuthenticatedAdminSupportRoute
+  '/admin/unattended': typeof AuthenticatedAdminUnattendedRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -176,6 +194,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/finance': typeof AuthenticatedAdminFinanceRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/_authenticated/admin/staff': typeof AuthenticatedAdminStaffRoute
+  '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
+  '/_authenticated/admin/unattended': typeof AuthenticatedAdminUnattendedRoute
   '/_authenticated/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/_authenticated/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -197,6 +217,8 @@ export interface FileRouteTypes {
     | '/admin/finance'
     | '/admin/pricing'
     | '/admin/staff'
+    | '/admin/support'
+    | '/admin/unattended'
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
@@ -216,6 +238,8 @@ export interface FileRouteTypes {
     | '/admin/finance'
     | '/admin/pricing'
     | '/admin/staff'
+    | '/admin/support'
+    | '/admin/unattended'
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
@@ -236,6 +260,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/finance'
     | '/_authenticated/admin/pricing'
     | '/_authenticated/admin/staff'
+    | '/_authenticated/admin/support'
+    | '/_authenticated/admin/unattended'
     | '/_authenticated/driver/apply'
     | '/_authenticated/driver/wallet'
     | '/_authenticated/rides/$rideId'
@@ -340,6 +366,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminStaffRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/support': {
+      id: '/_authenticated/admin/support'
+      path: '/admin/support'
+      fullPath: '/admin/support'
+      preLoaderRoute: typeof AuthenticatedAdminSupportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/unattended': {
+      id: '/_authenticated/admin/unattended'
+      path: '/admin/unattended'
+      fullPath: '/admin/unattended'
+      preLoaderRoute: typeof AuthenticatedAdminUnattendedRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/driver/': {
       id: '/_authenticated/driver/'
       path: '/driver'
@@ -392,6 +432,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminFinanceRoute: typeof AuthenticatedAdminFinanceRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
   AuthenticatedAdminStaffRoute: typeof AuthenticatedAdminStaffRoute
+  AuthenticatedAdminSupportRoute: typeof AuthenticatedAdminSupportRoute
+  AuthenticatedAdminUnattendedRoute: typeof AuthenticatedAdminUnattendedRoute
   AuthenticatedDriverApplyRoute: typeof AuthenticatedDriverApplyRoute
   AuthenticatedDriverWalletRoute: typeof AuthenticatedDriverWalletRoute
   AuthenticatedRidesRideIdRoute: typeof AuthenticatedRidesRideIdRoute
@@ -407,6 +449,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminFinanceRoute: AuthenticatedAdminFinanceRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
   AuthenticatedAdminStaffRoute: AuthenticatedAdminStaffRoute,
+  AuthenticatedAdminSupportRoute: AuthenticatedAdminSupportRoute,
+  AuthenticatedAdminUnattendedRoute: AuthenticatedAdminUnattendedRoute,
   AuthenticatedDriverApplyRoute: AuthenticatedDriverApplyRoute,
   AuthenticatedDriverWalletRoute: AuthenticatedDriverWalletRoute,
   AuthenticatedRidesRideIdRoute: AuthenticatedRidesRideIdRoute,

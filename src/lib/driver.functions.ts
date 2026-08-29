@@ -427,20 +427,53 @@ export const getDriverWallet = createServerFn({ method: "POST" })
       .select("*")
       .eq("driver_id", context.userId)
       .maybeSingle();
-    if (!wallet) return { wallet: null, entries: [], withdrawals: [] };
+    if (!wallet) {
+      return { wallet: null, entries: [], withdrawals: [], periods: null, owedToPlatform: 0 };
+    }
     const { data: entries } = await context.supabase
       .from("wallet_ledger")
       .select("*")
       .eq("wallet_id", wallet.id)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(500);
     const { data: withdrawals } = await context.supabase
       .from("withdrawals")
       .select("*")
       .eq("wallet_id", wallet.id)
       .order("created_at", { ascending: false })
       .limit(20);
-    return { wallet, entries: entries ?? [], withdrawals: withdrawals ?? [] };
+
+    const rows = entries ?? [];
+    const nairobiDay = (iso: string) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi" }).format(new Date(iso));
+    const now = new Date();
+    const todayKey = nairobiDay(now.toISOString());
+    const weekStart = new Date(now.getTime() - 6 * 86400000).toISOString();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const riding = (e: { entry_type: string }) => e.entry_type === "ride_earning";
+    const sumEarnings = (filter: (e: { created_at: string }) => boolean) =>
+      rows.filter((e) => riding(e) && filter(e)).reduce((s, e) => s + Number(e.amount), 0);
+
+    const periods = {
+      today: sumEarnings((e) => nairobiDay(e.created_at) === todayKey),
+      week: sumEarnings((e) => new Date(e.created_at).getTime() >= new Date(weekStart).getTime()),
+      month: sumEarnings((e) => new Date(e.created_at).getTime() >= new Date(monthStart).getTime()),
+    };
+
+    // Cash trips: the driver holds the customer's money, so the platform
+    // commission is owed. This is the sum of those debits.
+    const owedToPlatform = rows
+      .filter((e) => e.entry_type === "cash_commission_debit")
+      .reduce((s, e) => s + Math.abs(Number(e.amount)), 0);
+
+    return {
+      wallet,
+      entries: rows,
+      withdrawals: withdrawals ?? [],
+      periods,
+      owedToPlatform,
+    };
   });
 
 export const requestWithdrawal = createServerFn({ method: "POST" })

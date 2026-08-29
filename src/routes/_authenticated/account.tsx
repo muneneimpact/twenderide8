@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
-import { getMe, reportIncident, updateProfile } from "@/lib/account.functions";
+import { getMe, updateProfile, reportIncident } from "@/lib/account.functions";
+import type { PromoState } from "@/lib/discounts";
 import { reverseGeocode } from "@/lib/rides.functions";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -16,10 +17,10 @@ export const Route = createFileRoute("/_authenticated/account")({
       {
         name: "description",
         content:
-          "Manage your Twende Meru Rides profile, verified phone number, saved places such as Home and Office, and open a support request about a trip.",
+          "Manage your Twende Meru Rides profile, verified phone number, saved places, promotions, support requests and recent activity.",
       },
       { property: "og:title", content: "Your account — Twende Meru Rides" },
-      { property: "og:description", content: "Profile, saved places and support for your Meru trips." },
+      { property: "og:description", content: "Profile, places, promotions and support for your Meru trips." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -30,6 +31,81 @@ export const Route = createFileRoute("/_authenticated/account")({
 const field =
   "mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring";
 
+/* ---------------------------------------------------------------------------
+ * FRONTEND-ONLY MOCK DATA
+ * TODO(lovable-backend): replace these mock arrays with real server functions.
+ * Every TODO marks the exact data the UI expects from the backend.
+ * ------------------------------------------------------------------------- */
+
+interface MockPromo {
+  code: string;
+  name: string;
+  description: string | null;
+  discount_percent: number;
+  max_discount_percent: number;
+  state: PromoState;
+  used: boolean;
+}
+
+const mockPromos: MockPromo[] = [
+  { code: "MERU10", name: "Welcome 10%", description: "10% off your first trip", discount_percent: 10, max_discount_percent: 20, state: "active", used: false },
+  { code: "RIDE5", name: "Flash 5%", description: "5% off this week", discount_percent: 5, max_discount_percent: 5, state: "usage_exhausted", used: true },
+];
+
+interface MockMessage {
+  id: string;
+  from: "customer" | "support";
+  body: string;
+  created_at: string;
+}
+
+interface MockCase {
+  id: string;
+  tripReference: string | null;
+  subject: string;
+  status: "open" | "resolved";
+  created_at: string;
+  messages: MockMessage[];
+}
+
+const mockCases: MockCase[] = [
+  {
+    id: "case-1",
+    tripReference: "TR-1023",
+    subject: "Driver took a long route",
+    status: "open",
+    created_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+    messages: [{ id: "m1", from: "customer", body: "The driver took a much longer route. Can I get a partial refund?", created_at: new Date(Date.now() - 3 * 3600_000).toISOString() }],
+  },
+  {
+    id: "case-2",
+    tripReference: null,
+    subject: "Cannot top up M-PESA",
+    status: "resolved",
+    created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    messages: [
+      { id: "m2", from: "customer", body: "My M-PESA top-up is not reflecting.", created_at: new Date(Date.now() - 2 * 86400000).toISOString() },
+      { id: "m3", from: "support", body: "Resolved — it was a provider delay.", created_at: new Date(Date.now() - 1 * 86400000).toISOString() },
+    ],
+  },
+];
+
+interface MockActivity {
+  id: string;
+  title: string;
+  detail: string;
+  created_at: string;
+  payment_kind: "mpesa" | "cash" | "refund" | null;
+}
+
+const mockActivity: MockActivity[] = [
+  { id: "a1", title: "TR-1023 · Completed", detail: "Driver: John K. · KES 450.00", created_at: new Date(Date.now() - 3 * 3600_000).toISOString(), payment_kind: "mpesa" },
+  { id: "a2", title: "M-PESA payment", detail: "KES 450.00 · Paid", created_at: new Date(Date.now() - 3 * 3600_000).toISOString(), payment_kind: "mpesa" },
+  { id: "a3", title: "Support case opened", detail: "Driver took a long route", created_at: new Date(Date.now() - 2.9 * 3600_000).toISOString(), payment_kind: null },
+  { id: "a4", title: "TR-1022 · Cancelled", detail: "Cancelled by you", created_at: new Date(Date.now() - 2 * 86400000).toISOString(), payment_kind: null },
+  { id: "a5", title: "Promo applied · RIDE5", detail: "5% off · used", created_at: new Date(Date.now() - 3 * 86400000).toISOString(), payment_kind: null },
+];
+
 function AccountPage() {
   const queryClient = useQueryClient();
   const meFn = useServerFn(getMe);
@@ -37,15 +113,22 @@ function AccountPage() {
   const raiseIncident = useServerFn(reportIncident);
   const locate = useServerFn(reverseGeocode);
 
-
   const me = useQuery({ queryKey: ["me", "account"], queryFn: () => meFn() });
   const [fullName, setFullName] = useState("");
   const [placeLabel, setPlaceLabel] = useState("Home");
-  const [place, setPlace] = useState<{ lat: number; lng: number; label: string; address: string | null } | null>(
-    null,
-  );
+  const [place, setPlace] = useState<{ lat: number; lng: number; label: string; address: string | null } | null>(null);
   const [rideId, setRideId] = useState("");
   const [issue, setIssue] = useState("");
+
+  // Phase 6 frontend-only state.
+  const [paymentPref, setPaymentPref] = useState("stk_push");
+  const [driverCodePref, setDriverCodePref] = useState("sms");
+  const [promoInput, setPromoInput] = useState("");
+  const [promoResult, setPromoResult] = useState<{ valid: boolean; state: PromoState; message?: string; discount_percent?: number; total_fare?: number } | null>(null);
+  const [activeCaseId, setActiveCaseId] = useState<string | null>(mockCases[0]?.id ?? null);
+  const [replies, setReplies] = useState<Record<string, string>>({});
+  const [cases, setCases] = useState<MockCase[]>(mockCases);
+  const [activity] = useState<MockActivity[]>(mockActivity);
 
   useEffect(() => {
     if (me.data?.profile?.full_name) setFullName(me.data.profile.full_name);
@@ -54,10 +137,7 @@ function AccountPage() {
   const places = useQuery({
     queryKey: ["saved-places"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("saved_places")
-        .select("id, label, address, lat, lng")
-        .order("created_at", { ascending: true });
+      const { data, error } = await supabase.from("saved_places").select("id, label, address, lat, lng").order("created_at", { ascending: true });
       if (error) throw new Error(error.message);
       return data ?? [];
     },
@@ -66,17 +146,19 @@ function AccountPage() {
   const rides = useQuery({
     queryKey: ["account", "recent-rides"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("rides")
-        .select("id, reference, status, requested_at")
-        .order("requested_at", { ascending: false })
-        .limit(10);
+      const { data } = await supabase.from("rides").select("id, reference, status, requested_at").order("requested_at", { ascending: false }).limit(10);
       return data ?? [];
     },
   });
 
   const profileMutation = useMutation({
-    mutationFn: () => saveProfile({ data: { full_name: fullName.trim() } }),
+    mutationFn: () =>
+      saveProfile({
+        data: {
+          full_name: fullName.trim(),
+          // TODO(lovable-backend): persist paymentPref + driverCodePref server-side.
+        },
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["me"] }),
   });
 
@@ -86,13 +168,7 @@ function AccountPage() {
       const { data: session } = await supabase.auth.getUser();
       const userId = session.user?.id;
       if (!userId) throw new Error("Please sign in again.");
-      const { error } = await supabase.from("saved_places").insert({
-        user_id: userId,
-        label: placeLabel.trim() || place.label,
-        address: place.address,
-        lat: place.lat,
-        lng: place.lng,
-      });
+      const { error } = await supabase.from("saved_places").insert({ user_id: userId, label: placeLabel.trim() || place.label, address: place.address, lat: place.lat, lng: place.lng });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -101,30 +177,12 @@ function AccountPage() {
     },
   });
 
-  /** Drops the phone's current position straight into the place being saved. */
   const useHere = useMutation({
     mutationFn: async () => {
-      if (typeof navigator === "undefined" || !navigator.geolocation) {
-        throw new Error("This device cannot share its location.");
-      }
-      const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 12000,
-          maximumAge: 15000,
-        }),
-      ).catch(() => {
-        throw new Error("We could not read your location. Allow location access and try again.");
-      });
-      const found = await locate({
-        data: { lat: position.coords.latitude, lng: position.coords.longitude },
-      });
-      setPlace({
-        lat: found.lat,
-        lng: found.lng,
-        label: found.label ?? "Current location",
-        address: found.address,
-      });
+      if (typeof navigator === "undefined" || !navigator.geolocation) throw new Error("This device cannot share its location.");
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }));
+      const found = await locate({ data: { lat: position.coords.latitude, lng: position.coords.longitude } });
+      setPlace({ lat: found.lat, lng: found.lng, label: found.label ?? "Current location", address: found.address });
     },
   });
 
@@ -136,157 +194,220 @@ function AccountPage() {
     onSuccess: () => void places.refetch(),
   });
 
-
   const support = useMutation({
     mutationFn: () =>
-      raiseIncident({
-        data: {
-          category: "other" as const,
-          description: issue.trim(),
-          ...(rideId ? { rideId } : {}),
-        },
-      }),
+      raiseIncident({ data: { category: "other" as const, description: issue.trim(), ...(rideId ? { rideId } : {}) } }),
     onSuccess: () => setIssue(""),
   });
 
+  const applyPromo = () => {
+    const code = promoInput.trim().toUpperCase();
+    const promo = mockPromos.find((p) => p.code === code);
+    // TODO(lovable-backend): the booking flow already validates promo codes
+    // server-side. This account-page check is a frontend-only preview.
+    if (!promo) return setPromoResult({ valid: false, state: "invalid", message: "That code is not recognised." });
+    if (promo.state === "expired") return setPromoResult({ valid: false, state: "expired", message: "That code has expired." });
+    if (promo.state === "usage_exhausted" || promo.used) return setPromoResult({ valid: false, state: "usage_exhausted", message: "That code has reached its usage limit." });
+    if (promo.state === "not_started") return setPromoResult({ valid: false, state: "not_started", message: "That code is not live yet." });
+    setPromoResult({ valid: true, state: "active", discount_percent: promo.discount_percent, total_fare: 450 * (1 - promo.discount_percent / 100) });
+  };
+
+  const sendReply = (caseId: string) => {
+    const body = replies[caseId]?.trim();
+    if (!body) return;
+    // TODO(lovable-backend): persist via a support_messages insert + realtime broadcast.
+    setCases((prev) => prev.map((c) => (c.id === caseId ? { ...c, messages: [...c.messages, { id: crypto.randomUUID(), from: "customer" as const, body, created_at: new Date().toISOString() }] } : c)));
+    setReplies((prev) => ({ ...prev, [caseId]: "" }));
+  };
+
   const profile = me.data?.profile;
   const verified = Boolean(profile?.phone_verified_at);
+  const activeCase = cases.find((c) => c.id === activeCaseId) ?? null;
 
   return (
     <AppShell title="Your account">
       <div className="mx-auto max-w-md space-y-5 px-4 py-4">
+        {/* Profile */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Profile</h2>
+          <div className="mt-3 flex items-center gap-3">
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-secondary text-xl font-bold text-secondary-foreground">
+              {(profile?.full_name ?? profile?.email ?? "U").charAt(0).toUpperCase()}
+            </span>
+            {/* TODO(lovable-backend): allow uploading a profile image (avatar_url) and persist to storage. */}
+            <p className="text-xs text-muted-foreground">Profile photo upload lands with the backend.</p>
+          </div>
           <label className="mt-3 block">
             <span className="text-xs font-medium text-muted-foreground">Full name</span>
-            <input value={fullName} onChange={(event) => setFullName(event.target.value)} className={field} />
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)} className={field} />
           </label>
           <div className="mt-3 grid gap-1 text-sm">
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Phone</span>
-              <span className="text-foreground">{profile?.phone ?? "—"}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Phone verified</span>
-              <span className={verified ? "font-semibold text-foreground" : "text-destructive"}>
-                {verified ? "Verified" : "Not verified"}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Email</span>
-              <span className="truncate text-foreground">{profile?.email ?? "—"}</span>
-            </div>
+            <div className="flex justify-between gap-3"><span className="text-muted-foreground">Email</span><span className="truncate text-foreground">{profile?.email ?? "—"}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-muted-foreground">Phone (required)</span><span className="text-foreground">{profile?.phone ?? "—"}</span></div>
+            <div className="flex justify-between gap-3"><span className="text-muted-foreground">Phone verified</span><span className={verified ? "font-semibold text-foreground" : "text-destructive"}>{verified ? "Verified" : "Not verified"}</span></div>
           </div>
-          <button
-            onClick={() => profileMutation.mutate()}
-            disabled={profileMutation.isPending || fullName.trim().length < 2}
-            className="mt-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
-          >
+          <label className="mt-3 block">
+            <span className="text-xs font-medium text-muted-foreground">Preferred payment method</span>
+            <select value={paymentPref} onChange={(e) => setPaymentPref(e.target.value)} className={field}>
+              <option value="stk_push">M-PESA</option>
+              <option value="cash">Cash</option>
+            </select>
+          </label>
+          <label className="mt-3 block">
+            <span className="text-xs font-medium text-muted-foreground">Driver verification code</span>
+            <select value={driverCodePref} onChange={(e) => setDriverCodePref(e.target.value)} className={field}>
+              <option value="sms">By SMS</option>
+              <option value="email">By email</option>
+            </select>
+          </label>
+          <button onClick={() => profileMutation.mutate()} disabled={profileMutation.isPending || fullName.trim().length < 2} className="mt-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-60">
             {profileMutation.isPending ? "Saving…" : "Save profile"}
           </button>
-          {profileMutation.isError && (
-            <p className="mt-2 text-xs text-destructive">{(profileMutation.error as Error).message}</p>
-          )}
+          {profileMutation.isError && <p className="mt-2 text-xs text-destructive">{(profileMutation.error as Error).message}</p>}
         </section>
 
+        {/* Saved places */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Saved places</h2>
           <div className="mt-3 space-y-2">
             {(places.data ?? []).map((saved) => (
-              <div
-                key={saved.id}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3.5 py-2.5"
-              >
+              <div key={saved.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-3.5 py-2.5">
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold text-foreground">{saved.label}</span>
                   <span className="block truncate text-xs text-muted-foreground">{saved.address ?? "Saved pin"}</span>
                 </span>
-                <button
-                  onClick={() => removePlace.mutate(saved.id)}
-                  className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground"
-                >
-                  Remove
-                </button>
+                {/* TODO(lovable-backend): allow editing a saved place's label/address server-side. */}
+                <button onClick={() => removePlace.mutate(saved.id)} className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground">Remove</button>
               </div>
             ))}
-            {places.data?.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Add Home and Office to book them in one tap.</p>
-            ) : null}
+            {places.data?.length === 0 && <p className="text-xs text-muted-foreground">Add Home and Office to book them in one tap.</p>}
           </div>
-
           <label className="mt-3 block">
             <span className="text-xs font-medium text-muted-foreground">Name this place</span>
-            <input
-              value={placeLabel}
-              onChange={(event) => setPlaceLabel(event.target.value)}
-              placeholder="Home, Office, Mum's"
-              className={field}
-            />
+            <input value={placeLabel} onChange={(e) => setPlaceLabel(e.target.value)} placeholder="Home, Office, Mum's" className={field} />
           </label>
           <div className="mt-2">
-            <PlaceSearch
-              placeholder="Search the address"
-              value={place?.label ?? null}
-              onPick={(found) =>
-                setPlace({ lat: found.lat, lng: found.lng, label: found.label, address: found.address })
-              }
-            />
+            <PlaceSearch placeholder="Search the address" value={place?.label ?? null} onPick={(found) => setPlace({ lat: found.lat, lng: found.lng, label: found.label, address: found.address })} />
           </div>
-          <button
-            type="button"
-            onClick={() => useHere.mutate()}
-            disabled={useHere.isPending}
-            className="mt-2 w-full rounded-full border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-60"
-          >
+          <button type="button" onClick={() => useHere.mutate()} disabled={useHere.isPending} className="mt-2 w-full rounded-full border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-60">
             {useHere.isPending ? "Finding you…" : "Use current location"}
           </button>
           {useHere.isError && <p className="mt-2 text-xs text-destructive">{(useHere.error as Error).message}</p>}
-
-          <button
-            onClick={() => addPlace.mutate()}
-            disabled={!place || addPlace.isPending}
-            className="mt-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
-          >
+          <button onClick={() => addPlace.mutate()} disabled={!place || addPlace.isPending} className="mt-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-60">
             {addPlace.isPending ? "Saving…" : "Save this place"}
           </button>
           {addPlace.isError && <p className="mt-2 text-xs text-destructive">{(addPlace.error as Error).message}</p>}
         </section>
 
+        {/* Promotions & promo codes */}
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg font-bold text-foreground">Promotions</h2>
+          {/* TODO(lovable-backend): fetch active promotions + this customer's redemption history from the server. */}
+          <ul className="mt-3 space-y-2">
+            {mockPromos.map((promo) => (
+              <li key={promo.code} className="rounded-2xl border border-border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-foreground">{promo.code} · {promo.name}</p>
+                  <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold text-secondary-foreground">
+                    {promo.state === "active" ? "Live" : promo.state === "usage_exhausted" ? "Used up" : promo.state}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{promo.description ?? ""} · {promo.discount_percent}% off, capped at {promo.max_discount_percent}%{promo.used ? " · used" : ""}</p>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 space-y-2">
+            <div className="flex gap-2">
+              <input value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="Enter a promo code" className={`${field} uppercase`} />
+              <button onClick={applyPromo} disabled={promoInput.trim().length < 2} className="shrink-0 rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold">Apply</button>
+            </div>
+            {promoResult && (
+              <div className={promoResult.valid ? "rounded-xl bg-success/10 px-3 py-2.5 text-xs text-success" : "rounded-xl bg-destructive/10 px-3 py-2.5 text-xs text-destructive"}>
+                {promoResult.valid ? (<><p className="font-semibold">Code applied — {promoResult.discount_percent}% off</p><p>New estimated fare: KES {Number(promoResult.total_fare ?? 0).toFixed(2)}</p></>) : (<p>{promoResult.message}</p>)}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Support */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Support</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Tell us what happened and our team replies in the app.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Select a trip and tell us what happened. Our team replies in the app.</p>
           <label className="mt-3 block">
             <span className="text-xs font-medium text-muted-foreground">Which trip? (optional)</span>
-            <select value={rideId} onChange={(event) => setRideId(event.target.value)} className={field}>
+            <select value={rideId} onChange={(e) => setRideId(e.target.value)} className={field}>
               <option value="">Not about a specific trip</option>
-              {(rides.data ?? []).map((ride) => (
-                <option key={ride.id} value={ride.id}>
-                  {ride.reference} · {ride.status.replace(/_/g, " ")}
-                </option>
-              ))}
+              {(rides.data ?? []).map((ride) => (<option key={ride.id} value={ride.id}>{ride.reference} · {ride.status.replace(/_/g, " ")}</option>))}
             </select>
           </label>
           <label className="mt-3 block">
-            <span className="text-xs font-medium text-muted-foreground">What went wrong?</span>
-            <textarea
-              value={issue}
-              onChange={(event) => setIssue(event.target.value)}
-              rows={4}
-              maxLength={1000}
-              className={field}
-            />
+            <span className="text-xs font-medium text-muted-foreground">What happened?</span>
+            <textarea value={issue} onChange={(e) => setIssue(e.target.value)} rows={4} maxLength={1000} className={field} />
           </label>
-          <button
-            onClick={() => support.mutate()}
-            disabled={support.isPending || issue.trim().length < 10}
-            className="mt-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
-          >
+          <button onClick={() => support.mutate()} disabled={support.isPending || issue.trim().length < 10} className="mt-3 w-full rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-60">
             {support.isPending ? "Sending…" : "Send to support"}
           </button>
           {support.isSuccess && <p className="mt-2 text-xs text-foreground">Thanks — our team has your request.</p>}
           {support.isError && <p className="mt-2 text-xs text-destructive">{(support.error as Error).message}</p>}
+
+          <div className="mt-5">
+            <h3 className="text-sm font-semibold text-foreground">Your support conversations</h3>
+            <div className="mt-2 space-y-2">
+              {cases.map((c) => (
+                <button key={c.id} onClick={() => setActiveCaseId(c.id)} className={`block w-full rounded-2xl border p-3 text-left ${c.id === activeCaseId ? "border-primary bg-accent" : "border-border bg-background"}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-foreground">{c.subject}</p>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.status === "open" ? "bg-warning/15 text-warning" : "bg-success/15 text-success"}`}>{c.status === "open" ? "Open" : "Resolved"}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{c.tripReference ?? "No trip"} · {new Date(c.created_at).toLocaleString("en-KE")}</p>
+                </button>
+              ))}
+            </div>
+            {activeCase && (
+              <div className="mt-3 rounded-2xl border border-border p-3">
+                <div className="space-y-2">
+                  {activeCase.messages.map((m) => (
+                    <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.from === "customer" ? "ml-auto bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
+                      <p>{m.body}</p>
+                      <p className="mt-0.5 text-[10px] opacity-70">{new Date(m.created_at).toLocaleTimeString("en-KE")}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* TODO(lovable-backend): persist this reply and broadcast it via Supabase Realtime. */}
+                <div className="mt-3 flex gap-2">
+                  <input value={replies[activeCase.id] ?? ""} onChange={(e) => setReplies((prev) => ({ ...prev, [activeCase.id]: e.target.value }))} placeholder="Type a reply…" className={field} />
+                  <button onClick={() => sendReply(activeCase.id)} disabled={!(replies[activeCase.id] ?? "").trim()} className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">Send</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Jijenge with Twende Meru */}
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg font-bold text-foreground">Jijenge with Twende Meru</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Earn by driving with Twende Meru Rides. Register your vehicle and documents to get approved.</p>
+          <Link to="/driver/apply" className="mt-3 block w-full rounded-full bg-primary px-4 py-3 text-center text-sm font-bold text-primary-foreground">Become a Driver</Link>
+        </section>
+
+        {/* Recent activity (newest first) */}
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg font-bold text-foreground">Recent activity</h2>
+          {/* TODO(lovable-backend): build this feed from the server (rides + ride_status_events + support cases + payment history) sorted by created_at descending. */}
+          <ol className="mt-3 space-y-2">
+            {activity.map((item) => (
+              <li key={item.id} className="rounded-2xl border border-border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{item.detail}</p>
+                  </div>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{new Date(item.created_at).toLocaleTimeString("en-KE")}</span>
+                </div>
+                {item.payment_kind && <p className="mt-1 text-[11px] text-muted-foreground">Payment: {item.payment_kind === "mpesa" ? "M-PESA" : item.payment_kind === "cash" ? "Cash" : "Refund"}</p>}
+              </li>
+            ))}
+          </ol>
         </section>
       </div>
     </AppShell>

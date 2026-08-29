@@ -59,6 +59,7 @@ function RideDetail() {
   const [score, setScore] = useState(5);
   const [reasonCode, setReasonCode] = useState(cancelReasons[0]!);
   const [reasonNote, setReasonNote] = useState("");
+  const [showCancel, setShowCancel] = useState(false);
 
   const rideQuery = useQuery({
     queryKey: ["ride", rideId],
@@ -252,47 +253,69 @@ function RideDetail() {
 
         {cancellable && (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">Need to cancel?</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Tell us why so we can improve. A cancellation fee only applies after the free window on an
-              assigned ride.
-            </p>
-            <label className="mt-3 block text-xs font-medium text-muted-foreground" htmlFor="cancel-reason">
-              Reason for cancelling
-            </label>
-            <select
-              id="cancel-reason"
-              value={reasonCode}
-              onChange={(event) => setReasonCode(event.target.value)}
-              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-            >
-              {cancelReasons.map((reason) => (
-                <option key={reason} value={reason}>
-                  {reason}
-                </option>
-              ))}
-            </select>
-            <textarea
-              value={reasonNote}
-              onChange={(event) => setReasonNote(event.target.value)}
-              placeholder={reasonCode === "Other" ? "Please tell us what happened" : "Anything else? (optional)"}
-              rows={2}
-              className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-            />
-            <button
-              onClick={() =>
-                cancelling.mutate({
-                  reasonCode,
-                  reason: reasonNote.trim() || reasonCode,
-                })
-              }
-              disabled={cancelling.isPending || (reasonCode === "Other" && reasonNote.trim().length < 3)}
-              className="mt-3 w-full rounded-md border border-destructive px-4 py-3 text-sm font-semibold text-destructive disabled:opacity-60"
-            >
-              {cancelling.isPending ? "Cancelling…" : "Cancel this ride"}
-            </button>
-            {cancelling.isError && (
-              <p className="mt-2 text-sm text-destructive">{(cancelling.error as Error).message}</p>
+            {!showCancel ? (
+              <>
+                <h3 className="text-sm font-semibold text-foreground">Need to cancel?</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  You can cancel before the trip starts. A fee may apply after the free window on an assigned ride.
+                </p>
+                <button
+                  onClick={() => setShowCancel(true)}
+                  className="mt-3 w-full rounded-md border border-destructive px-4 py-3 text-sm font-semibold text-destructive"
+                >
+                  Cancel this ride
+                </button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-sm font-semibold text-foreground">Why are you cancelling?</h3>
+                <label className="mt-3 block text-xs font-medium text-muted-foreground" htmlFor="cancel-reason">
+                  Reason for cancelling
+                </label>
+                <select
+                  id="cancel-reason"
+                  value={reasonCode}
+                  onChange={(event) => setReasonCode(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                >
+                  {cancelReasons.map((reason) => (
+                    <option key={reason} value={reason}>
+                      {reason}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  value={reasonNote}
+                  onChange={(event) => setReasonNote(event.target.value)}
+                  placeholder={reasonCode === "Other" ? "Please tell us what happened" : "Anything else? (optional)"}
+                  rows={2}
+                  className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                />
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() =>
+                      cancelling.mutate({
+                        reasonCode,
+                        reason: reasonNote.trim() || reasonCode,
+                      })
+                    }
+                    disabled={cancelling.isPending || (reasonCode === "Other" && reasonNote.trim().length < 3)}
+                    className="flex-1 rounded-md bg-destructive px-4 py-3 text-sm font-semibold text-destructive-foreground disabled:opacity-60"
+                  >
+                    {cancelling.isPending ? "Cancelling…" : "Confirm cancellation"}
+                  </button>
+                  <button
+                    onClick={() => setShowCancel(false)}
+                    disabled={cancelling.isPending}
+                    className="rounded-md border border-border px-4 py-3 text-sm font-medium text-foreground disabled:opacity-60"
+                  >
+                    Go back
+                  </button>
+                </div>
+                {cancelling.isError && (
+                  <p className="mt-2 text-sm text-destructive">{(cancelling.error as Error).message}</p>
+                )}
+              </>
             )}
           </section>
         )}

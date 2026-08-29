@@ -17,8 +17,18 @@ const customerTabs: Tab[] = [
 /** Tabs a person may use, derived from the roles the server reported. */
 export function tabsForRoles(roles: AppRole[]): Tab[] {
   const has = (...wanted: AppRole[]) => wanted.some((role) => roles.includes(role));
+  // Drivers land on the driver console: their primary nav is Book, Account,
+  // then Drive (the console). Rides remain reachable via the account page.
+  if (has("driver")) {
+    const tabs: Tab[] = [
+      { to: "/book", label: "Book" },
+      { to: "/account", label: "Account" },
+      { to: "/driver", label: "Drive" },
+    ];
+    if (has("fleet_owner")) tabs.push({ to: "/fleet", label: "Fleet" });
+    return tabs;
+  }
   const tabs: Tab[] = [...customerTabs];
-  if (has("driver")) tabs.push({ to: "/driver", label: "Drive" });
   if (has("fleet_owner")) tabs.push({ to: "/fleet", label: "Fleet" });
   if (has("ops_admin", "super_admin")) tabs.push({ to: "/admin", label: "Ops" });
   if (has("finance_admin", "super_admin")) tabs.push({ to: "/admin/finance", label: "Finance" });
@@ -105,6 +115,8 @@ export const driverTabs: Tab[] = [
 
 export const adminTabs: Tab[] = [
   { to: "/admin", label: "Ops" },
+  { to: "/admin/unattended", label: "Unattended" },
+  { to: "/admin/support", label: "Claims" },
   { to: "/admin/finance", label: "Finance" },
   { to: "/admin/pricing", label: "Pricing" },
   { to: "/admin/staff", label: "People" },

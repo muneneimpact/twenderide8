@@ -642,22 +642,21 @@ function BookPage() {
               near={pickup ?? dropoff}
               value={pendingDropoff?.label ?? null}
               onPick={(place) => {
-                setPendingDropoff({
+                // No confirmation step: picking a destination closes the search
+                // and shows the ride options immediately.
+                chooseDestination({
                   lat: place.lat,
                   lng: place.lng,
                   label: place.label,
                   address: place.address,
                 });
-                // Free the screen for the confirm button; tapping the field
-                // brings the keyboard straight back.
-                searchInput.current?.blur();
               }}
             />
             {(saved.data ?? []).map((place) => (
               <button
                 key={place.id}
                 onClick={() =>
-                  setPendingDropoff({
+                  chooseDestination({
                     lat: Number(place.lat),
                     lng: Number(place.lng),
                     label: place.label,
@@ -673,7 +672,7 @@ function BookPage() {
             {recents.map((place, index) => (
               <button
                 key={`recent-${index}`}
-                onClick={() => setPendingDropoff(place)}
+                onClick={() => chooseDestination(place)}
                 className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
               >
                 <span>↻</span>
@@ -681,16 +680,6 @@ function BookPage() {
               </button>
             ))}
           </div>
-          {pendingDropoff ? (
-            <div className="border-t border-border bg-card px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-              <button
-                onClick={() => chooseDestination(pendingDropoff)}
-                className="w-full truncate rounded-full bg-primary px-4 py-3.5 text-sm font-bold text-primary-foreground"
-              >
-                Continue with {label(pendingDropoff)}
-              </button>
-            </div>
-          ) : null}
         </div>
       ) : null}
     </AppShell>

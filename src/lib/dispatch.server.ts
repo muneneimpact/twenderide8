@@ -116,7 +116,7 @@ export function searchHexRings(
 export async function dispatchRide(
   rideId: string,
   pickup: { lat: number; lng: number },
-  vehicleClass: "boda" | "economy" | "comfort" | "xl",
+  vehicleClass: "go" | "plus" | "comfort" | "xl" | "boda" | "e_boda",
   options: { radiusKm: number; offerTimeoutSeconds: number; cashRide: boolean },
 ): Promise<DispatchResult> {
   const radiusKm = Math.min(options.radiusKm, MAX_DISPATCH_RADIUS_KM);

@@ -402,7 +402,7 @@ export const previewDistancePolicy = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
-        vehicleClass: z.enum(["economy", "comfort", "xl"]),
+        vehicleClass: z.enum(["go", "plus", "comfort", "xl", "boda", "e_boda"]),
         maxTotalReductionPercent: z.number().min(0).max(90),
         bands: z.array(bandSchema).min(1),
       })
@@ -769,7 +769,7 @@ const promoInput = z.object({
   valid_from: z.string().min(1),
   valid_until: z.string().min(1).optional().nullable(),
   usage_limit: z.number().int().positive().optional().nullable(),
-  applies_to: z.array(z.enum(["boda", "economy", "comfort", "xl"])).default([]),
+  applies_to: z.array(z.enum(["go", "plus", "comfort", "xl", "boda", "e_boda"])).default([]),
   active: z.boolean().default(true),
 });
 

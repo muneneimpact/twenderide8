@@ -2109,7 +2109,7 @@ export type Database = {
         | "cancelled_by_driver"
         | "cancelled_by_system"
         | "expired"
-      vehicle_class: "boda" | "economy" | "comfort" | "xl"
+      vehicle_class: "go" | "plus" | "comfort" | "xl" | "boda" | "e_boda"
       withdrawal_status:
         | "pending"
         | "under_review"
@@ -2297,7 +2297,7 @@ export const Constants = {
         "cancelled_by_system",
         "expired",
       ],
-      vehicle_class: ["boda", "economy", "comfort", "xl"],
+      vehicle_class: ["go", "plus", "comfort", "xl", "boda", "e_boda"],
       withdrawal_status: [
         "pending",
         "under_review",

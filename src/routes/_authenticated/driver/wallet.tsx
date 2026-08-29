@@ -44,8 +44,28 @@ function DriverWallet() {
   const withdrawFn = useServerFn(requestWithdrawal);
   const [amount, setAmount] = useState("");
   const [msisdn, setMsisdn] = useState("");
+  const [period, setPeriod] = useState<"today" | "week" | "month" | "custom">("today");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
   const walletQuery = useQuery({ queryKey: ["driver-wallet"], queryFn: () => fetchWallet({}) });
+  const periods = walletQuery.data?.periods ?? null;
+  const owedToPlatform = walletQuery.data?.owedToPlatform ?? 0;
+
+  const customEarnings =
+    customFrom && customTo
+      ? (walletQuery.data?.entries ?? [])
+          .filter(
+            (e) =>
+              e.entry_type === "ride_earning" &&
+              new Date(e.created_at).getTime() >= new Date(customFrom).getTime() &&
+              new Date(e.created_at).getTime() <= new Date(customTo).getTime(),
+          )
+          .reduce((sum, e) => sum + Number(e.amount), 0)
+      : 0;
+
+  const displayEarnings =
+    period === "today" ? (periods?.today ?? 0) : period === "week" ? (periods?.week ?? 0) : period === "month" ? (periods?.month ?? 0) : customEarnings;
 
   const withdrawing = useMutation({
     mutationFn: () => withdrawFn({ data: { amount: Number(amount), msisdn } }),
@@ -77,6 +97,80 @@ function DriverWallet() {
       </div>
 
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
+        {/* Earnings by period */}
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">Your take-home</h3>
+          <div className="mt-3 flex gap-1.5 overflow-x-auto">
+            {(
+              [
+                { key: "today", label: "Today" },
+                { key: "week", label: "This week" },
+                { key: "month", label: "This month" },
+                { key: "custom", label: "Custom" },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setPeriod(tab.key)}
+                className={`whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold ${
+                  period === tab.key
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-input text-muted-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {period === "custom" ? (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-[11px] text-muted-foreground">From</span>
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-muted-foreground">To</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="mt-0.5 w-full rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
+                />
+              </label>
+            </div>
+          ) : null}
+
+          <div className="mt-4 rounded-2xl bg-secondary/50 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              {period === "today" ? "Earned today" : period === "week" ? "Earned this week" : period === "month" ? "Earned this month" : "Earned in range"}
+            </p>
+            <p className="mt-1 font-display text-2xl font-semibold text-foreground">
+              KES {Number(displayEarnings).toFixed(2)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Your net take-home from completed trips.</p>
+          </div>
+
+          {owedToPlatform > 0 ? (
+            <div className="mt-3 rounded-2xl border border-warning/40 bg-warning/10 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-warning">
+                Owed to platform (cash trips)
+              </p>
+              <p className="mt-1 font-display text-2xl font-semibold text-warning-foreground">
+                KES {Number(owedToPlatform).toFixed(2)}
+              </p>
+              <p className="mt-1 text-xs text-warning-foreground/80">
+                Cash fares you collected. The platform commission on those trips is payable from your balance.
+              </p>
+            </div>
+          ) : null}
+        </section>
+
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Request a payout</h3>
           <label className="mt-3 block text-xs font-medium text-muted-foreground" htmlFor="amount">
