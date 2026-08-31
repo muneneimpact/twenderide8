@@ -1579,66 +1579,6 @@ export type Database = {
         }
         Relationships: []
       }
-      promotions: {
-        Row: {
-          active: boolean
-          applies_to: string[]
-          code: string
-          created_at: string
-          created_by: string | null
-          description: string | null
-          discount_percent: number
-          id: string
-          max_discount_amount: number | null
-          max_discount_percent: number
-          min_fare: number | null
-          name: string
-          updated_at: string
-          usage_count: number
-          usage_limit: number | null
-          valid_from: string
-          valid_until: string | null
-        }
-        Insert: {
-          active?: boolean
-          applies_to?: string[]
-          code: string
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          discount_percent?: number
-          id?: string
-          max_discount_amount?: number | null
-          max_discount_percent?: number
-          min_fare?: number | null
-          name: string
-          updated_at?: string
-          usage_count?: number
-          usage_limit?: number | null
-          valid_from?: string
-          valid_until?: string | null
-        }
-        Update: {
-          active?: boolean
-          applies_to?: string[]
-          code?: string
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          discount_percent?: number
-          id?: string
-          max_discount_amount?: number | null
-          max_discount_percent?: number
-          min_fare?: number | null
-          name?: string
-          updated_at?: string
-          usage_count?: number
-          usage_limit?: number | null
-          valid_from?: string
-          valid_until?: string | null
-        }
-        Relationships: []
-      }
       service_zones: {
         Row: {
           active: boolean
@@ -2060,6 +2000,7 @@ export type Database = {
         Args: { _user_id: string; _vehicle_id: string }
         Returns: boolean
       }
+      requires_phone_verification: { Args: never; Returns: boolean }
     }
     Enums: {
       app_role:
@@ -2109,7 +2050,7 @@ export type Database = {
         | "cancelled_by_driver"
         | "cancelled_by_system"
         | "expired"
-      vehicle_class: "go" | "plus" | "comfort" | "xl" | "boda" | "e_boda"
+      vehicle_class: "boda" | "economy" | "comfort" | "xl"
       withdrawal_status:
         | "pending"
         | "under_review"
@@ -2297,7 +2238,7 @@ export const Constants = {
         "cancelled_by_system",
         "expired",
       ],
-      vehicle_class: ["go", "plus", "comfort", "xl", "boda", "e_boda"],
+      vehicle_class: ["boda", "economy", "comfort", "xl"],
       withdrawal_status: [
         "pending",
         "under_review",
