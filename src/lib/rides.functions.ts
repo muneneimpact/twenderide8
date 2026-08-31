@@ -345,6 +345,30 @@ export const requestRide = createServerFn({ method: "POST" })
       .from("ride_status_events")
       .insert({ ride_id: ride.id, status: "searching", actor_id: context.userId, actor_role: "customer" });
 
+    // Record the promo redemption once per ride, then move the usage counter.
+    const usedPromo = (quote.breakdown as { promo?: { promotionId: string; code: string } } | null)?.promo;
+    if (usedPromo?.promotionId) {
+      const { error: redeemError } = await supabaseAdmin.from("promotion_redemptions").insert({
+        promotion_id: usedPromo.promotionId,
+        customer_id: context.userId,
+        ride_id: ride.id,
+        code: usedPromo.code,
+        discount_amount: discountAmount,
+      });
+      if (!redeemError) {
+        const { data: current } = await supabaseAdmin
+          .from("promotions")
+          .select("usage_count")
+          .eq("id", usedPromo.promotionId)
+          .maybeSingle();
+        await supabaseAdmin
+          .from("promotions")
+          .update({ usage_count: (current?.usage_count ?? 0) + 1 })
+          .eq("id", usedPromo.promotionId);
+      }
+    }
+
+
     if (msisdn) {
       await supabaseAdmin.from("payment_intents").insert({
         ride_id: ride.id,

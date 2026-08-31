@@ -1051,8 +1051,10 @@ export type Database = {
           id: string
           locale: string
           password_set_at: string | null
+          payment_preference: string
           phone: string | null
           phone_verified_at: string | null
+          share_driver_code: boolean
           updated_at: string
         }
         Insert: {
@@ -1063,8 +1065,10 @@ export type Database = {
           id: string
           locale?: string
           password_set_at?: string | null
+          payment_preference?: string
           phone?: string | null
           phone_verified_at?: string | null
+          share_driver_code?: boolean
           updated_at?: string
         }
         Update: {
@@ -1075,9 +1079,116 @@ export type Database = {
           id?: string
           locale?: string
           password_set_at?: string | null
+          payment_preference?: string
           phone?: string | null
           phone_verified_at?: string | null
+          share_driver_code?: boolean
           updated_at?: string
+        }
+        Relationships: []
+      }
+      promotion_redemptions: {
+        Row: {
+          code: string
+          created_at: string
+          customer_id: string
+          discount_amount: number
+          id: string
+          promotion_id: string
+          ride_id: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          customer_id: string
+          discount_amount?: number
+          id?: string
+          promotion_id: string
+          ride_id?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          customer_id?: string
+          discount_amount?: number
+          id?: string
+          promotion_id?: string
+          ride_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotion_redemptions_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_redemptions_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promotions: {
+        Row: {
+          active: boolean
+          applies_to: string[]
+          code: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          discount_percent: number
+          id: string
+          max_discount_amount: number | null
+          max_discount_percent: number
+          min_fare: number | null
+          name: string
+          updated_at: string
+          usage_count: number
+          usage_limit: number | null
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          active?: boolean
+          applies_to?: string[]
+          code: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          max_discount_amount?: number | null
+          max_discount_percent?: number
+          min_fare?: number | null
+          name: string
+          updated_at?: string
+          usage_count?: number
+          usage_limit?: number | null
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          active?: boolean
+          applies_to?: string[]
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          max_discount_amount?: number | null
+          max_discount_percent?: number
+          min_fare?: number | null
+          name?: string
+          updated_at?: string
+          usage_count?: number
+          usage_limit?: number | null
+          valid_from?: string
+          valid_until?: string | null
         }
         Relationships: []
       }
@@ -1608,6 +1719,94 @@ export type Database = {
           radius_km?: number
         }
         Relationships: []
+      }
+      support_cases: {
+        Row: {
+          assigned_to: string | null
+          category: string
+          created_at: string
+          customer_id: string
+          id: string
+          last_message_at: string
+          priority: string
+          ride_id: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          last_message_at?: string
+          priority?: string
+          ride_id?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          last_message_at?: string
+          priority?: string
+          ride_id?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_cases_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_messages: {
+        Row: {
+          body: string
+          case_id: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender_id: string | null
+          sender_role: string
+        }
+        Insert: {
+          body: string
+          case_id: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id?: string | null
+          sender_role?: string
+        }
+        Update: {
+          body?: string
+          case_id?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id?: string | null
+          sender_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "support_cases"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_settings: {
         Row: {
