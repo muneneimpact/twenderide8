@@ -123,15 +123,36 @@ function AccountPage() {
   });
 
   const profileMutation = useMutation({
-    mutationFn: () =>
-      saveProfile({
+    mutationFn: async () => {
+      await saveProfile({ data: { full_name: fullName.trim() } });
+      await savePreferences({
         data: {
-          full_name: fullName.trim(),
-          // TODO(lovable-backend): persist paymentPref + driverCodePref server-side.
+          payment_preference: paymentPref === "cash" ? ("cash" as const) : ("stk_push" as const),
+          share_driver_code: driverCodePref === "sms",
         },
-      }),
+      });
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["me"] }),
   });
+
+  const photoUrl = useQuery({ queryKey: ["account", "photo"], queryFn: () => useServerFnPhoto() });
+
+  const uploadPhoto = useMutation({
+    mutationFn: async (file: File) => {
+      const { data: session } = await supabase.auth.getUser();
+      const userId = session.user?.id;
+      if (!userId) throw new Error("Please sign in again.");
+      const path = `${userId}/avatar-${Date.now()}-${file.name.replace(/[^\w.\-]/g, "")}`;
+      const { error } = await supabase.storage.from("driver-documents").upload(path, file, { upsert: true });
+      if (error) throw new Error(error.message);
+      await savePreferences({ data: { avatar_path: path } });
+    },
+    onSuccess: () => {
+      void photoUrl.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["me"] });
+    },
+  });
+
 
   const addPlace = useMutation({
     mutationFn: async () => {
