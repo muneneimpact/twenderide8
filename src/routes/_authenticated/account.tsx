@@ -229,12 +229,36 @@ function AccountPage() {
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Profile</h2>
           <div className="mt-3 flex items-center gap-3">
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-secondary text-xl font-bold text-secondary-foreground">
-              {(profile?.full_name ?? profile?.email ?? "U").charAt(0).toUpperCase()}
-            </span>
-            {/* TODO(lovable-backend): allow uploading a profile image (avatar_url) and persist to storage. */}
-            <p className="text-xs text-muted-foreground">Profile photo upload lands with the backend.</p>
+            {photoUrl.data?.url ? (
+              <img src={photoUrl.data.url} alt="Your profile" className="h-16 w-16 shrink-0 rounded-full object-cover" />
+            ) : (
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-secondary text-xl font-bold text-secondary-foreground">
+                {(profile?.full_name ?? profile?.email ?? "U").charAt(0).toUpperCase()}
+              </span>
+            )}
+            <div>
+              <input
+                ref={photoInput}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadPhoto.mutate(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => photoInput.current?.click()}
+                disabled={uploadPhoto.isPending}
+                className="rounded-full border border-input bg-secondary px-3.5 py-2 text-xs font-semibold text-foreground disabled:opacity-60"
+              >
+                {uploadPhoto.isPending ? "Uploading…" : photoUrl.data?.url ? "Change photo" : "Add a photo"}
+              </button>
+              {uploadPhoto.isError && <p className="mt-1 text-xs text-destructive">{(uploadPhoto.error as Error).message}</p>}
+            </div>
           </div>
+
           <label className="mt-3 block">
             <span className="text-xs font-medium text-muted-foreground">Full name</span>
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} className={field} />
