@@ -27,7 +27,7 @@ export const nearbyDrivers = createServerFn({ method: "POST" })
       .object({
         lat: z.number().min(-90).max(90),
         lng: z.number().min(-180).max(180),
-        vehicleClass: z.enum(["boda", "economy", "comfort", "xl"]).optional(),
+        vehicleClass: z.enum(["boda", "e_boda", "go", "plus", "comfort", "xl"]).optional(),
       })
       .parse(input),
   )

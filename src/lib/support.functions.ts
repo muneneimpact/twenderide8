@@ -394,3 +394,30 @@ export const getAccountActivity = createServerFn({ method: "POST" })
     }
     return items.sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 25);
   });
+
+/** Audit trail for one support case, for the operations detail panel. */
+export const getSupportCaseAudit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ caseId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { requireRole, OPS } = await import("./authz.server");
+    await requireRole(context.userId, OPS);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows } = await supabaseAdmin
+      .from("audit_logs")
+      .select("id, action, actor_id, created_at")
+      .eq("entity_type", "support_case")
+      .eq("entity_id", data.caseId)
+      .order("created_at", { ascending: true });
+    const actorIds = Array.from(new Set((rows ?? []).map((r) => r.actor_id).filter((v): v is string => Boolean(v))));
+    const { data: profiles } = actorIds.length
+      ? await supabaseAdmin.from("profiles").select("id, full_name").in("id", actorIds)
+      : { data: [] as Array<{ id: string; full_name: string | null }> };
+    const names = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+    return (rows ?? []).map((r) => ({
+      id: r.id,
+      action: r.action.replace(/^support_case_/, "").replace(/_/g, " "),
+      actor: (r.actor_id ? names.get(r.actor_id) : null) ?? "Twende ops",
+      created_at: r.created_at,
+    }));
+  });

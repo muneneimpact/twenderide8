@@ -57,7 +57,7 @@ function DriverApply() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [plate, setPlate] = useState("");
-  const [vehicleClass, setVehicleClass] = useState<"boda" | "economy" | "comfort" | "xl">("economy");
+  const [vehicleClass, setVehicleClass] = useState<"boda" | "e_boda" | "go" | "plus" | "comfort" | "xl">("go");
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [colour, setColour] = useState("");
@@ -282,8 +282,8 @@ function DriverApply() {
               className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm uppercase tracking-wide"
             />
 
-            <div className="grid grid-cols-4 gap-2">
-              {(["boda", "economy", "comfort", "xl"] as const).map((cls) => (
+            <div className="grid grid-cols-3 gap-2">
+              {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((cls) => (
                 <button
                   key={cls}
                   onClick={() => setVehicleClass(cls)}
@@ -293,7 +293,7 @@ function DriverApply() {
                       : "border border-input text-muted-foreground"
                   }`}
                 >
-                  {cls}
+                  {cls === "e_boda" ? "e-Boda" : cls}
                 </button>
               ))}
             </div>

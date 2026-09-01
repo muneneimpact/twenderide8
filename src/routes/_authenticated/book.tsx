@@ -27,11 +27,13 @@ export const Route = createFileRoute("/_authenticated/book")({
   component: BookPage,
 });
 
-type VehicleClass = "boda" | "economy" | "comfort" | "xl";
+type VehicleClass = "boda" | "e_boda" | "go" | "plus" | "comfort" | "xl";
 
 const CLASS_LABELS: Record<VehicleClass, { name: string; hint: string }> = {
   boda: { name: "Boda", hint: "One rider, quickest" },
-  economy: { name: "Economy", hint: "Everyday saloon car" },
+  e_boda: { name: "e-Boda", hint: "Electric bike, cleaner ride" },
+  go: { name: "Go", hint: "Everyday saloon car" },
+  plus: { name: "Plus", hint: "Extra space and comfort" },
   comfort: { name: "Comfort", hint: "Newer, roomier car" },
   xl: { name: "XL", hint: "Up to 6 seats" },
 };
@@ -83,7 +85,7 @@ function BookPage() {
   const [locateError, setLocateError] = useState<string | null>(null);
   const [pickup, setPickup] = useState<Point | null>(null);
   const [dropoff, setDropoff] = useState<Point | null>(null);
-  const [vehicleClass, setVehicleClass] = useState<VehicleClass>("economy");
+  const [vehicleClass, setVehicleClass] = useState<VehicleClass>("go");
   const [pickupNotes, setPickupNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [msisdn, setMsisdn] = useState("");
@@ -439,7 +441,7 @@ function BookPage() {
               ) : null}
             </div>
             <div className="mt-2 space-y-2">
-              {(["boda", "economy", "comfort", "xl"] as const).map((option) => {
+              {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((option) => {
                 const priced = estimates.find((item) => item.vehicleClass === option);
                 const selected = vehicleClass === option;
                 const unavailable = priced ? !priced.available : false;

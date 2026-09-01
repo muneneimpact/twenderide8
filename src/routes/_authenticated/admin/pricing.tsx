@@ -41,7 +41,7 @@ export const Route = createFileRoute("/_authenticated/admin/pricing")({
   ),
 });
 
-type VehicleClass = "boda" | "economy" | "comfort" | "xl";
+type VehicleClass = "boda" | "e_boda" | "go" | "plus" | "comfort" | "xl";
 
 interface BandDraft {
   sort_order: number;
@@ -78,7 +78,7 @@ function PricingWorkspace() {
   const workspace = useQuery({ queryKey: ["pricing-workspace"], queryFn: () => fetchWorkspace({}) });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["pricing-workspace"] });
 
-  const [vehicleClass, setVehicleClass] = useState<VehicleClass>("economy");
+  const [vehicleClass, setVehicleClass] = useState<VehicleClass>("go");
   const [policyName, setPolicyName] = useState("Long-distance reduction");
   const [maxReduction, setMaxReduction] = useState(35);
   const [bands, setBands] = useState<BandDraft[]>([
@@ -202,7 +202,7 @@ function PricingWorkspace() {
       <div className="hero-gradient px-4 pb-6 pt-5">
         <div className="mx-auto max-w-md">
           <div className="glass flex gap-1 p-1.5">
-            {(["boda", "economy", "comfort", "xl"] as const).map((key) => (
+            {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((key) => (
               <button
                 key={key}
                 onClick={() => setVehicleClass(key)}
@@ -212,7 +212,7 @@ function PricingWorkspace() {
                     : "text-brand-foreground/80"
                 }`}
               >
-                {key}
+                {key === "e_boda" ? "e-boda" : key}
               </button>
             ))}
           </div>
@@ -858,7 +858,7 @@ function PromotionsBoard() {
             <div>
               <span className="text-[11px] text-muted-foreground">Applies to</span>
               <div className="mt-1 flex flex-wrap gap-1.5">
-                {(["boda", "economy", "comfort", "xl"] as const).map((vc) => {
+                {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((vc) => {
                   const selected = editing!.applies_to.includes(vc);
                   return (
                     <button

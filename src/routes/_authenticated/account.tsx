@@ -1,14 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
-import { getMe, updateProfile, reportIncident } from "@/lib/account.functions";
+import { getMe, updateProfile, getMyPhotoUrl } from "@/lib/account.functions";
+import {
+  createSupportCase,
+  getAccountActivity,
+  listMyPromotions,
+  listMySupportCases,
+  postSupportMessage,
+  updateAccountPreferences,
+} from "@/lib/support.functions";
+import { validatePromoCode } from "@/lib/admin.functions";
 import type { PromoState } from "@/lib/discounts";
 import { reverseGeocode } from "@/lib/rides.functions";
 
 import { supabase } from "@/integrations/supabase/client";
+
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({
@@ -31,87 +41,20 @@ export const Route = createFileRoute("/_authenticated/account")({
 const field =
   "mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring";
 
-/* ---------------------------------------------------------------------------
- * FRONTEND-ONLY MOCK DATA
- * TODO(lovable-backend): replace these mock arrays with real server functions.
- * Every TODO marks the exact data the UI expects from the backend.
- * ------------------------------------------------------------------------- */
-
-interface MockPromo {
-  code: string;
-  name: string;
-  description: string | null;
-  discount_percent: number;
-  max_discount_percent: number;
-  state: PromoState;
-  used: boolean;
-}
-
-const mockPromos: MockPromo[] = [
-  { code: "MERU10", name: "Welcome 10%", description: "10% off your first trip", discount_percent: 10, max_discount_percent: 20, state: "active", used: false },
-  { code: "RIDE5", name: "Flash 5%", description: "5% off this week", discount_percent: 5, max_discount_percent: 5, state: "usage_exhausted", used: true },
-];
-
-interface MockMessage {
-  id: string;
-  from: "customer" | "support";
-  body: string;
-  created_at: string;
-}
-
-interface MockCase {
-  id: string;
-  tripReference: string | null;
-  subject: string;
-  status: "open" | "resolved";
-  created_at: string;
-  messages: MockMessage[];
-}
-
-const mockCases: MockCase[] = [
-  {
-    id: "case-1",
-    tripReference: "TR-1023",
-    subject: "Driver took a long route",
-    status: "open",
-    created_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
-    messages: [{ id: "m1", from: "customer", body: "The driver took a much longer route. Can I get a partial refund?", created_at: new Date(Date.now() - 3 * 3600_000).toISOString() }],
-  },
-  {
-    id: "case-2",
-    tripReference: null,
-    subject: "Cannot top up M-PESA",
-    status: "resolved",
-    created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-    messages: [
-      { id: "m2", from: "customer", body: "My M-PESA top-up is not reflecting.", created_at: new Date(Date.now() - 2 * 86400000).toISOString() },
-      { id: "m3", from: "support", body: "Resolved — it was a provider delay.", created_at: new Date(Date.now() - 1 * 86400000).toISOString() },
-    ],
-  },
-];
-
-interface MockActivity {
-  id: string;
-  title: string;
-  detail: string;
-  created_at: string;
-  payment_kind: "mpesa" | "cash" | "refund" | null;
-}
-
-const mockActivity: MockActivity[] = [
-  { id: "a1", title: "TR-1023 · Completed", detail: "Driver: John K. · KES 450.00", created_at: new Date(Date.now() - 3 * 3600_000).toISOString(), payment_kind: "mpesa" },
-  { id: "a2", title: "M-PESA payment", detail: "KES 450.00 · Paid", created_at: new Date(Date.now() - 3 * 3600_000).toISOString(), payment_kind: "mpesa" },
-  { id: "a3", title: "Support case opened", detail: "Driver took a long route", created_at: new Date(Date.now() - 2.9 * 3600_000).toISOString(), payment_kind: null },
-  { id: "a4", title: "TR-1022 · Cancelled", detail: "Cancelled by you", created_at: new Date(Date.now() - 2 * 86400000).toISOString(), payment_kind: null },
-  { id: "a5", title: "Promo applied · RIDE5", detail: "5% off · used", created_at: new Date(Date.now() - 3 * 86400000).toISOString(), payment_kind: null },
-];
-
 function AccountPage() {
   const queryClient = useQueryClient();
   const meFn = useServerFn(getMe);
   const saveProfile = useServerFn(updateProfile);
-  const raiseIncident = useServerFn(reportIncident);
+  const savePreferences = useServerFn(updateAccountPreferences);
   const locate = useServerFn(reverseGeocode);
+  const promosFn = useServerFn(listMyPromotions);
+  const casesFn = useServerFn(listMySupportCases);
+  const openCaseFn = useServerFn(createSupportCase);
+  const replyFn = useServerFn(postSupportMessage);
+  const activityFn = useServerFn(getAccountActivity);
+  const checkPromo = useServerFn(validatePromoCode);
+  const myPhotoFn = useServerFn(getMyPhotoUrl);
+  const photoInput = useRef<HTMLInputElement | null>(null);
 
   const me = useQuery({ queryKey: ["me", "account"], queryFn: () => meFn() });
   const [fullName, setFullName] = useState("");
@@ -120,19 +63,48 @@ function AccountPage() {
   const [rideId, setRideId] = useState("");
   const [issue, setIssue] = useState("");
 
-  // Phase 6 frontend-only state.
   const [paymentPref, setPaymentPref] = useState("stk_push");
   const [driverCodePref, setDriverCodePref] = useState("sms");
   const [promoInput, setPromoInput] = useState("");
   const [promoResult, setPromoResult] = useState<{ valid: boolean; state: PromoState; message?: string; discount_percent?: number; total_fare?: number } | null>(null);
-  const [activeCaseId, setActiveCaseId] = useState<string | null>(mockCases[0]?.id ?? null);
+  const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
   const [replies, setReplies] = useState<Record<string, string>>({});
-  const [cases, setCases] = useState<MockCase[]>(mockCases);
-  const [activity] = useState<MockActivity[]>(mockActivity);
+
+  const promotions = useQuery({ queryKey: ["account", "promotions"], queryFn: () => promosFn() });
+  const supportCases = useQuery({ queryKey: ["account", "cases"], queryFn: () => casesFn() });
+  const activityFeed = useQuery({ queryKey: ["account", "activity"], queryFn: () => activityFn() });
+  const cases = supportCases.data ?? [];
+  const activity = activityFeed.data ?? [];
+
 
   useEffect(() => {
-    if (me.data?.profile?.full_name) setFullName(me.data.profile.full_name);
-  }, [me.data?.profile?.full_name]);
+    const p = me.data?.profile as
+      | { full_name?: string | null; payment_preference?: string | null; share_driver_code?: boolean | null }
+      | null
+      | undefined;
+    if (p?.full_name) setFullName(p.full_name);
+    if (p?.payment_preference) setPaymentPref(p.payment_preference);
+    if (p && typeof p.share_driver_code === "boolean") setDriverCodePref(p.share_driver_code ? "sms" : "email");
+  }, [me.data?.profile]);
+
+  useEffect(() => {
+    if (!activeCaseId && cases.length > 0) setActiveCaseId(cases[0]!.id);
+  }, [activeCaseId, cases]);
+
+  // Live replies from the support team.
+  useEffect(() => {
+    const channel = supabase
+      .channel("support-messages-customer")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages" }, () => {
+        void supportCases.refetch();
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const places = useQuery({
     queryKey: ["saved-places"],
@@ -152,15 +124,36 @@ function AccountPage() {
   });
 
   const profileMutation = useMutation({
-    mutationFn: () =>
-      saveProfile({
+    mutationFn: async () => {
+      await saveProfile({ data: { full_name: fullName.trim() } });
+      await savePreferences({
         data: {
-          full_name: fullName.trim(),
-          // TODO(lovable-backend): persist paymentPref + driverCodePref server-side.
+          payment_preference: paymentPref === "cash" ? ("cash" as const) : ("stk_push" as const),
+          share_driver_code: driverCodePref === "sms",
         },
-      }),
+      });
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["me"] }),
   });
+
+  const photoUrl = useQuery({ queryKey: ["account", "photo"], queryFn: () => myPhotoFn() });
+
+  const uploadPhoto = useMutation({
+    mutationFn: async (file: File) => {
+      const { data: session } = await supabase.auth.getUser();
+      const userId = session.user?.id;
+      if (!userId) throw new Error("Please sign in again.");
+      const path = `${userId}/avatar-${Date.now()}-${file.name.replace(/[^\w.\-]/g, "")}`;
+      const { error } = await supabase.storage.from("driver-documents").upload(path, file, { upsert: true });
+      if (error) throw new Error(error.message);
+      await savePreferences({ data: { avatar_path: path } });
+    },
+    onSuccess: () => {
+      void photoUrl.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["me"] });
+    },
+  });
+
 
   const addPlace = useMutation({
     mutationFn: async () => {
@@ -196,29 +189,34 @@ function AccountPage() {
 
   const support = useMutation({
     mutationFn: () =>
-      raiseIncident({ data: { category: "other" as const, description: issue.trim(), ...(rideId ? { rideId } : {}) } }),
-    onSuccess: () => setIssue(""),
+      openCaseFn({
+        data: {
+          category: "general" as const,
+          description: issue.trim(),
+          ...(rideId ? { rideId } : {}),
+        },
+      }),
+    onSuccess: (created) => {
+      setIssue("");
+      setActiveCaseId(created.id);
+      void supportCases.refetch();
+      void activityFeed.refetch();
+    },
   });
 
-  const applyPromo = () => {
-    const code = promoInput.trim().toUpperCase();
-    const promo = mockPromos.find((p) => p.code === code);
-    // TODO(lovable-backend): the booking flow already validates promo codes
-    // server-side. This account-page check is a frontend-only preview.
-    if (!promo) return setPromoResult({ valid: false, state: "invalid", message: "That code is not recognised." });
-    if (promo.state === "expired") return setPromoResult({ valid: false, state: "expired", message: "That code has expired." });
-    if (promo.state === "usage_exhausted" || promo.used) return setPromoResult({ valid: false, state: "usage_exhausted", message: "That code has reached its usage limit." });
-    if (promo.state === "not_started") return setPromoResult({ valid: false, state: "not_started", message: "That code is not live yet." });
-    setPromoResult({ valid: true, state: "active", discount_percent: promo.discount_percent, total_fare: 450 * (1 - promo.discount_percent / 100) });
-  };
+  const applyPromo = useMutation({
+    mutationFn: () => checkPromo({ data: { code: promoInput.trim().toUpperCase(), totalFare: 450 } }),
+    onSuccess: (result) => setPromoResult(result as typeof promoResult),
+  });
 
-  const sendReply = (caseId: string) => {
-    const body = replies[caseId]?.trim();
-    if (!body) return;
-    // TODO(lovable-backend): persist via a support_messages insert + realtime broadcast.
-    setCases((prev) => prev.map((c) => (c.id === caseId ? { ...c, messages: [...c.messages, { id: crypto.randomUUID(), from: "customer" as const, body, created_at: new Date().toISOString() }] } : c)));
-    setReplies((prev) => ({ ...prev, [caseId]: "" }));
-  };
+  const sendReply = useMutation({
+    mutationFn: (caseId: string) => replyFn({ data: { caseId, body: (replies[caseId] ?? "").trim() } }),
+    onSuccess: (_r, caseId) => {
+      setReplies((prev) => ({ ...prev, [caseId]: "" }));
+      void supportCases.refetch();
+    },
+  });
+
 
   const profile = me.data?.profile;
   const verified = Boolean(profile?.phone_verified_at);
@@ -231,12 +229,36 @@ function AccountPage() {
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Profile</h2>
           <div className="mt-3 flex items-center gap-3">
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-secondary text-xl font-bold text-secondary-foreground">
-              {(profile?.full_name ?? profile?.email ?? "U").charAt(0).toUpperCase()}
-            </span>
-            {/* TODO(lovable-backend): allow uploading a profile image (avatar_url) and persist to storage. */}
-            <p className="text-xs text-muted-foreground">Profile photo upload lands with the backend.</p>
+            {photoUrl.data?.url ? (
+              <img src={photoUrl.data.url} alt="Your profile" className="h-16 w-16 shrink-0 rounded-full object-cover" />
+            ) : (
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-secondary text-xl font-bold text-secondary-foreground">
+                {(profile?.full_name ?? profile?.email ?? "U").charAt(0).toUpperCase()}
+              </span>
+            )}
+            <div>
+              <input
+                ref={photoInput}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadPhoto.mutate(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => photoInput.current?.click()}
+                disabled={uploadPhoto.isPending}
+                className="rounded-full border border-input bg-secondary px-3.5 py-2 text-xs font-semibold text-foreground disabled:opacity-60"
+              >
+                {uploadPhoto.isPending ? "Uploading…" : photoUrl.data?.url ? "Change photo" : "Add a photo"}
+              </button>
+              {uploadPhoto.isError && <p className="mt-1 text-xs text-destructive">{(uploadPhoto.error as Error).message}</p>}
+            </div>
           </div>
+
           <label className="mt-3 block">
             <span className="text-xs font-medium text-muted-foreground">Full name</span>
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} className={field} />
@@ -302,9 +324,8 @@ function AccountPage() {
         {/* Promotions & promo codes */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Promotions</h2>
-          {/* TODO(lovable-backend): fetch active promotions + this customer's redemption history from the server. */}
           <ul className="mt-3 space-y-2">
-            {mockPromos.map((promo) => (
+            {(promotions.data?.promotions ?? []).map((promo) => (
               <li key={promo.code} className="rounded-2xl border border-border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-foreground">{promo.code} · {promo.name}</p>
@@ -315,12 +336,29 @@ function AccountPage() {
                 <p className="mt-1 text-xs text-muted-foreground">{promo.description ?? ""} · {promo.discount_percent}% off, capped at {promo.max_discount_percent}%{promo.used ? " · used" : ""}</p>
               </li>
             ))}
+            {promotions.data?.promotions.length === 0 && (
+              <li className="text-xs text-muted-foreground">No offers are live right now — check back soon.</li>
+            )}
           </ul>
+          {(promotions.data?.redemptions.length ?? 0) > 0 && (
+            <div className="mt-3">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Codes you have used</h3>
+              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {(promotions.data?.redemptions ?? []).map((r) => (
+                  <li key={`${r.code}-${r.created_at}`} className="flex justify-between gap-3">
+                    <span>{r.code}</span>
+                    <span>Saved KES {r.discount_amount.toFixed(2)} · {new Date(r.created_at).toLocaleDateString("en-KE")}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="mt-3 space-y-2">
             <div className="flex gap-2">
               <input value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="Enter a promo code" className={`${field} uppercase`} />
-              <button onClick={applyPromo} disabled={promoInput.trim().length < 2} className="shrink-0 rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold">Apply</button>
+              <button onClick={() => applyPromo.mutate()} disabled={promoInput.trim().length < 2 || applyPromo.isPending} className="shrink-0 rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold disabled:opacity-60">{applyPromo.isPending ? "Checking…" : "Apply"}</button>
             </div>
+
             {promoResult && (
               <div className={promoResult.valid ? "rounded-xl bg-success/10 px-3 py-2.5 text-xs text-success" : "rounded-xl bg-destructive/10 px-3 py-2.5 text-xs text-destructive"}>
                 {promoResult.valid ? (<><p className="font-semibold">Code applied — {promoResult.discount_percent}% off</p><p>New estimated fare: KES {Number(promoResult.total_fare ?? 0).toFixed(2)}</p></>) : (<p>{promoResult.message}</p>)}
@@ -357,11 +395,12 @@ function AccountPage() {
                 <button key={c.id} onClick={() => setActiveCaseId(c.id)} className={`block w-full rounded-2xl border p-3 text-left ${c.id === activeCaseId ? "border-primary bg-accent" : "border-border bg-background"}`}>
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-foreground">{c.subject}</p>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.status === "open" ? "bg-warning/15 text-warning" : "bg-success/15 text-success"}`}>{c.status === "open" ? "Open" : "Resolved"}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.status === "resolved" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>{c.status === "resolved" ? "Resolved" : c.status === "in_progress" ? "In progress" : "Open"}</span>
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{c.tripReference ?? "No trip"} · {new Date(c.created_at).toLocaleString("en-KE")}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{c.trip_reference ?? "No trip"} · {new Date(c.created_at).toLocaleString("en-KE")}</p>
                 </button>
               ))}
+              {cases.length === 0 && <p className="text-xs text-muted-foreground">You have no support conversations yet.</p>}
             </div>
             {activeCase && (
               <div className="mt-3 rounded-2xl border border-border p-3">
@@ -373,13 +412,13 @@ function AccountPage() {
                     </div>
                   ))}
                 </div>
-                {/* TODO(lovable-backend): persist this reply and broadcast it via Supabase Realtime. */}
                 <div className="mt-3 flex gap-2">
                   <input value={replies[activeCase.id] ?? ""} onChange={(e) => setReplies((prev) => ({ ...prev, [activeCase.id]: e.target.value }))} placeholder="Type a reply…" className={field} />
-                  <button onClick={() => sendReply(activeCase.id)} disabled={!(replies[activeCase.id] ?? "").trim()} className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">Send</button>
+                  <button onClick={() => sendReply.mutate(activeCase.id)} disabled={!(replies[activeCase.id] ?? "").trim() || sendReply.isPending} className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">Send</button>
                 </div>
               </div>
             )}
+
           </div>
         </section>
 
@@ -393,7 +432,6 @@ function AccountPage() {
         {/* Recent activity (newest first) */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Recent activity</h2>
-          {/* TODO(lovable-backend): build this feed from the server (rides + ride_status_events + support cases + payment history) sorted by created_at descending. */}
           <ol className="mt-3 space-y-2">
             {activity.map((item) => (
               <li key={item.id} className="rounded-2xl border border-border p-3">
@@ -402,12 +440,14 @@ function AccountPage() {
                     <p className="text-sm font-semibold text-foreground">{item.title}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{item.detail}</p>
                   </div>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{new Date(item.created_at).toLocaleTimeString("en-KE")}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{new Date(item.created_at).toLocaleString("en-KE")}</span>
                 </div>
                 {item.payment_kind && <p className="mt-1 text-[11px] text-muted-foreground">Payment: {item.payment_kind === "mpesa" ? "M-PESA" : item.payment_kind === "cash" ? "Cash" : "Refund"}</p>}
               </li>
             ))}
+            {activity.length === 0 && <li className="text-xs text-muted-foreground">Nothing here yet — your trips and payments will appear here.</li>}
           </ol>
+
         </section>
       </div>
     </AppShell>
