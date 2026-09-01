@@ -395,11 +395,12 @@ function AccountPage() {
                 <button key={c.id} onClick={() => setActiveCaseId(c.id)} className={`block w-full rounded-2xl border p-3 text-left ${c.id === activeCaseId ? "border-primary bg-accent" : "border-border bg-background"}`}>
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-foreground">{c.subject}</p>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.status === "open" ? "bg-warning/15 text-warning" : "bg-success/15 text-success"}`}>{c.status === "open" ? "Open" : "Resolved"}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.status === "resolved" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>{c.status === "resolved" ? "Resolved" : c.status === "in_progress" ? "In progress" : "Open"}</span>
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{c.tripReference ?? "No trip"} · {new Date(c.created_at).toLocaleString("en-KE")}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{c.trip_reference ?? "No trip"} · {new Date(c.created_at).toLocaleString("en-KE")}</p>
                 </button>
               ))}
+              {cases.length === 0 && <p className="text-xs text-muted-foreground">You have no support conversations yet.</p>}
             </div>
             {activeCase && (
               <div className="mt-3 rounded-2xl border border-border p-3">
@@ -411,13 +412,13 @@ function AccountPage() {
                     </div>
                   ))}
                 </div>
-                {/* TODO(lovable-backend): persist this reply and broadcast it via Supabase Realtime. */}
                 <div className="mt-3 flex gap-2">
                   <input value={replies[activeCase.id] ?? ""} onChange={(e) => setReplies((prev) => ({ ...prev, [activeCase.id]: e.target.value }))} placeholder="Type a reply…" className={field} />
-                  <button onClick={() => sendReply(activeCase.id)} disabled={!(replies[activeCase.id] ?? "").trim()} className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">Send</button>
+                  <button onClick={() => sendReply.mutate(activeCase.id)} disabled={!(replies[activeCase.id] ?? "").trim() || sendReply.isPending} className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">Send</button>
                 </div>
               </div>
             )}
+
           </div>
         </section>
 
