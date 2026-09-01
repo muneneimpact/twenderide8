@@ -780,7 +780,7 @@ export const listPromotions = createServerFn({ method: "POST" })
     await requireRole(context.userId, SUPER);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = (await supabaseAdmin
-      .from("promotions" as "profiles")
+      .from("promotions")
       .select("*")
       .order("created_at", { ascending: false })) as { data: unknown[] | null };
     return (data ?? []) as import("./discounts").PromoRow[];
@@ -813,14 +813,14 @@ export const savePromotion = createServerFn({ method: "POST" })
     let promotionId = input.id;
     if (promotionId) {
       const { error } = await supabaseAdmin
-        .from("promotions" as "profiles")
-        .update(payload as never)
+        .from("promotions")
+        .update(payload)
         .eq("id", promotionId);
       if (error) throw new Error(error.message);
     } else {
       const { data: created, error } = await supabaseAdmin
-        .from("promotions" as "profiles")
-        .insert({ ...payload, created_by: context.userId } as never)
+        .from("promotions")
+        .insert({ ...payload, created_by: context.userId })
         .select()
         .single();
       if (error) throw new Error(error.message);
@@ -843,8 +843,8 @@ export const togglePromotion = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { audit } = await import("./notifications.server");
     const { error } = await supabaseAdmin
-      .from("promotions" as "profiles")
-      .update({ active: data.active } as never)
+      .from("promotions")
+      .update({ active: data.active })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
     await audit(context.userId, data.active ? "promotion_activated" : "promotion_deactivated", "promotion", data.id);
@@ -859,7 +859,7 @@ export const deletePromotion = createServerFn({ method: "POST" })
     await requireRole(context.userId, SUPER);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { audit } = await import("./notifications.server");
-    const { error } = await supabaseAdmin.from("promotions" as "profiles").delete().eq("id", data.id);
+    const { error } = await supabaseAdmin.from("promotions").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     await audit(context.userId, "promotion_deleted", "promotion", data.id);
     return { ok: true };
