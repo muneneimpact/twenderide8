@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
-import { getMe, updateProfile } from "@/lib/account.functions";
+import { getMe, updateProfile, getMyPhotoUrl } from "@/lib/account.functions";
 import {
   createSupportCase,
   getAccountActivity,
