@@ -189,29 +189,34 @@ function AccountPage() {
 
   const support = useMutation({
     mutationFn: () =>
-      raiseIncident({ data: { category: "other" as const, description: issue.trim(), ...(rideId ? { rideId } : {}) } }),
-    onSuccess: () => setIssue(""),
+      openCaseFn({
+        data: {
+          category: "general" as const,
+          description: issue.trim(),
+          ...(rideId ? { rideId } : {}),
+        },
+      }),
+    onSuccess: (created) => {
+      setIssue("");
+      setActiveCaseId(created.id);
+      void supportCases.refetch();
+      void activityFeed.refetch();
+    },
   });
 
-  const applyPromo = () => {
-    const code = promoInput.trim().toUpperCase();
-    const promo = mockPromos.find((p) => p.code === code);
-    // TODO(lovable-backend): the booking flow already validates promo codes
-    // server-side. This account-page check is a frontend-only preview.
-    if (!promo) return setPromoResult({ valid: false, state: "invalid", message: "That code is not recognised." });
-    if (promo.state === "expired") return setPromoResult({ valid: false, state: "expired", message: "That code has expired." });
-    if (promo.state === "usage_exhausted" || promo.used) return setPromoResult({ valid: false, state: "usage_exhausted", message: "That code has reached its usage limit." });
-    if (promo.state === "not_started") return setPromoResult({ valid: false, state: "not_started", message: "That code is not live yet." });
-    setPromoResult({ valid: true, state: "active", discount_percent: promo.discount_percent, total_fare: 450 * (1 - promo.discount_percent / 100) });
-  };
+  const applyPromo = useMutation({
+    mutationFn: () => checkPromo({ data: { code: promoInput.trim().toUpperCase(), totalFare: 450 } }),
+    onSuccess: (result) => setPromoResult(result as typeof promoResult),
+  });
 
-  const sendReply = (caseId: string) => {
-    const body = replies[caseId]?.trim();
-    if (!body) return;
-    // TODO(lovable-backend): persist via a support_messages insert + realtime broadcast.
-    setCases((prev) => prev.map((c) => (c.id === caseId ? { ...c, messages: [...c.messages, { id: crypto.randomUUID(), from: "customer" as const, body, created_at: new Date().toISOString() }] } : c)));
-    setReplies((prev) => ({ ...prev, [caseId]: "" }));
-  };
+  const sendReply = useMutation({
+    mutationFn: (caseId: string) => replyFn({ data: { caseId, body: (replies[caseId] ?? "").trim() } }),
+    onSuccess: (_r, caseId) => {
+      setReplies((prev) => ({ ...prev, [caseId]: "" }));
+      void supportCases.refetch();
+    },
+  });
+
 
   const profile = me.data?.profile;
   const verified = Boolean(profile?.phone_verified_at);
