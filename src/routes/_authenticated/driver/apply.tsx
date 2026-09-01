@@ -282,7 +282,7 @@ function DriverApply() {
               className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm uppercase tracking-wide"
             />
 
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((cls) => (
                 <button
                   key={cls}
@@ -293,7 +293,7 @@ function DriverApply() {
                       : "border border-input text-muted-foreground"
                   }`}
                 >
-                  {cls}
+                  {cls === "e_boda" ? "e-Boda" : cls}
                 </button>
               ))}
             </div>

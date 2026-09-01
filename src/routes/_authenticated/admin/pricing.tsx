@@ -212,7 +212,7 @@ function PricingWorkspace() {
                     : "text-brand-foreground/80"
                 }`}
               >
-                {key}
+                {key === "e_boda" ? "e-boda" : key}
               </button>
             ))}
           </div>
