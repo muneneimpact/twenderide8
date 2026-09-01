@@ -1,14 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
-import { getMe, updateProfile, reportIncident } from "@/lib/account.functions";
+import { getMe, updateProfile } from "@/lib/account.functions";
+import {
+  createSupportCase,
+  getAccountActivity,
+  listMyPromotions,
+  listMySupportCases,
+  postSupportMessage,
+  updateAccountPreferences,
+} from "@/lib/support.functions";
+import { validatePromoCode } from "@/lib/admin.functions";
 import type { PromoState } from "@/lib/discounts";
 import { reverseGeocode } from "@/lib/rides.functions";
 
 import { supabase } from "@/integrations/supabase/client";
+
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({
