@@ -77,8 +77,33 @@ function AccountPage() {
 
 
   useEffect(() => {
-    if (me.data?.profile?.full_name) setFullName(me.data.profile.full_name);
-  }, [me.data?.profile?.full_name]);
+    const p = me.data?.profile as
+      | { full_name?: string | null; payment_preference?: string | null; share_driver_code?: boolean | null }
+      | null
+      | undefined;
+    if (p?.full_name) setFullName(p.full_name);
+    if (p?.payment_preference) setPaymentPref(p.payment_preference);
+    if (p && typeof p.share_driver_code === "boolean") setDriverCodePref(p.share_driver_code ? "sms" : "email");
+  }, [me.data?.profile]);
+
+  useEffect(() => {
+    if (!activeCaseId && cases.length > 0) setActiveCaseId(cases[0]!.id);
+  }, [activeCaseId, cases]);
+
+  // Live replies from the support team.
+  useEffect(() => {
+    const channel = supabase
+      .channel("support-messages-customer")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages" }, () => {
+        void supportCases.refetch();
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const places = useQuery({
     queryKey: ["saved-places"],
