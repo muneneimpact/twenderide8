@@ -439,7 +439,7 @@ export const saveDistancePolicy = createServerFn({ method: "POST" })
     z
       .object({
         name: z.string().min(3).max(80),
-        vehicleClass: z.enum(["economy", "comfort", "xl"]).nullable(),
+        vehicleClass: z.enum(["go", "plus", "comfort", "xl"]).nullable(),
         maxTotalReductionPercent: z.number().min(0).max(90),
         adminNotes: z.string().max(1000).optional(),
         bands: z.array(bandSchema).min(1),
@@ -570,7 +570,7 @@ export const saveFareConfig = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
-        vehicleClass: z.enum(["boda", "economy", "comfort", "xl"]),
+        vehicleClass: z.enum(["boda", "e_boda", "go", "plus", "comfort", "xl"]),
         base_fare: z.number().min(0),
         per_km: z.number().min(0),
         per_minute: z.number().min(0),
