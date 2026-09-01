@@ -41,87 +41,19 @@ export const Route = createFileRoute("/_authenticated/account")({
 const field =
   "mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring";
 
-/* ---------------------------------------------------------------------------
- * FRONTEND-ONLY MOCK DATA
- * TODO(lovable-backend): replace these mock arrays with real server functions.
- * Every TODO marks the exact data the UI expects from the backend.
- * ------------------------------------------------------------------------- */
-
-interface MockPromo {
-  code: string;
-  name: string;
-  description: string | null;
-  discount_percent: number;
-  max_discount_percent: number;
-  state: PromoState;
-  used: boolean;
-}
-
-const mockPromos: MockPromo[] = [
-  { code: "MERU10", name: "Welcome 10%", description: "10% off your first trip", discount_percent: 10, max_discount_percent: 20, state: "active", used: false },
-  { code: "RIDE5", name: "Flash 5%", description: "5% off this week", discount_percent: 5, max_discount_percent: 5, state: "usage_exhausted", used: true },
-];
-
-interface MockMessage {
-  id: string;
-  from: "customer" | "support";
-  body: string;
-  created_at: string;
-}
-
-interface MockCase {
-  id: string;
-  tripReference: string | null;
-  subject: string;
-  status: "open" | "resolved";
-  created_at: string;
-  messages: MockMessage[];
-}
-
-const mockCases: MockCase[] = [
-  {
-    id: "case-1",
-    tripReference: "TR-1023",
-    subject: "Driver took a long route",
-    status: "open",
-    created_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
-    messages: [{ id: "m1", from: "customer", body: "The driver took a much longer route. Can I get a partial refund?", created_at: new Date(Date.now() - 3 * 3600_000).toISOString() }],
-  },
-  {
-    id: "case-2",
-    tripReference: null,
-    subject: "Cannot top up M-PESA",
-    status: "resolved",
-    created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-    messages: [
-      { id: "m2", from: "customer", body: "My M-PESA top-up is not reflecting.", created_at: new Date(Date.now() - 2 * 86400000).toISOString() },
-      { id: "m3", from: "support", body: "Resolved — it was a provider delay.", created_at: new Date(Date.now() - 1 * 86400000).toISOString() },
-    ],
-  },
-];
-
-interface MockActivity {
-  id: string;
-  title: string;
-  detail: string;
-  created_at: string;
-  payment_kind: "mpesa" | "cash" | "refund" | null;
-}
-
-const mockActivity: MockActivity[] = [
-  { id: "a1", title: "TR-1023 · Completed", detail: "Driver: John K. · KES 450.00", created_at: new Date(Date.now() - 3 * 3600_000).toISOString(), payment_kind: "mpesa" },
-  { id: "a2", title: "M-PESA payment", detail: "KES 450.00 · Paid", created_at: new Date(Date.now() - 3 * 3600_000).toISOString(), payment_kind: "mpesa" },
-  { id: "a3", title: "Support case opened", detail: "Driver took a long route", created_at: new Date(Date.now() - 2.9 * 3600_000).toISOString(), payment_kind: null },
-  { id: "a4", title: "TR-1022 · Cancelled", detail: "Cancelled by you", created_at: new Date(Date.now() - 2 * 86400000).toISOString(), payment_kind: null },
-  { id: "a5", title: "Promo applied · RIDE5", detail: "5% off · used", created_at: new Date(Date.now() - 3 * 86400000).toISOString(), payment_kind: null },
-];
-
 function AccountPage() {
   const queryClient = useQueryClient();
   const meFn = useServerFn(getMe);
   const saveProfile = useServerFn(updateProfile);
-  const raiseIncident = useServerFn(reportIncident);
+  const savePreferences = useServerFn(updateAccountPreferences);
   const locate = useServerFn(reverseGeocode);
+  const promosFn = useServerFn(listMyPromotions);
+  const casesFn = useServerFn(listMySupportCases);
+  const openCaseFn = useServerFn(createSupportCase);
+  const replyFn = useServerFn(postSupportMessage);
+  const activityFn = useServerFn(getAccountActivity);
+  const checkPromo = useServerFn(validatePromoCode);
+  const photoInput = useRef<HTMLInputElement | null>(null);
 
   const me = useQuery({ queryKey: ["me", "account"], queryFn: () => meFn() });
   const [fullName, setFullName] = useState("");
@@ -130,15 +62,19 @@ function AccountPage() {
   const [rideId, setRideId] = useState("");
   const [issue, setIssue] = useState("");
 
-  // Phase 6 frontend-only state.
   const [paymentPref, setPaymentPref] = useState("stk_push");
   const [driverCodePref, setDriverCodePref] = useState("sms");
   const [promoInput, setPromoInput] = useState("");
   const [promoResult, setPromoResult] = useState<{ valid: boolean; state: PromoState; message?: string; discount_percent?: number; total_fare?: number } | null>(null);
-  const [activeCaseId, setActiveCaseId] = useState<string | null>(mockCases[0]?.id ?? null);
+  const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
   const [replies, setReplies] = useState<Record<string, string>>({});
-  const [cases, setCases] = useState<MockCase[]>(mockCases);
-  const [activity] = useState<MockActivity[]>(mockActivity);
+
+  const promotions = useQuery({ queryKey: ["account", "promotions"], queryFn: () => promosFn() });
+  const supportCases = useQuery({ queryKey: ["account", "cases"], queryFn: () => casesFn() });
+  const activityFeed = useQuery({ queryKey: ["account", "activity"], queryFn: () => activityFn() });
+  const cases = supportCases.data ?? [];
+  const activity = activityFeed.data ?? [];
+
 
   useEffect(() => {
     if (me.data?.profile?.full_name) setFullName(me.data.profile.full_name);
