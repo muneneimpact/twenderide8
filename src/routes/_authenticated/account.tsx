@@ -432,7 +432,6 @@ function AccountPage() {
         {/* Recent activity (newest first) */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Recent activity</h2>
-          {/* TODO(lovable-backend): build this feed from the server (rides + ride_status_events + support cases + payment history) sorted by created_at descending. */}
           <ol className="mt-3 space-y-2">
             {activity.map((item) => (
               <li key={item.id} className="rounded-2xl border border-border p-3">
@@ -441,12 +440,14 @@ function AccountPage() {
                     <p className="text-sm font-semibold text-foreground">{item.title}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{item.detail}</p>
                   </div>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{new Date(item.created_at).toLocaleTimeString("en-KE")}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{new Date(item.created_at).toLocaleString("en-KE")}</span>
                 </div>
                 {item.payment_kind && <p className="mt-1 text-[11px] text-muted-foreground">Payment: {item.payment_kind === "mpesa" ? "M-PESA" : item.payment_kind === "cash" ? "Cash" : "Refund"}</p>}
               </li>
             ))}
+            {activity.length === 0 && <li className="text-xs text-muted-foreground">Nothing here yet — your trips and payments will appear here.</li>}
           </ol>
+
         </section>
       </div>
     </AppShell>
