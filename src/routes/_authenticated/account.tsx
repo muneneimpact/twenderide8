@@ -53,6 +53,7 @@ function AccountPage() {
   const replyFn = useServerFn(postSupportMessage);
   const activityFn = useServerFn(getAccountActivity);
   const checkPromo = useServerFn(validatePromoCode);
+  const myPhotoFn = useServerFn(getMyPhotoUrl);
   const photoInput = useRef<HTMLInputElement | null>(null);
 
   const me = useQuery({ queryKey: ["me", "account"], queryFn: () => meFn() });
@@ -135,7 +136,7 @@ function AccountPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["me"] }),
   });
 
-  const photoUrl = useQuery({ queryKey: ["account", "photo"], queryFn: () => useServerFnPhoto() });
+  const photoUrl = useQuery({ queryKey: ["account", "photo"], queryFn: () => myPhotoFn() });
 
   const uploadPhoto = useMutation({
     mutationFn: async (file: File) => {
