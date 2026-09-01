@@ -324,9 +324,8 @@ function AccountPage() {
         {/* Promotions & promo codes */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Promotions</h2>
-          {/* TODO(lovable-backend): fetch active promotions + this customer's redemption history from the server. */}
           <ul className="mt-3 space-y-2">
-            {mockPromos.map((promo) => (
+            {(promotions.data?.promotions ?? []).map((promo) => (
               <li key={promo.code} className="rounded-2xl border border-border p-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-foreground">{promo.code} · {promo.name}</p>
@@ -337,12 +336,29 @@ function AccountPage() {
                 <p className="mt-1 text-xs text-muted-foreground">{promo.description ?? ""} · {promo.discount_percent}% off, capped at {promo.max_discount_percent}%{promo.used ? " · used" : ""}</p>
               </li>
             ))}
+            {promotions.data?.promotions.length === 0 && (
+              <li className="text-xs text-muted-foreground">No offers are live right now — check back soon.</li>
+            )}
           </ul>
+          {(promotions.data?.redemptions.length ?? 0) > 0 && (
+            <div className="mt-3">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Codes you have used</h3>
+              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {(promotions.data?.redemptions ?? []).map((r) => (
+                  <li key={`${r.code}-${r.created_at}`} className="flex justify-between gap-3">
+                    <span>{r.code}</span>
+                    <span>Saved KES {r.discount_amount.toFixed(2)} · {new Date(r.created_at).toLocaleDateString("en-KE")}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="mt-3 space-y-2">
             <div className="flex gap-2">
               <input value={promoInput} onChange={(e) => setPromoInput(e.target.value)} placeholder="Enter a promo code" className={`${field} uppercase`} />
-              <button onClick={applyPromo} disabled={promoInput.trim().length < 2} className="shrink-0 rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold">Apply</button>
+              <button onClick={() => applyPromo.mutate()} disabled={promoInput.trim().length < 2 || applyPromo.isPending} className="shrink-0 rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold disabled:opacity-60">{applyPromo.isPending ? "Checking…" : "Apply"}</button>
             </div>
+
             {promoResult && (
               <div className={promoResult.valid ? "rounded-xl bg-success/10 px-3 py-2.5 text-xs text-success" : "rounded-xl bg-destructive/10 px-3 py-2.5 text-xs text-destructive"}>
                 {promoResult.valid ? (<><p className="font-semibold">Code applied — {promoResult.discount_percent}% off</p><p>New estimated fare: KES {Number(promoResult.total_fare ?? 0).toFixed(2)}</p></>) : (<p>{promoResult.message}</p>)}
