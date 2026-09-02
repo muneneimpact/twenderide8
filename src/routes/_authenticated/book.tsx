@@ -643,6 +643,7 @@ function BookPage() {
               placeholder="Type your destination"
               near={pickup ?? dropoff}
               value={pendingDropoff?.label ?? null}
+              onSuggestionsChange={setSuggestionsOpen}
               onPick={(place) => {
                 // No confirmation step: picking a destination closes the search
                 // and shows the ride options immediately.
@@ -654,33 +655,38 @@ function BookPage() {
                 });
               }}
             />
-            {(saved.data ?? []).map((place) => (
-              <button
-                key={place.id}
-                onClick={() =>
-                  chooseDestination({
-                    lat: Number(place.lat),
-                    lng: Number(place.lng),
-                    label: place.label,
-                    address: place.address,
-                  })
-                }
-                className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
-              >
-                <span>★</span>
-                <span className="truncate text-sm font-semibold text-foreground">{place.label}</span>
-              </button>
-            ))}
-            {recents.map((place, index) => (
-              <button
-                key={`recent-${index}`}
-                onClick={() => chooseDestination(place)}
-                className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
-              >
-                <span>↻</span>
-                <span className="truncate text-sm font-semibold text-foreground">{label(place)}</span>
-              </button>
-            ))}
+            {!suggestionsOpen
+              ? (saved.data ?? []).map((place) => (
+                  <button
+                    key={place.id}
+                    onClick={() =>
+                      chooseDestination({
+                        lat: Number(place.lat),
+                        lng: Number(place.lng),
+                        label: place.label,
+                        address: place.address,
+                      })
+                    }
+                    className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+                  >
+                    <span>★</span>
+                    <span className="truncate text-sm font-semibold text-foreground">{place.label}</span>
+                  </button>
+                ))
+              : null}
+            {!suggestionsOpen
+              ? recents.map((place, index) => (
+                  <button
+                    key={`recent-${index}`}
+                    onClick={() => chooseDestination(place)}
+                    className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+                  >
+                    <span>↻</span>
+                    <span className="truncate text-sm font-semibold text-foreground">{label(place)}</span>
+                  </button>
+                ))
+              : null}
+
           </div>
         </div>
       ) : null}
