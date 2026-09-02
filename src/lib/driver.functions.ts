@@ -444,37 +444,227 @@ export const getDriverWallet = createServerFn({ method: "POST" })
       .limit(20);
 
     const rows = entries ?? [];
+
+    // Earnings are computed from the trips themselves, not just the ledger:
+    // cash trips never credit the wallet (the customer paid the driver
+    // directly), so ledger-only maths showed zero for cash work.
+    const { data: completed } = await context.supabase
+      .from("rides")
+      .select("id, reference, payment_method, payment_status, total_fare, commission_amount, completed_at")
+      .eq("driver_id", context.userId)
+      .eq("status", "trip_completed")
+      .order("completed_at", { ascending: false })
+      .limit(500);
+
+    const trips = (completed ?? []).map((ride) => ({
+      id: ride.id,
+      reference: ride.reference,
+      source: ride.payment_method === "cash" ? ("cash" as const) : ("system" as const),
+      gross: Number(ride.total_fare),
+      commission: Number(ride.commission_amount),
+      net: Number((Number(ride.total_fare) - Number(ride.commission_amount)).toFixed(2)),
+      completed_at: ride.completed_at ?? new Date().toISOString(),
+    }));
+
     const nairobiDay = (iso: string) =>
       new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi" }).format(new Date(iso));
     const now = new Date();
     const todayKey = nairobiDay(now.toISOString());
-    const weekStart = new Date(now.getTime() - 6 * 86400000).toISOString();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const weekStart = new Date(now.getTime() - 6 * 86400000).getTime();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-    const riding = (e: { entry_type: string }) => e.entry_type === "ride_earning";
-    const sumEarnings = (filter: (e: { created_at: string }) => boolean) =>
-      rows.filter((e) => riding(e) && filter(e)).reduce((s, e) => s + Number(e.amount), 0);
-
-    const periods = {
-      today: sumEarnings((e) => nairobiDay(e.created_at) === todayKey),
-      week: sumEarnings((e) => new Date(e.created_at).getTime() >= new Date(weekStart).getTime()),
-      month: sumEarnings((e) => new Date(e.created_at).getTime() >= new Date(monthStart).getTime()),
+    const bucket = (within: (t: (typeof trips)[number]) => boolean) => {
+      const scoped = trips.filter(within);
+      const sum = (source: "cash" | "system" | "all") =>
+        Number(
+          scoped
+            .filter((t) => source === "all" || t.source === source)
+            .reduce((s, t) => s + t.net, 0)
+            .toFixed(2),
+        );
+      return { cash: sum("cash"), system: sum("system"), all: sum("all") };
     };
 
+    const earnings = {
+      today: bucket((t) => nairobiDay(t.completed_at) === todayKey),
+      week: bucket((t) => new Date(t.completed_at).getTime() >= weekStart),
+      month: bucket((t) => new Date(t.completed_at).getTime() >= monthStart),
+      lifetime: bucket(() => true),
+    };
+
+    // Backwards-compatible take-home figures (all sources).
+    const periods = { today: earnings.today.all, week: earnings.week.all, month: earnings.month.all };
+
     // Cash trips: the driver holds the customer's money, so the platform
-    // commission is owed. This is the sum of those debits.
-    const owedToPlatform = rows
+    // commission is owed. Settlements reduce the outstanding amount.
+    const owedRaw = rows
       .filter((e) => e.entry_type === "cash_commission_debit")
       .reduce((s, e) => s + Math.abs(Number(e.amount)), 0);
+    const settled = rows
+      .filter((e) => e.entry_type === "top_up" && (e.reason ?? "").includes("commission settlement"))
+      .reduce((s, e) => s + Number(e.amount), 0);
+    const owedToPlatform = Number(Math.max(0, owedRaw - settled).toFixed(2));
 
     return {
       wallet,
       entries: rows,
       withdrawals: withdrawals ?? [],
+      trips,
+      earnings,
       periods,
       owedToPlatform,
     };
   });
+
+/**
+ * Driver settles the commission they owe on cash trips by paying the platform
+ * over M-PESA STK. Nothing is marked paid here — only a verified provider
+ * callback can do that.
+ */
+export const payPlatformDues = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ amount: z.number().positive().max(500000), msisdn: z.string().min(9).max(20) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { getPaymentProvider } = await import("./adapters/payment.server");
+    const { normaliseKenyanPhone } = await import("./phone");
+
+    const phone = normaliseKenyanPhone(data.msisdn);
+    if (!phone) throw new Error("Enter a valid Kenyan M-PESA number.");
+
+    const { data: wallet } = await supabaseAdmin
+      .from("wallets")
+      .select("id")
+      .eq("driver_id", context.userId)
+      .maybeSingle();
+    if (!wallet) throw new Error("No wallet found for this driver.");
+
+    const idempotencyKey = `dues:${context.userId}:${Math.round(data.amount * 100)}:${Date.now()}`;
+    const result = await getPaymentProvider().initiateStkPush({
+      intentId: wallet.id,
+      rideReference: "platform-dues",
+      amount: data.amount,
+      msisdn: phone,
+      idempotencyKey,
+    });
+
+    await supabaseAdmin.from("audit_logs").insert({
+      actor_id: context.userId,
+      actor_role: "driver",
+      action: "driver.pay_platform_dues",
+      entity_type: "wallet",
+      entity_id: wallet.id,
+      metadata: {
+        amount: data.amount,
+        status: result.status,
+        provider: result.provider,
+        mode: result.mode,
+        provider_reference: result.providerReference,
+      } as never,
+    });
+
+    return {
+      accepted: result.accepted,
+      blocked: result.status === "blocked_provider_gate",
+      message: result.accepted
+        ? "Payment prompt sent. Your balance updates only once the payment is confirmed."
+        : result.message,
+    };
+  });
+
+/**
+ * Driver asks the customer to pay the fare into the system over M-PESA STK.
+ * A cash ride is switched to a system payment first so the money is settled
+ * through the platform instead of hand-to-hand.
+ */
+export const requestCustomerPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({ rideId: z.string().uuid(), msisdn: z.string().min(9).max(20).optional() })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { getPaymentProvider } = await import("./adapters/payment.server");
+    const { normaliseKenyanPhone } = await import("./phone");
+
+    const { data: ride } = await supabaseAdmin
+      .from("rides")
+      .select("id, reference, customer_id, total_fare, payment_method, payment_status, ledger_posted_at")
+      .eq("id", data.rideId)
+      .eq("driver_id", context.userId)
+      .maybeSingle();
+    if (!ride) throw new Error("Ride not found.");
+    if (ride.payment_status === "paid") {
+      return { accepted: true, blocked: false, message: "This ride is already paid." };
+    }
+    if (ride.ledger_posted_at) throw new Error("This ride has already been settled.");
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", ride.customer_id)
+      .maybeSingle();
+    const phone = normaliseKenyanPhone(data.msisdn ?? profile?.phone ?? "");
+    if (!phone) throw new Error("No valid M-PESA number for this customer.");
+
+    if (ride.payment_method !== "stk_push") {
+      await supabaseAdmin
+        .from("rides")
+        .update({ payment_method: "stk_push", payment_status: "pending" })
+        .eq("id", ride.id);
+    }
+
+    const idempotencyKey = `driver_prompt:${ride.id}:${Date.now()}`;
+    const { data: intent } = await supabaseAdmin
+      .from("payment_intents")
+      .insert({
+        ride_id: ride.id,
+        customer_id: ride.customer_id,
+        method: "stk_push",
+        amount: ride.total_fare,
+        msisdn: phone,
+        status: "pending",
+        idempotency_key: idempotencyKey,
+      })
+      .select("id")
+      .single();
+
+    const result = await getPaymentProvider().initiateStkPush({
+      intentId: intent.id,
+      rideReference: ride.reference,
+      amount: Number(ride.total_fare),
+      msisdn: phone,
+      idempotencyKey,
+    });
+    const intentStatus = result.status === "blocked_provider_gate" ? "failed" : result.status;
+
+    await supabaseAdmin
+      .from("payment_intents")
+      .update({
+        status: intentStatus,
+        provider: result.provider,
+        mode: result.mode,
+        provider_reference: result.providerReference,
+        provider_request: result.request as never,
+        provider_response: result.response as never,
+        failure_reason: result.accepted ? null : result.message,
+      })
+      .eq("id", intent.id);
+    await supabaseAdmin.from("rides").update({ payment_status: intentStatus }).eq("id", ride.id);
+
+    return {
+      accepted: result.accepted,
+      blocked: result.status === "blocked_provider_gate",
+      message: result.accepted
+        ? "Payment prompt sent to the customer. The trip is only marked paid once the payment is confirmed."
+        : result.message,
+    };
+  });
+
 
 export const requestWithdrawal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

@@ -42,30 +42,34 @@ function DriverWallet() {
   const queryClient = useQueryClient();
   const fetchWallet = useServerFn(getDriverWallet);
   const withdrawFn = useServerFn(requestWithdrawal);
+  const payDuesFn = useServerFn(payPlatformDues);
   const [amount, setAmount] = useState("");
   const [msisdn, setMsisdn] = useState("");
+  const [duesMsisdn, setDuesMsisdn] = useState("");
   const [period, setPeriod] = useState<"today" | "week" | "month" | "custom">("today");
+  const [source, setSource] = useState<"all" | "cash" | "system">("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
   const walletQuery = useQuery({ queryKey: ["driver-wallet"], queryFn: () => fetchWallet({}) });
-  const periods = walletQuery.data?.periods ?? null;
+  const earnings = walletQuery.data?.earnings ?? null;
+  const trips = walletQuery.data?.trips ?? [];
   const owedToPlatform = walletQuery.data?.owedToPlatform ?? 0;
 
   const customEarnings =
     customFrom && customTo
-      ? (walletQuery.data?.entries ?? [])
+      ? trips
           .filter(
-            (e) =>
-              e.entry_type === "ride_earning" &&
-              new Date(e.created_at).getTime() >= new Date(customFrom).getTime() &&
-              new Date(e.created_at).getTime() <= new Date(customTo).getTime(),
+            (t) =>
+              (source === "all" || t.source === source) &&
+              new Date(t.completed_at).getTime() >= new Date(customFrom).getTime() &&
+              new Date(t.completed_at).getTime() <= new Date(`${customTo}T23:59:59`).getTime(),
           )
-          .reduce((sum, e) => sum + Number(e.amount), 0)
+          .reduce((sum, t) => sum + Number(t.net), 0)
       : 0;
 
   const displayEarnings =
-    period === "today" ? (periods?.today ?? 0) : period === "week" ? (periods?.week ?? 0) : period === "month" ? (periods?.month ?? 0) : customEarnings;
+    period === "custom" ? customEarnings : (earnings?.[period]?.[source] ?? 0);
 
   const withdrawing = useMutation({
     mutationFn: () => withdrawFn({ data: { amount: Number(amount), msisdn } }),
@@ -76,9 +80,15 @@ function DriverWallet() {
     },
   });
 
+  const payingDues = useMutation({
+    mutationFn: () => payDuesFn({ data: { amount: owedToPlatform, msisdn: duesMsisdn } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["driver-wallet"] }),
+  });
+
   const wallet = walletQuery.data?.wallet ?? null;
   const entries = walletQuery.data?.entries ?? [];
   const withdrawals = walletQuery.data?.withdrawals ?? [];
+
 
   return (
     <AppShell title="Wallet" tabs={driverTabs} eyebrow="Twende Driver">
