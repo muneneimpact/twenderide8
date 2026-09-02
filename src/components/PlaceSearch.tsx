@@ -85,6 +85,7 @@ export function PlaceSearch({
 
   /** One tap is enough: fired on pointer-down so a blur can't swallow it. */
   function choose(place: FoundPlace) {
+    if (justPicked.current) return; // pointer-down already handled this tap
     justPicked.current = true;
     requestId.current += 1;
     setResults([]);
@@ -92,6 +93,7 @@ export function PlaceSearch({
     setQuery(place.label);
     onPick(place);
   }
+
 
   return (
     <div className="relative">
