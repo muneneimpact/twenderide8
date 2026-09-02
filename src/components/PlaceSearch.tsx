@@ -21,6 +21,7 @@ export function PlaceSearch({
   prominent = false,
   value,
   inputRef,
+  onSuggestionsChange,
 }: {
   placeholder: string;
   near?: { lat: number; lng: number } | null;
@@ -31,6 +32,8 @@ export function PlaceSearch({
   value?: string | null;
   /** Lets a full-screen search focus or dismiss the keyboard itself. */
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Tells the caller when suggestions are on screen so it can hide its own lists. */
+  onSuggestionsChange?: (open: boolean) => void;
 }) {
   const search = useServerFn(searchPlaces);
   const [query, setQuery] = useState(value ?? "");
@@ -40,10 +43,15 @@ export function PlaceSearch({
   const requestId = useRef(0);
   const justPicked = useRef(false);
 
+  useEffect(() => {
+    onSuggestionsChange?.(results.length > 0);
+  }, [results.length, onSuggestionsChange]);
+
   // Keep the field in step when the caller picks a place another way (map pin).
   useEffect(() => {
     if (value != null) setQuery(value);
   }, [value]);
+
 
   useEffect(() => {
     if (justPicked.current) {
