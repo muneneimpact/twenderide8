@@ -90,6 +90,8 @@ function BookPage() {
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [msisdn, setMsisdn] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+
   const [pendingDropoff, setPendingDropoff] = useState<Point | null>(null);
   const [recents, setRecents] = useState<Point[]>(() => readRecents());
   const searchInput = useRef<HTMLInputElement | null>(null);
