@@ -119,7 +119,8 @@ export function PlaceSearch({
       ) : null}
 
       {results.length > 0 && (
-        <ul className="solid-panel absolute z-30 mt-1 max-h-72 w-full overflow-y-auto p-1">
+        <ul className="solid-panel relative z-30 mt-1 max-h-72 w-full overflow-y-auto p-1">
+
 
           {results.slice(0, 6).map((place) => (
             <li key={`${place.lat},${place.lng},${place.label}`}>
