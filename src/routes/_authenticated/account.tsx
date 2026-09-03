@@ -17,6 +17,7 @@ import { validatePromoCode } from "@/lib/admin.functions";
 import type { PromoState } from "@/lib/discounts";
 import { reverseGeocode } from "@/lib/rides.functions";
 
+import { PushSettings } from "@/components/PushSettings";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -421,6 +422,8 @@ function AccountPage() {
 
           </div>
         </section>
+
+        <PushSettings />
 
         {/* Jijenge with Twende Meru */}
         <section className="rounded-2xl border border-border bg-card p-4">
