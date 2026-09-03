@@ -42,6 +42,23 @@ export async function notify(input: NotifyInput) {
     console.error("notification insert failed", error.message);
   }
 
+  // Push: every event, on every device the person registered. Delivery
+  // problems never propagate into the ride or payment flow.
+  try {
+    const { sendPush } = await import("./push.server");
+    await sendPush({
+      userId: input.userId,
+      title: input.title,
+      body: input.body,
+      path: input.rideId ? `/rides/${input.rideId}` : "/",
+      dedupeKey: input.dedupeKey ?? `${input.userId}:${input.templateCode}:${input.rideId ?? "none"}`,
+      templateCode: input.templateCode,
+      rideId: input.rideId ?? null,
+    });
+  } catch (pushError) {
+    console.error("push notification failed", pushError);
+  }
+
   if (!input.critical) return;
 
   try {
