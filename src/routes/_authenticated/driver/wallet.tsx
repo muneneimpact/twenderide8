@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
-import { getDriverWallet, requestWithdrawal } from "@/lib/driver.functions";
+import { getDriverWallet, requestWithdrawal, payPlatformDues } from "@/lib/driver.functions";
 
 export const Route = createFileRoute("/_authenticated/driver/wallet")({
   head: () => ({
@@ -133,6 +133,28 @@ function DriverWallet() {
             ))}
           </div>
 
+          <div className="mt-2 flex gap-1.5">
+            {(
+              [
+                { key: "all", label: "All" },
+                { key: "cash", label: "Cash" },
+                { key: "system", label: "Via system" },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setSource(tab.key)}
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-semibold ${
+                  source === tab.key
+                    ? "bg-secondary text-secondary-foreground"
+                    : "border border-input text-muted-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {period === "custom" ? (
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="block">
@@ -177,6 +199,26 @@ function DriverWallet() {
               <p className="mt-1 text-xs text-warning-foreground/80">
                 Cash fares you collected. The platform commission on those trips is payable from your balance.
               </p>
+              <input
+                inputMode="tel"
+                value={duesMsisdn}
+                onChange={(event) => setDuesMsisdn(event.target.value)}
+                className="mt-3 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground"
+                placeholder="M-PESA number e.g. 07XX XXX XXX"
+              />
+              <button
+                onClick={() => payingDues.mutate()}
+                disabled={payingDues.isPending || !duesMsisdn}
+                className="mt-2 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {payingDues.isPending ? "Sending prompt…" : `Pay now — KES ${owedToPlatform.toFixed(2)}`}
+              </button>
+              {payingDues.data ? (
+                <p className="mt-2 text-xs text-warning-foreground/80">{payingDues.data.message}</p>
+              ) : null}
+              {payingDues.isError ? (
+                <p className="mt-2 text-xs text-destructive">{(payingDues.error as Error).message}</p>
+              ) : null}
             </div>
           ) : null}
         </section>
