@@ -133,6 +133,28 @@ function DriverWallet() {
             ))}
           </div>
 
+          <div className="mt-2 flex gap-1.5">
+            {(
+              [
+                { key: "all", label: "All" },
+                { key: "cash", label: "Cash" },
+                { key: "system", label: "Via system" },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setSource(tab.key)}
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-semibold ${
+                  source === tab.key
+                    ? "bg-secondary text-secondary-foreground"
+                    : "border border-input text-muted-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {period === "custom" ? (
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="block">
