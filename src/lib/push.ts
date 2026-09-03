@@ -5,14 +5,14 @@
  */
 import { registerPushToken, removePushToken } from "@/lib/push.functions";
 
-const appId = import.meta.env.VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_APP_ID as string | undefined;
-const vapidKey = import.meta.env.VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_VAPID_KEY as
+const appId = import.meta.env["VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_APP_ID"] as string | undefined;
+const vapidKey = import.meta.env["VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_VAPID_KEY"] as
   | string
   | undefined;
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_WEB_API_KEY as string,
-  projectId: import.meta.env.VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_PROJECT_ID as string,
+  apiKey: import.meta.env["VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_WEB_API_KEY"] as string,
+  projectId: import.meta.env["VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_PROJECT_ID"] as string,
   appId: appId ?? "",
   messagingSenderId: appId?.split(":")[1] ?? "",
 };
@@ -78,7 +78,9 @@ export async function enablePush(): Promise<PushOutcome> {
     return { status: "registered", token };
   } catch (error) {
     console.error("enablePush failed", error);
-    return { status: "error", detail: error instanceof Error ? error.message : undefined };
+    return error instanceof Error
+      ? { status: "error" as const, detail: error.message }
+      : { status: "error" as const };
   }
 }
 
@@ -152,13 +154,13 @@ export async function listenForForegroundPush(onNavigate: (path: string) => void
 
     return onMessage(getMessaging(app), (payload) => {
       const data = (payload.data ?? {}) as Record<string, string>;
-      const title = data.title || "Twende Meru Rides";
-      const path = data.path || "/";
+      const title = data["title"] || "Twende Meru Rides";
+      const path = data["path"] || "/";
       if (document.visibilityState === "visible") {
         const notification = new Notification(title, {
-          body: data.body ?? "",
+          body: data["body"] ?? "",
           icon: "/icons/icon-192.png",
-          tag: data.dedupeKey || data.templateCode || "twende",
+          tag: data["dedupeKey"] || data["templateCode"] || "twende",
         });
         notification.onclick = () => {
           window.focus();

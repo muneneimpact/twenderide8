@@ -632,6 +632,7 @@ export const requestCustomerPayment = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
+    if (!intent) throw new Error("Could not start the payment. Try again.");
 
     const result = await getPaymentProvider().initiateStkPush({
       intentId: intent.id,
