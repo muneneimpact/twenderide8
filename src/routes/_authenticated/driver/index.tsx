@@ -18,6 +18,7 @@ import {
   setActiveVehicle,
   setDriverOnline,
   claimRide,
+  requestCustomerPayment,
   listOpenRides,
 } from "@/lib/driver.functions";
 import { playAlert, primeAudio } from "@/lib/audio";
@@ -158,6 +159,11 @@ function DriverHome() {
   const advancing = useMutation({
     mutationFn: (vars: { rideId: string; next: "driver_arriving" | "driver_arrived" | "trip_started" | "trip_completed" | "cancelled_by_driver" }) =>
       advanceFn({ data: vars }),
+    onSuccess: invalidate,
+  });
+  const askPaymentFn = useServerFn(requestCustomerPayment);
+  const askPayment = useMutation({
+    mutationFn: (rideId: string) => askPaymentFn({ data: { rideId } }),
     onSuccess: invalidate,
   });
   const cash = useMutation({
