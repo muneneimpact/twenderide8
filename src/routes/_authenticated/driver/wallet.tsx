@@ -199,6 +199,26 @@ function DriverWallet() {
               <p className="mt-1 text-xs text-warning-foreground/80">
                 Cash fares you collected. The platform commission on those trips is payable from your balance.
               </p>
+              <input
+                inputMode="tel"
+                value={duesMsisdn}
+                onChange={(event) => setDuesMsisdn(event.target.value)}
+                className="mt-3 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground"
+                placeholder="M-PESA number e.g. 07XX XXX XXX"
+              />
+              <button
+                onClick={() => payingDues.mutate()}
+                disabled={payingDues.isPending || !duesMsisdn}
+                className="mt-2 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {payingDues.isPending ? "Sending prompt…" : `Pay now — KES ${owedToPlatform.toFixed(2)}`}
+              </button>
+              {payingDues.data ? (
+                <p className="mt-2 text-xs text-warning-foreground/80">{payingDues.data.message}</p>
+              ) : null}
+              {payingDues.isError ? (
+                <p className="mt-2 text-xs text-destructive">{(payingDues.error as Error).message}</p>
+              ) : null}
             </div>
           ) : null}
         </section>
