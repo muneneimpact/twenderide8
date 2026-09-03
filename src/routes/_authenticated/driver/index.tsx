@@ -508,6 +508,23 @@ function DriverHome() {
                 {cash.isSuccess ? "Cash recorded" : "Confirm cash collected"}
               </button>
             )}
+            {activeRide.status === "trip_started" && activeRide.payment_status !== "paid" && (
+              <>
+                <button
+                  onClick={() => askPayment.mutate(activeRide.id)}
+                  disabled={askPayment.isPending}
+                  className="mt-2 w-full rounded-full border border-input px-4 py-3 text-sm font-medium text-foreground disabled:opacity-60"
+                >
+                  {askPayment.isPending ? "Sending prompt…" : "Ask customer to pay via M-PESA"}
+                </button>
+                {askPayment.data ? (
+                  <p className="mt-1 text-xs text-muted-foreground">{askPayment.data.message}</p>
+                ) : null}
+                {askPayment.isError ? (
+                  <p className="mt-1 text-xs text-destructive">{(askPayment.error as Error).message}</p>
+                ) : null}
+              </>
+            )}
             {activeRide.status !== "trip_started" && (
               <button
                 onClick={() =>
