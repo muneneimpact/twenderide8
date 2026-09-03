@@ -155,6 +155,35 @@ function RootComponent() {
     void registerAppServiceWorker();
   }, []);
 
+  // Push: refresh the rotating device token for the signed-in person and show
+  // alerts that arrive while the tab is in the foreground.
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+
+    const start = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session || cancelled) return;
+      const { refreshPushRegistration, listenForForegroundPush } = await import("@/lib/push");
+      await refreshPushRegistration();
+      if (cancelled) return;
+      unsubscribe = await listenForForegroundPush((path) => {
+        void router.navigate({ to: path });
+      });
+    };
+    void start();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") void start();
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+      sub.subscription.unsubscribe();
+    };
+  }, [router]);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
