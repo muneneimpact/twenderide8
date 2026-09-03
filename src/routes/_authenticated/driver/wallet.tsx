@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
-import { getDriverWallet, requestWithdrawal } from "@/lib/driver.functions";
+import { getDriverWallet, requestWithdrawal, payPlatformDues } from "@/lib/driver.functions";
 
 export const Route = createFileRoute("/_authenticated/driver/wallet")({
   head: () => ({
