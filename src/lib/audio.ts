@@ -3,7 +3,11 @@
  * PWA stays tiny and works offline.
  */
 
+import jingleAsset from "@/assets/twende-driver-alert.mp3.asset.json";
+
 type Tone = "offer" | "status" | "arrived";
+
+let jingle: HTMLAudioElement | null = null;
 
 const patterns: Record<Tone, { freq: number; at: number; length: number }[]> = {
   offer: [
