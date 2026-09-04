@@ -17,6 +17,8 @@ const TARGET_CANDIDATES = 3;
 const SOLO_OFFER_KM = 1.5;
 /** Cap on paid road-distance lookups per dispatch. */
 const MAX_ROAD_LOOKUPS = 4;
+/** A trip untouched for this long is treated as abandoned, not in progress. */
+const ABANDONED_RIDE_MS = 3 * 60 * 60 * 1000;
 
 interface EligibleDriver {
   driver_id: string;
@@ -37,12 +39,16 @@ async function eligibleDrivers(
     .eq("status", "approved")
     .not("active_vehicle_id", "is", null);
 
+  // Only genuinely live trips block a driver. A job that has sat untouched for
+  // hours was abandoned (app closed mid-trip) and must not lock the driver out
+  // of every future request.
   const busy = new Set(
     (
       await supabaseAdmin
         .from("rides")
         .select("driver_id")
         .in("status", ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"])
+        .gt("updated_at", new Date(Date.now() - ABANDONED_RIDE_MS).toISOString())
     ).data?.map((row) => row.driver_id) ?? [],
   );
 
