@@ -41,6 +41,32 @@ function audioContext(): AudioContext | null {
 /** Browsers only allow sound after a gesture — call this once on first tap. */
 export function primeAudio() {
   audioContext();
+  if (typeof window === "undefined") return;
+  if (!jingle) {
+    jingle = new Audio(jingleAsset.url);
+    jingle.preload = "auto";
+  }
+  // Unlock playback on this gesture so later offers can ring without a tap.
+  jingle.muted = true;
+  void jingle
+    .play()
+    .then(() => {
+      jingle?.pause();
+      if (jingle) {
+        jingle.currentTime = 0;
+        jingle.muted = false;
+      }
+    })
+    .catch(() => {
+      if (jingle) jingle.muted = false;
+    });
+}
+
+/** Stops the ride-offer jingle (offer accepted, declined, or expired). */
+export function stopAlert() {
+  if (!jingle) return;
+  jingle.pause();
+  jingle.currentTime = 0;
 }
 
 export function playAlert(tone: Tone = "status") {
