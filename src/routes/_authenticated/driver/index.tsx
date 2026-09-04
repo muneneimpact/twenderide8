@@ -21,7 +21,7 @@ import {
   requestCustomerPayment,
   listOpenRides,
 } from "@/lib/driver.functions";
-import { playAlert, primeAudio } from "@/lib/audio";
+import { playAlert, primeAudio, stopAlert } from "@/lib/audio";
 
 export const Route = createFileRoute("/_authenticated/driver/")({
   head: () => ({
@@ -181,7 +181,9 @@ function DriverHome() {
   const offerCount = home.data?.offers.length ?? 0;
   const openCount = openRides.data?.rides.length ?? 0;
   useEffect(() => {
+    // Ring while an offer is on screen; go quiet the moment it is gone.
     if (offerCount > 0) playAlert("offer");
+    else stopAlert();
   }, [offerCount]);
   useEffect(() => {
     if (openCount > 0) playAlert("status");

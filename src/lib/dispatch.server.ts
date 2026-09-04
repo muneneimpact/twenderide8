@@ -17,6 +17,8 @@ const TARGET_CANDIDATES = 3;
 const SOLO_OFFER_KM = 1.5;
 /** Cap on paid road-distance lookups per dispatch. */
 const MAX_ROAD_LOOKUPS = 4;
+/** A trip untouched for this long is treated as abandoned, not in progress. */
+const ABANDONED_RIDE_MS = 3 * 60 * 60 * 1000;
 
 interface EligibleDriver {
   driver_id: string;
@@ -37,12 +39,16 @@ async function eligibleDrivers(
     .eq("status", "approved")
     .not("active_vehicle_id", "is", null);
 
+  // Only genuinely live trips block a driver. A job that has sat untouched for
+  // hours was abandoned (app closed mid-trip) and must not lock the driver out
+  // of every future request.
   const busy = new Set(
     (
       await supabaseAdmin
         .from("rides")
         .select("driver_id")
         .in("status", ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"])
+        .gt("updated_at", new Date(Date.now() - ABANDONED_RIDE_MS).toISOString())
     ).data?.map((row) => row.driver_id) ?? [],
   );
 
@@ -120,6 +126,8 @@ export async function dispatchRide(
   options: { radiusKm: number; offerTimeoutSeconds: number; cashRide: boolean },
 ): Promise<DispatchResult> {
   const radiusKm = Math.min(options.radiusKm, MAX_DISPATCH_RADIUS_KM);
+  // Self-heal before searching so an abandoned trip cannot hide a free driver.
+  await closeAbandonedRides();
   const drivers = await eligibleDrivers(vehicleClass, options.cashRide);
   const nearby = searchHexRings(pickup, drivers, radiusKm).slice(0, MAX_ROAD_LOOKUPS);
   if (nearby.length === 0) return { offers: 0, candidates: [] };
@@ -220,5 +228,31 @@ export async function expireStaleDispatch() {
       .from("ride_status_events")
       .insert({ ride_id: ride.id, status: "no_driver_found", actor_role: "system" });
   }
-  return { expiredRides: stuck?.length ?? 0 };
+  const abandoned = await closeAbandonedRides();
+  return { expiredRides: stuck?.length ?? 0, abandonedRides: abandoned };
+}
+
+/**
+ * Closes trips that were never finished in the app. Without this a single
+ * forgotten ride keeps its driver permanently "busy" and every new customer
+ * request answers "no driver found".
+ */
+export async function closeAbandonedRides(): Promise<number> {
+  const cutoff = new Date(Date.now() - ABANDONED_RIDE_MS).toISOString();
+  const { data: rides } = await supabaseAdmin
+    .from("rides")
+    .select("id")
+    .in("status", ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"])
+    .lt("updated_at", cutoff);
+
+  for (const ride of rides ?? []) {
+    await supabaseAdmin
+      .from("rides")
+      .update({ status: "cancelled_by_system", cancellation_reason: "Abandoned trip closed automatically" })
+      .eq("id", ride.id);
+    await supabaseAdmin
+      .from("ride_status_events")
+      .insert({ ride_id: ride.id, status: "cancelled_by_system", actor_role: "system" });
+  }
+  return rides?.length ?? 0;
 }
