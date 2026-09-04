@@ -40,6 +40,23 @@ export function primeAudio() {
 }
 
 export function playAlert(tone: Tone = "status") {
+  // Ride offers use the branded jingle; other events keep the short synth tones.
+  if (tone === "offer" && typeof window !== "undefined") {
+    try {
+      if (!jingle) {
+        jingle = new Audio(jingleAsset.url);
+        jingle.preload = "auto";
+      }
+      jingle.currentTime = 0;
+      void jingle.play().catch(() => undefined);
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate([200, 120, 200, 120, 300]);
+      }
+      return;
+    } catch {
+      // fall through to the synthesised tone
+    }
+  }
   const ctx = audioContext();
   if (!ctx) return;
   const now = ctx.currentTime;

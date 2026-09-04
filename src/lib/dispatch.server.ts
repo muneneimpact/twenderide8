@@ -126,6 +126,8 @@ export async function dispatchRide(
   options: { radiusKm: number; offerTimeoutSeconds: number; cashRide: boolean },
 ): Promise<DispatchResult> {
   const radiusKm = Math.min(options.radiusKm, MAX_DISPATCH_RADIUS_KM);
+  // Self-heal before searching so an abandoned trip cannot hide a free driver.
+  await closeAbandonedRides();
   const drivers = await eligibleDrivers(vehicleClass, options.cashRide);
   const nearby = searchHexRings(pickup, drivers, radiusKm).slice(0, MAX_ROAD_LOOKUPS);
   if (nearby.length === 0) return { offers: 0, candidates: [] };
