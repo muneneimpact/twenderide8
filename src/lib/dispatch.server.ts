@@ -246,11 +246,11 @@ export async function closeAbandonedRides(): Promise<number> {
   for (const ride of rides ?? []) {
     await supabaseAdmin
       .from("rides")
-      .update({ status: "cancelled_system", cancellation_reason: "Abandoned trip closed automatically" })
+      .update({ status: "cancelled_by_system", cancellation_reason: "Abandoned trip closed automatically" })
       .eq("id", ride.id);
     await supabaseAdmin
       .from("ride_status_events")
-      .insert({ ride_id: ride.id, status: "cancelled_system", actor_role: "system" });
+      .insert({ ride_id: ride.id, status: "cancelled_by_system", actor_role: "system" });
   }
   return rides?.length ?? 0;
 }
