@@ -226,5 +226,31 @@ export async function expireStaleDispatch() {
       .from("ride_status_events")
       .insert({ ride_id: ride.id, status: "no_driver_found", actor_role: "system" });
   }
-  return { expiredRides: stuck?.length ?? 0 };
+  const abandoned = await closeAbandonedRides();
+  return { expiredRides: stuck?.length ?? 0, abandonedRides: abandoned };
+}
+
+/**
+ * Closes trips that were never finished in the app. Without this a single
+ * forgotten ride keeps its driver permanently "busy" and every new customer
+ * request answers "no driver found".
+ */
+export async function closeAbandonedRides(): Promise<number> {
+  const cutoff = new Date(Date.now() - ABANDONED_RIDE_MS).toISOString();
+  const { data: rides } = await supabaseAdmin
+    .from("rides")
+    .select("id")
+    .in("status", ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"])
+    .lt("updated_at", cutoff);
+
+  for (const ride of rides ?? []) {
+    await supabaseAdmin
+      .from("rides")
+      .update({ status: "cancelled_system", cancellation_reason: "Abandoned trip closed automatically" })
+      .eq("id", ride.id);
+    await supabaseAdmin
+      .from("ride_status_events")
+      .insert({ ride_id: ride.id, status: "cancelled_system", actor_role: "system" });
+  }
+  return rides?.length ?? 0;
 }
