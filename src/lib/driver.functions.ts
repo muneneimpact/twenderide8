@@ -43,12 +43,17 @@ export const getDriverHome = createServerFn({ method: "POST" })
       .eq("driver_id", userId)
       .eq("status", "offered")
       .gt("expires_at", new Date().toISOString());
-    const { data: activeRide } = await supabase
+    // A driver may hold two live jobs: the trip they are running now and one
+    // queued behind it. The queued one is never the "current" trip.
+    const { data: liveRides } = await supabase
       .from("rides")
       .select("*")
       .eq("driver_id", userId)
       .in("status", ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"])
-      .maybeSingle();
+      .order("assigned_at", { ascending: true });
+    const activeRide = (liveRides ?? []).find((ride) => !ride.queued_after_ride_id) ?? null;
+    const queuedRide = (liveRides ?? []).find((ride) => Boolean(ride.queued_after_ride_id)) ?? null;
+
     const { data: recent } = await supabase
       .from("rides")
       .select("*")
