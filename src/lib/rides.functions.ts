@@ -97,14 +97,21 @@ export const reverseGeocode = createServerFn({ method: "POST" })
  */
 export const estimateClasses = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ pickup: pointSchema, dropoff: pointSchema }).parse(input))
+  .inputValidator((input) =>
+    z
+      .object({
+        pickup: pointSchema,
+        dropoff: pointSchema,
+        stops: z.array(pointSchema).max(4).optional().default([]),
+      })
+      .parse(input),
+  )
   .handler(async ({ data, context }) => {
-    const { getMapProvider } = await import("./adapters/map.server");
     const { loadPricingContext, settingNumber } = await import("./pricing.server");
     const { computeFare } = await import("./fare-engine");
     const { applyDiscount, drawDiscount, nairobiDayKey } = await import("./discounts");
 
-    const route = await getMapProvider().route(data.pickup, data.dropoff);
+    const route = await routeThroughStops([data.pickup, ...(data.stops ?? []), data.dropoff]);
     if (route.distance_km <= 0) throw new Error("Pickup and destination are too close to price a ride.");
 
     const classes = ["go", "plus", "comfort", "xl", "boda", "e_boda"] as const;
