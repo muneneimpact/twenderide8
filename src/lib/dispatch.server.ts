@@ -183,7 +183,7 @@ export async function dispatchRide(
   const radiusKm = Math.min(options.radiusKm, MAX_DISPATCH_RADIUS_KM);
   // Self-heal before searching so an abandoned trip cannot hide a free driver.
   await closeAbandonedRides();
-  const drivers = await eligibleDrivers(vehicleClass, options.cashRide);
+  const drivers = await eligibleDrivers(vehicleClass, options.cashRide, pickup);
   const nearby = searchHexRings(pickup, drivers, radiusKm).slice(0, MAX_ROAD_LOOKUPS);
   if (nearby.length === 0) return { offers: 0, candidates: [] };
 
@@ -193,18 +193,20 @@ export async function dispatchRide(
   const provider = getMapProvider();
   const ranked = await Promise.all(
     nearby.map(async (driver) => {
+      // A driver finishing a trip still has to complete it before setting off.
+      const tail = driver.finishing_ride_id ? (driver.finishing_minutes ?? 0) : 0;
       try {
         const route = await provider.route({ lat: driver.lat, lng: driver.lng }, pickup);
         return {
           ...driver,
           road_km: Number(route.distance_km.toFixed(3)),
-          eta_minutes: Number(route.duration_minutes.toFixed(1)),
+          eta_minutes: Number((route.duration_minutes + tail).toFixed(1)),
         };
       } catch {
         return {
           ...driver,
           road_km: Number((driver.straight_km * 1.35).toFixed(3)),
-          eta_minutes: Number((driver.straight_km * 2.8 + 1).toFixed(1)),
+          eta_minutes: Number((driver.straight_km * 2.8 + 1 + tail).toFixed(1)),
         };
       }
     }),
@@ -212,12 +214,16 @@ export async function dispatchRide(
   ranked.sort((a, b) => a.eta_minutes - b.eta_minutes || a.road_km - b.road_km);
 
   const best = ranked[0]!;
-  const offerCount = best.road_km <= SOLO_OFFER_KM ? 1 : Math.min(ranked.length, TARGET_CANDIDATES);
+  const offerCount =
+    best.road_km <= SOLO_OFFER_KM && !best.finishing_ride_id
+      ? 1
+      : Math.min(ranked.length, TARGET_CANDIDATES);
   const candidates = ranked.slice(0, offerCount).map((driver) => ({
     driver_id: driver.driver_id,
     vehicle_id: driver.vehicle_id,
     distance_km: driver.road_km,
     eta_minutes: driver.eta_minutes,
+    finishing_ride_id: driver.finishing_ride_id ?? null,
   }));
 
   const expiresAt = new Date(Date.now() + options.offerTimeoutSeconds * 1000).toISOString();
@@ -241,12 +247,15 @@ export async function dispatchRide(
     await notify({
       userId: candidate.driver_id,
       templateCode: "ride_offer",
-      title: "New ride request",
-      body: `A customer needs a taxi ${candidate.distance_km.toFixed(1)} km away (about ${Math.round(candidate.eta_minutes)} min).`,
+      title: candidate.finishing_ride_id ? "Next ride after this trip" : "New ride request",
+      body: candidate.finishing_ride_id
+        ? `A customer needs a taxi near where your current trip ends (about ${Math.round(candidate.eta_minutes)} min away). Accept now and head there once you drop off.`
+        : `A customer needs a taxi ${candidate.distance_km.toFixed(1)} km away (about ${Math.round(candidate.eta_minutes)} min).`,
       rideId,
       dedupeKey: `offer:${rideId}:${candidate.driver_id}`,
     });
   }
+
 
   return {
     offers: candidates.length,
