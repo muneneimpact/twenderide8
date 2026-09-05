@@ -1499,6 +1499,7 @@ export type Database = {
           ledger_posted_at: string | null
           payment_method: Database["public"]["Enums"]["payment_method"]
           payment_status: Database["public"]["Enums"]["payment_status"]
+          queued_after_ride_id: string | null
           quote_id: string
           reference: string
           requested_at: string
@@ -1528,6 +1529,7 @@ export type Database = {
           ledger_posted_at?: string | null
           payment_method: Database["public"]["Enums"]["payment_method"]
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          queued_after_ride_id?: string | null
           quote_id: string
           reference?: string
           requested_at?: string
@@ -1557,6 +1559,7 @@ export type Database = {
           ledger_posted_at?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          queued_after_ride_id?: string | null
           quote_id?: string
           reference?: string
           requested_at?: string
@@ -1573,6 +1576,13 @@ export type Database = {
             columns: ["fleet_id"]
             isOneToOne: false
             referencedRelation: "fleets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rides_queued_after_ride_id_fkey"
+            columns: ["queued_after_ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
             referencedColumns: ["id"]
           },
           {
@@ -1615,6 +1625,7 @@ export type Database = {
           pricing_snapshot: Json
           route_provider: string
           route_response: Json
+          stops: Json
           total_fare: number
           unrounded_total: number
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
@@ -1642,6 +1653,7 @@ export type Database = {
           pricing_snapshot: Json
           route_provider?: string
           route_response?: Json
+          stops?: Json
           total_fare: number
           unrounded_total: number
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
@@ -1669,6 +1681,7 @@ export type Database = {
           pricing_snapshot?: Json
           route_provider?: string
           route_response?: Json
+          stops?: Json
           total_fare?: number
           unrounded_total?: number
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
@@ -2184,6 +2197,7 @@ export type Database = {
           ledger_posted_at: string | null
           payment_method: Database["public"]["Enums"]["payment_method"]
           payment_status: Database["public"]["Enums"]["payment_status"]
+          queued_after_ride_id: string | null
           quote_id: string
           reference: string
           requested_at: string
