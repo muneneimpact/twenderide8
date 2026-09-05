@@ -2,6 +2,32 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+const LIVE_STATUSES = ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"] as const;
+
+/**
+ * A driver may line up a next job while still finishing the current one. When
+ * that happens the new ride is parked behind the running trip so the customer
+ * can be told honestly: the driver is close by, but dropping someone off first.
+ */
+async function queueBehindCurrentTrip(rideId: string, driverId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: running } = await supabaseAdmin
+    .from("rides")
+    .select("id, reference")
+    .eq("driver_id", driverId)
+    .in("status", LIVE_STATUSES as unknown as string[])
+    .neq("id", rideId)
+    .is("queued_after_ride_id", null)
+    .order("assigned_at", { ascending: true })
+    .limit(1);
+  const current = running?.[0];
+  if (!current) return { queued: false, afterRideId: null as string | null };
+  await supabaseAdmin.from("rides").update({ queued_after_ride_id: current.id }).eq("id", rideId);
+  return { queued: true, afterRideId: current.id };
+}
+
+
+
 /** Driver dashboard: approval state, active vehicle, wallet, live offers. */
 export const getDriverHome = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -17,12 +43,17 @@ export const getDriverHome = createServerFn({ method: "POST" })
       .eq("driver_id", userId)
       .eq("status", "offered")
       .gt("expires_at", new Date().toISOString());
-    const { data: activeRide } = await supabase
+    // A driver may hold two live jobs: the trip they are running now and one
+    // queued behind it. The queued one is never the "current" trip.
+    const { data: liveRides } = await supabase
       .from("rides")
       .select("*")
       .eq("driver_id", userId)
       .in("status", ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"])
-      .maybeSingle();
+      .order("assigned_at", { ascending: true });
+    const activeRide = (liveRides ?? []).find((ride) => !ride.queued_after_ride_id) ?? null;
+    const queuedRide = (liveRides ?? []).find((ride) => Boolean(ride.queued_after_ride_id)) ?? null;
+
     const { data: recent } = await supabase
       .from("rides")
       .select("*")
@@ -73,6 +104,25 @@ export const getDriverHome = createServerFn({ method: "POST" })
       customer = profile ?? { id: activeRide.customer_id, full_name: null, phone: null };
     }
 
+    // The job waiting behind the current trip, so the driver can plan ahead.
+    let queuedRoute: { pickup_address: string | null; dropoff_address: string | null; distance_km: number } | null =
+      null;
+    if (queuedRide) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: quote } = await supabaseAdmin
+        .from("route_quotes")
+        .select("pickup_address, dropoff_address, distance_km")
+        .eq("id", queuedRide.quote_id)
+        .maybeSingle();
+      queuedRoute = quote
+        ? {
+            pickup_address: quote.pickup_address,
+            dropoff_address: quote.dropoff_address,
+            distance_km: Number(quote.distance_km),
+          }
+        : null;
+    }
+
     return {
       driver,
       vehicles: vehicles ?? [],
@@ -81,9 +131,12 @@ export const getDriverHome = createServerFn({ method: "POST" })
       offers: offers ?? [],
       activeRide,
       activeRoute,
+      queuedRide,
+      queuedRoute,
       customer,
       recent: recent ?? [],
     };
+
   });
 
 /** Going online requires an approved driver record and an approved active vehicle. */
@@ -229,16 +282,20 @@ export const acceptOffer = createServerFn({ method: "POST" })
       actor_id: context.userId,
       actor_role: "driver",
     });
+    const queue = await queueBehindCurrentTrip(ride.id, context.userId);
     await notify({
       userId: ride.customer_id,
       templateCode: "driver_assigned",
-      title: "Driver on the way",
-      body: `A driver accepted ride ${ride.reference} and is heading to your pickup point.`,
+      title: queue.queued ? "Driver booked — finishing another trip" : "Driver on the way",
+      body: queue.queued
+        ? `A driver near you accepted ride ${ride.reference}. They are dropping off another passenger close by and will head to you as soon as that trip ends.`
+        : `A driver accepted ride ${ride.reference} and is heading to your pickup point.`,
       rideId: ride.id,
       critical: true,
     });
-    await audit(context.userId, "offer_accepted", "ride", ride.id, {});
-    return { ok: true, reason: "assigned", ride_id: ride.id };
+    await audit(context.userId, "offer_accepted", "ride", ride.id, { queued: queue.queued });
+    return { ok: true, reason: queue.queued ? "queued" : "assigned", ride_id: ride.id };
+
   });
 
 export const declineOffer = createServerFn({ method: "POST" })
@@ -325,6 +382,32 @@ export const advanceRide = createServerFn({ method: "POST" })
 
     if (data.next === "trip_completed") {
       const settlement = await settleRide(ride.id);
+      // Release any job the driver lined up behind this trip: it becomes their
+      // current trip and the waiting customer is told they are now on the way.
+      const { data: queued } = await supabaseAdmin
+        .from("rides")
+        .select("id, reference, customer_id")
+        .eq("queued_after_ride_id", ride.id)
+        .in("status", ["driver_assigned", "driver_arriving", "driver_arrived"]);
+      for (const next of queued ?? []) {
+        await supabaseAdmin.from("rides").update({ queued_after_ride_id: null }).eq("id", next.id);
+        await supabaseAdmin.from("ride_status_events").insert({
+          ride_id: next.id,
+          status: "driver_assigned",
+          actor_id: context.userId,
+          actor_role: "driver",
+          note: "Driver finished their previous trip and is heading to this pickup",
+        });
+        await notify({
+          userId: next.customer_id,
+          templateCode: "driver_assigned",
+          title: "Your driver is on the way",
+          body: `Your driver has finished their previous trip and is now heading to your pickup point for ride ${next.reference}.`,
+          rideId: next.id,
+          critical: true,
+        });
+      }
+
       await notify({
         userId: ride.customer_id,
         templateCode: "trip_completed",
@@ -827,14 +910,18 @@ export const claimRide = createServerFn({ method: "POST" })
       actor_id: context.userId,
       actor_role: "driver",
     });
+    const queue = await queueBehindCurrentTrip(ride.id, context.userId);
     await notify({
       userId: ride.customer_id,
       templateCode: "driver_assigned",
-      title: "Driver on the way",
-      body: `A driver accepted ride ${ride.reference} and is heading to your pickup point.`,
+      title: queue.queued ? "Driver booked — finishing another trip" : "Driver on the way",
+      body: queue.queued
+        ? `A driver near you accepted ride ${ride.reference}. They are dropping off another passenger close by and will head to you as soon as that trip ends.`
+        : `A driver accepted ride ${ride.reference} and is heading to your pickup point.`,
       rideId: ride.id,
       critical: true,
     });
-    await audit(context.userId, "open_ride_claimed", "ride", ride.id, {});
-    return { ok: true, reason: "assigned", ride_id: ride.id };
+    await audit(context.userId, "open_ride_claimed", "ride", ride.id, { queued: queue.queued });
+    return { ok: true, reason: queue.queued ? "queued" : "assigned", ride_id: ride.id };
+
   });

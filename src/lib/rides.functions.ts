@@ -11,10 +11,44 @@ const pointSchema = z.object({
 const quoteSchema = z.object({
   pickup: pointSchema,
   dropoff: pointSchema,
+  /** Extra stops, in the order the customer arranged them. */
+  stops: z.array(pointSchema).max(4).optional().default([]),
   vehicleClass: z.enum(["go", "plus", "comfort", "xl", "boda", "e_boda"]).default("go"),
   pickupNotes: z.string().max(400).optional().nullable(),
   promoCode: z.string().trim().max(40).optional().nullable(),
 });
+
+/**
+ * Prices a trip that may pass through stops: each leg is routed in the order the
+ * customer arranged them, and the legs are added up into one journey.
+ */
+async function routeThroughStops(
+  points: { lat: number; lng: number }[],
+): Promise<{
+  distance_km: number;
+  duration_minutes: number;
+  provider: string;
+  polyline: string | null;
+  traffic_aware: boolean;
+  raw: unknown;
+}> {
+  const { getMapProvider } = await import("./adapters/map.server");
+  const provider = getMapProvider();
+  const legs = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    legs.push(await provider.route(points[index]!, points[index + 1]!));
+  }
+  const first = legs[0]!;
+  return {
+    distance_km: Number(legs.reduce((sum, leg) => sum + leg.distance_km, 0).toFixed(3)),
+    duration_minutes: Number(legs.reduce((sum, leg) => sum + leg.duration_minutes, 0).toFixed(1)),
+    provider: first.provider,
+    polyline: legs.length === 1 ? first.polyline : null,
+    traffic_aware: first.traffic_aware,
+    raw: { legs: legs.map((leg) => leg.raw) },
+  };
+}
+
 
 const requestSchema = z.object({
   quoteId: z.string().uuid(),
@@ -63,14 +97,21 @@ export const reverseGeocode = createServerFn({ method: "POST" })
  */
 export const estimateClasses = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ pickup: pointSchema, dropoff: pointSchema }).parse(input))
+  .inputValidator((input) =>
+    z
+      .object({
+        pickup: pointSchema,
+        dropoff: pointSchema,
+        stops: z.array(pointSchema).max(4).optional().default([]),
+      })
+      .parse(input),
+  )
   .handler(async ({ data, context }) => {
-    const { getMapProvider } = await import("./adapters/map.server");
     const { loadPricingContext, settingNumber } = await import("./pricing.server");
     const { computeFare } = await import("./fare-engine");
     const { applyDiscount, drawDiscount, nairobiDayKey } = await import("./discounts");
 
-    const route = await getMapProvider().route(data.pickup, data.dropoff);
+    const route = await routeThroughStops([data.pickup, ...(data.stops ?? []), data.dropoff]);
     if (route.distance_km <= 0) throw new Error("Pickup and destination are too close to price a ride.");
 
     const classes = ["go", "plus", "comfort", "xl", "boda", "e_boda"] as const;
@@ -135,13 +176,12 @@ export const createQuote = createServerFn({ method: "POST" })
   .inputValidator((input) => quoteSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { getMapProvider } = await import("./adapters/map.server");
     const { loadPricingContext, settingNumber } = await import("./pricing.server");
     const { computeFare } = await import("./fare-engine");
     const { applyDiscount, drawDiscount, nairobiDayKey } = await import("./discounts");
 
     const pricing = await loadPricingContext(data.vehicleClass);
-    const route = await getMapProvider().route(data.pickup, data.dropoff);
+    const route = await routeThroughStops([data.pickup, ...(data.stops ?? []), data.dropoff]);
     if (route.distance_km <= 0) throw new Error("Pickup and destination are too close to price a ride.");
 
     const computed = computeFare({
@@ -213,6 +253,8 @@ export const createQuote = createServerFn({ method: "POST" })
         dropoff_lat: data.dropoff.lat,
         dropoff_lng: data.dropoff.lng,
         dropoff_address: data.dropoff.address ?? null,
+        stops: (data.stops ?? []) as never,
+
         distance_km: route.distance_km,
         duration_minutes: route.duration_minutes,
         route_provider: route.provider,
