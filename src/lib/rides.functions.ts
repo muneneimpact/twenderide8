@@ -176,13 +176,12 @@ export const createQuote = createServerFn({ method: "POST" })
   .inputValidator((input) => quoteSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { getMapProvider } = await import("./adapters/map.server");
     const { loadPricingContext, settingNumber } = await import("./pricing.server");
     const { computeFare } = await import("./fare-engine");
     const { applyDiscount, drawDiscount, nairobiDayKey } = await import("./discounts");
 
     const pricing = await loadPricingContext(data.vehicleClass);
-    const route = await getMapProvider().route(data.pickup, data.dropoff);
+    const route = await routeThroughStops([data.pickup, ...(data.stops ?? []), data.dropoff]);
     if (route.distance_km <= 0) throw new Error("Pickup and destination are too close to price a ride.");
 
     const computed = computeFare({
