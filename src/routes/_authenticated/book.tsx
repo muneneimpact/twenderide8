@@ -10,6 +10,7 @@ import type { PromoState } from "@/lib/discounts";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { nearbyDrivers } from "@/lib/nearby.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { useMe } from "@/hooks/useMe";
 
 export const Route = createFileRoute("/_authenticated/book")({
   head: () => ({
@@ -18,7 +19,7 @@ export const Route = createFileRoute("/_authenticated/book")({
       {
         name: "description",
         content:
-          "Set your pickup pin and destination, see the itemised fare before you request, then pay by M-PESA or cash.",
+          "Set your pickup pin and destination, add stops along the way, then choose your ride and pay by M-PESA or cash.",
       },
       { property: "og:title", content: "Book a taxi — Twende Meru Rides" },
       { property: "og:description", content: "Map-led taxi booking in Meru with a locked, itemised fare." },
@@ -79,20 +80,25 @@ function BookPage() {
   const quoteFn = useServerFn(createQuote);
   const requestFn = useServerFn(requestRide);
   const nearbyFn = useServerFn(nearbyDrivers);
+  const { me } = useMe();
 
+  // Two screens: say where you're going, then choose the ride and pay.
+  const [step, setStep] = useState<"where" | "ride">("where");
   const [placing, setPlacing] = useState<"pickup" | "dropoff">("dropoff");
   const [locating, setLocating] = useState(true);
   const [locateError, setLocateError] = useState<string | null>(null);
   const [pickup, setPickup] = useState<Point | null>(null);
   const [dropoff, setDropoff] = useState<Point | null>(null);
+  const [stops, setStops] = useState<Point[]>([]);
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>("go");
   const [pickupNotes, setPickupNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [msisdn, setMsisdn] = useState("");
+  const [msisdnTouched, setMsisdnTouched] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTarget, setSearchTarget] = useState<"dropoff" | "stop">("dropoff");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
-  const [pendingDropoff, setPendingDropoff] = useState<Point | null>(null);
   const [recents, setRecents] = useState<Point[]>(() => readRecents());
   const searchInput = useRef<HTMLInputElement | null>(null);
   const [promoInput, setPromoInput] = useState("");
@@ -106,7 +112,13 @@ function BookPage() {
     promotionId: string;
   } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
-  const [promoStatus, setPromoStatus] = useState<PromoState | null>(null);
+  const [, setPromoStatus] = useState<PromoState | null>(null);
+
+  // The M-PESA number defaults to the verified phone on the account.
+  useEffect(() => {
+    const phone = me?.profile?.phone;
+    if (phone && !msisdnTouched && msisdn.length === 0) setMsisdn(phone);
+  }, [me?.profile?.phone, msisdnTouched, msisdn.length]);
 
   // Saved places live with the customer, so Home and Office survive devices.
   const saved = useQuery({
@@ -132,17 +144,7 @@ function BookPage() {
     [reverse],
   );
 
-  const quoting = useMutation({
-    mutationFn: () =>
-      quoteFn({
-        data: {
-          pickup: { lat: pickup!.lat, lng: pickup!.lng, address: label(pickup) },
-          dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
-          vehicleClass,
-          pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
-        },
-      }),
-  });
+  const stopPayload = () => stops.map((stop) => ({ lat: stop.lat, lng: stop.lng, address: label(stop) }));
 
   const estimating = useMutation({
     mutationFn: () =>
@@ -150,15 +152,18 @@ function BookPage() {
         data: {
           pickup: { lat: pickup!.lat, lng: pickup!.lng },
           dropoff: { lat: dropoff!.lat, lng: dropoff!.lng },
+          stops: stops.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
         },
       }),
   });
 
+  const estimates = estimating.data?.options ?? [];
+  const chosen = estimates.find((item) => item.vehicleClass === vehicleClass);
+
   const promoFn = useServerFn(validatePromoCode);
   const applyingPromo = useMutation({
     mutationFn: async () => {
-      const fare =
-        chosen?.available ? chosen.total : (estimates.find((o) => o.vehicleClass === vehicleClass)?.total ?? 0);
+      const fare = chosen?.available ? chosen.total : 0;
       return promoFn({ data: { code: promoInput.trim().toUpperCase(), totalFare: fare } });
     },
     onSuccess: (result) => {
@@ -195,6 +200,7 @@ function BookPage() {
         data: {
           pickup: { lat: pickup!.lat, lng: pickup!.lng, address: label(pickup) },
           dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
+          stops: stopPayload(),
           vehicleClass,
           pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
           ...(appliedPromo?.code ? { promoCode: appliedPromo.code } : {}),
@@ -219,7 +225,6 @@ function BookPage() {
     const next: Point = { ...point };
     if (target === "pickup") setPickup(next);
     else setDropoff(next);
-    quoting.reset();
     try {
       const resolved = await resolvePoint(point);
       if (!resolved) return;
@@ -245,7 +250,6 @@ function BookPage() {
         const point = { lat: position.coords.latitude, lng: position.coords.longitude };
         setPickup({ ...point, label: "Current location" });
         setLocating(false);
-        quoting.reset();
         try {
           const resolved = await resolvePoint(point);
           if (!resolved) return;
@@ -268,12 +272,13 @@ function BookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Price every vehicle class as soon as both ends of the trip are known.
+  // Price every vehicle class as soon as both ends of the trip (and any stops)
+  // are known.
   useEffect(() => {
     if (!pickup || !dropoff) return;
     estimating.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
+  }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stops.length, JSON.stringify(stops.map((s) => s.lat))]);
 
   // Live, anonymised supply around the pickup: the rider sees real cars, and
   // the hex-bounded server query keeps map-provider usage flat.
@@ -289,20 +294,40 @@ function BookPage() {
   });
   const nearby = supply.data?.drivers ?? [];
 
-  const estimates = estimating.data?.options ?? [];
-  const chosen = estimates.find((item) => item.vehicleClass === vehicleClass);
-
-  function chooseDestination(point: Point) {
-    setDropoff(point);
+  function choosePlace(point: Point) {
+    if (searchTarget === "stop") {
+      setStops((current) => [...current, point]);
+    } else {
+      setDropoff(point);
+      const next = [point, ...recents.filter((item) => label(item) !== label(point))].slice(0, 5);
+      setRecents(next);
+      writeRecents(next);
+    }
     setSearchOpen(false);
-    quoting.reset();
-    const next = [point, ...recents.filter((item) => label(item) !== label(point))].slice(0, 5);
-    setRecents(next);
-    writeRecents(next);
   }
 
+  function moveStop(index: number, delta: number) {
+    setStops((current) => {
+      const next = [...current];
+      const target = index + delta;
+      if (target < 0 || target >= next.length) return current;
+      const [item] = next.splice(index, 1);
+      next.splice(target, 0, item!);
+      return next;
+    });
+  }
+
+  function openSearch(target: "dropoff" | "stop") {
+    setSearchTarget(target);
+    if (target === "dropoff") setPlacing("dropoff");
+    setSearchOpen(true);
+    window.setTimeout(() => searchInput.current?.focus(), 60);
+  }
+
+  const readyForRide = Boolean(pickup && dropoff);
+
   return (
-    <AppShell title="Book a taxi" hideNav={searchOpen}>
+    <AppShell title={step === "ride" ? "Choose your ride" : "Book a taxi"} hideNav={searchOpen || step === "ride"}>
       <div className="h-64 w-full border-b border-border">
         <MapPanel
           pickup={pickup}
@@ -314,305 +339,370 @@ function BookPage() {
         />
       </div>
 
-      <div className="mx-auto max-w-md px-4 py-4">
-        {/* Pickup is your current location by default — you only say where to. */}
-        <div className="surface-card flex items-center justify-between gap-3 p-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pickup</p>
-            <p className="truncate text-sm font-medium text-foreground">
-              {locating ? "Finding your location…" : label(pickup)}
-            </p>
-          </div>
-          <div className="flex shrink-0 gap-1.5">
-            <button
-              onClick={useCurrentLocation}
-              className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground"
-            >
-              Use my location
-            </button>
-            <button
-              onClick={() => setPlacing(placing === "pickup" ? "dropoff" : "pickup")}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                placing === "pickup"
-                  ? "bg-primary text-primary-foreground"
-                  : "border border-input text-muted-foreground"
-              }`}
-            >
-              {placing === "pickup" ? "Tap map…" : "Change"}
-            </button>
-          </div>
-        </div>
-        {locateError && <p className="mt-2 text-xs text-destructive">{locateError}</p>}
-
-        {/* Where to is the whole job: one big tap opens a full-screen search. */}
-        <button
-          onClick={() => {
-            setPlacing("dropoff");
-            setPendingDropoff(dropoff);
-            setSearchOpen(true);
-            window.setTimeout(() => searchInput.current?.focus(), 60);
-          }}
-          className="mt-4 w-full rounded-2xl border-2 border-border bg-card px-4 py-4 text-left"
-        >
-          <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Destination
-          </span>
-          <span className="mt-0.5 block truncate font-display text-2xl font-bold leading-tight text-foreground">
-            {dropoff ? label(dropoff) : "Where to?"}
-          </span>
-        </button>
-
-        {/* Recent and saved destinations, straight from the customer's own data. */}
-        {!dropoff && (recents.length > 0 || (saved.data?.length ?? 0) > 0) ? (
-          <div className="mt-3 space-y-1.5">
-            {(saved.data ?? []).map((place) => (
+      {step === "where" ? (
+        <div className="mx-auto max-w-md px-4 py-4 pb-8">
+          {/* Pickup is your current location by default — you only say where to. */}
+          <div className="surface-card flex items-center justify-between gap-3 p-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pickup</p>
+              <p className="truncate text-sm font-medium text-foreground">
+                {locating ? "Finding your location…" : label(pickup)}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-1.5">
               <button
-                key={place.id}
-                onClick={() =>
-                  chooseDestination({
-                    lat: Number(place.lat),
-                    lng: Number(place.lng),
-                    label: place.label,
-                    address: place.address,
-                  })
-                }
-                className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+                onClick={useCurrentLocation}
+                className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground"
               >
-                <span className="text-base">★</span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-foreground">{place.label}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{place.address ?? "Saved place"}</span>
-                </span>
+                Use my location
               </button>
-            ))}
-            {recents.map((place, index) => (
               <button
-                key={`${label(place)}-${index}`}
-                onClick={() => chooseDestination(place)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+                onClick={() => setPlacing(placing === "pickup" ? "dropoff" : "pickup")}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                  placing === "pickup"
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-input text-muted-foreground"
+                }`}
               >
-                <span className="text-base">↻</span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-foreground">{label(place)}</span>
-                  <span className="block truncate text-xs text-muted-foreground">Recent</span>
-                </span>
+                {placing === "pickup" ? "Tap map…" : "Change"}
               </button>
-            ))}
+            </div>
           </div>
-        ) : null}
+          {locateError && <p className="mt-2 text-xs text-destructive">{locateError}</p>}
 
-        {dropoff ? (
-          <dl className="mt-4 space-y-1 rounded-2xl border border-border bg-card p-3 text-sm">
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Pickup</dt>
-              <dd className="text-right text-foreground">{label(pickup)}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Destination</dt>
-              <dd className="text-right text-foreground">{label(dropoff)}</dd>
-            </div>
-            {estimating.data ? (
-              <>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Distance</dt>
-                  <dd className="text-right text-foreground">{estimating.data.distance_km.toFixed(1)} km</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Estimated fare</dt>
-                  <dd className="text-right font-semibold text-foreground">
-                    {chosen && chosen.available ? `KES ${chosen.total.toFixed(2)}` : "—"}
-                  </dd>
-                </div>
-              </>
-            ) : null}
-          </dl>
-        ) : null}
+          {/* Where to is the whole job: one big tap opens a full-screen search. */}
+          <button
+            onClick={() => openSearch("dropoff")}
+            className="mt-4 w-full rounded-2xl border-2 border-border bg-card px-4 py-4 text-left"
+          >
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Destination
+            </span>
+            <span className="mt-0.5 block truncate font-display text-2xl font-bold leading-tight text-foreground">
+              {dropoff ? label(dropoff) : "Where to?"}
+            </span>
+          </button>
 
-
-        {/* The ride picker only appears once we know where the customer is going. */}
-        {pickup && dropoff ? (
-          <div className="mt-5">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="font-display text-lg font-bold text-foreground">Choose your ride</span>
-              {estimating.isPending ? (
-                <span className="text-xs text-muted-foreground">Checking prices…</span>
-              ) : estimating.data ? (
-                <span className="text-xs text-muted-foreground">
-                  {estimating.data.distance_km.toFixed(1)} km · {Math.round(estimating.data.duration_minutes)} min
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-2 space-y-2">
-              {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((option) => {
-                const priced = estimates.find((item) => item.vehicleClass === option);
-                const selected = vehicleClass === option;
-                const unavailable = priced ? !priced.available : false;
-                return (
-                  <button
-                    key={option}
-                    disabled={unavailable}
-                    onClick={() => {
-                      setVehicleClass(option);
-                      quoting.reset();
-                    }}
-                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-colors ${
-                      selected ? "border-primary bg-accent" : "border-border bg-card"
-                    } disabled:opacity-60`}
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-foreground">
-                        {CLASS_LABELS[option].name}
-                      </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {unavailable ? "Not available on this route" : CLASS_LABELS[option].hint}
-                      </span>
-                      {priced && priced.available && priced.discount_percent > 0 ? (
-                        <span className="mt-1 inline-flex rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold text-gold-foreground">
-                          {priced.discount_label ?? `${priced.discount_percent}% off`}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="shrink-0 text-right">
-                      {priced && priced.available ? (
-                        <>
-                          {priced.discount_percent > 0 ? (
-                            <span className="block text-xs text-muted-foreground line-through">
-                              KES {priced.total_before_discount.toFixed(0)}
-                            </span>
-                          ) : null}
-                          <span className="font-display text-base font-bold text-foreground">
-                            KES {priced.total.toFixed(0)}
-                          </span>
-                        </>
-                      ) : estimating.isPending ? (
-                        <span className="text-xs text-muted-foreground">…</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {estimating.isError ? (
-              <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
-            ) : null}
-          </div>
-        ) : (
-          <p className="mt-4 rounded-2xl border border-border bg-secondary px-3 py-3 text-sm text-secondary-foreground">
-            Tell us where you're going and we'll show every ride option with its price.
-          </p>
-        )}
-
-
-        {pickup && dropoff ? (
-          <>
-            <label className="mt-4 block">
-              <span className="text-xs font-medium text-muted-foreground">Pickup notes (optional)</span>
-              <input
-                value={pickupNotes}
-                onChange={(event) => setPickupNotes(event.target.value)}
-                placeholder="Gate colour, landmark, floor…"
-                className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-              />
-            </label>
-
-            <div className="mt-4">
-              <span className="text-xs font-medium text-muted-foreground">Payment</span>
-              <div className="mt-1 flex gap-2">
-                {(
-                  [
-                    { key: "stk_push", label: "M-PESA" },
-                    { key: "cash", label: "Cash" },
-                  ] as const
-                ).map((option) => (
-                  <button
-                    key={option.key}
-                    onClick={() => setPaymentMethod(option.key)}
-                    className={`flex-1 rounded-full px-3 py-2.5 text-sm font-semibold transition-colors ${
-                      paymentMethod === option.key
-                        ? "bg-primary text-primary-foreground"
-                        : "border border-border bg-secondary text-secondary-foreground"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {paymentMethod === "stk_push" && (
-              <label className="mt-3 block">
-                <span className="text-xs font-medium text-muted-foreground">M-PESA number</span>
-                <input
-                  value={msisdn}
-                  onChange={(event) => setMsisdn(event.target.value)}
-                  inputMode="tel"
-                  placeholder="07XX XXX XXX"
-                  className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-                />
-              </label>
-            )}
-
-            <p className="mt-2 rounded-2xl bg-secondary px-3 py-2.5 text-xs leading-relaxed text-secondary-foreground">
-              {paymentMethod === "stk_push"
-                ? "Paying by M-PESA settles the whole trip — nothing more to pay the driver."
-                : "Cash means you settle with the driver at the end of the trip."}
-            </p>
-
-            {/* Promo code */}
-            <div className="mt-4">
-              <span className="text-xs font-medium text-muted-foreground">Promo code</span>
-              <div className="mt-1 flex gap-2">
-                <input
-                  value={promoInput}
-                  onChange={(e) => {
-                    setPromoInput(e.target.value);
-                    setPromoError(null);
-                  }}
-                  placeholder="Enter a code"
-                  className="flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-sm uppercase"
-                />
+          {/* Stops along the way, in the order the customer arranges them. */}
+          {dropoff ? (
+            <div className="mt-4 rounded-2xl border border-border bg-card p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-foreground">Stops along the way</p>
                 <button
-                  onClick={() => applyingPromo.mutate()}
-                  disabled={applyingPromo.isPending || promoInput.trim().length < 2 || !chosen?.available}
-                  className="rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold"
+                  onClick={() => openSearch("stop")}
+                  disabled={stops.length >= 4}
+                  className="rounded-full border border-input px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-50"
                 >
-                  {applyingPromo.isPending ? "Checking…" : "Apply"}
+                  Add a stop
                 </button>
               </div>
-              {appliedPromo ? (
-                <div className="mt-2 rounded-xl bg-success/10 px-3 py-2.5 text-xs text-success">
-                  <p className="font-semibold">
-                    {appliedPromo.code} applied — {appliedPromo.discount_percent}% off
-                  </p>
-                  <p>
-                    You save KES {appliedPromo.discount_amount.toFixed(2)} — new fare KES{" "}
-                    {appliedPromo.total_fare.toFixed(2)}.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setAppliedPromo(null);
-                      setPromoInput("");
-                      setPromoError(null);
-                      setPromoStatus(null);
-                    }}
-                    className="mt-1 underline"
-                  >
-                    Remove code
-                  </button>
-                </div>
-              ) : null}
-              {promoError ? <p className="mt-2 text-xs text-destructive">{promoError}</p> : null}
+              {stops.length === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Need to pick someone up or drop something off? Add a stop and order them as you like.
+                </p>
+              ) : (
+                <ol className="mt-2 space-y-2">
+                  {stops.map((stop, index) => (
+                    <li
+                      key={`${label(stop)}-${index}`}
+                      className="flex items-center gap-2 rounded-xl bg-secondary/50 px-3 py-2"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{label(stop)}</span>
+                      <button
+                        onClick={() => moveStop(index, -1)}
+                        disabled={index === 0}
+                        aria-label="Move stop earlier"
+                        className="rounded-full border border-input px-2 py-1 text-xs disabled:opacity-40"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onClick={() => moveStop(index, 1)}
+                        disabled={index === stops.length - 1}
+                        aria-label="Move stop later"
+                        className="rounded-full border border-input px-2 py-1 text-xs disabled:opacity-40"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        onClick={() => setStops((current) => current.filter((_, i) => i !== index))}
+                        aria-label="Remove stop"
+                        className="rounded-full border border-input px-2 py-1 text-xs text-destructive"
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
+          ) : null}
 
-            {/* No separate fare lock: this prices the route and finds a driver. */}
+          {/* Recent and saved destinations, straight from the customer's own data. */}
+          {!dropoff && (recents.length > 0 || (saved.data?.length ?? 0) > 0) ? (
+            <div className="mt-3 space-y-1.5">
+              {(saved.data ?? []).map((place) => (
+                <button
+                  key={place.id}
+                  onClick={() =>
+                    choosePlace({
+                      lat: Number(place.lat),
+                      lng: Number(place.lng),
+                      label: place.label,
+                      address: place.address,
+                    })
+                  }
+                  className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+                >
+                  <span className="text-base">★</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-foreground">{place.label}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {place.address ?? "Saved place"}
+                    </span>
+                  </span>
+                </button>
+              ))}
+              {recents.map((place, index) => (
+                <button
+                  key={`${label(place)}-${index}`}
+                  onClick={() => choosePlace(place)}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
+                >
+                  <span className="text-base">↻</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-foreground">{label(place)}</span>
+                    <span className="block truncate text-xs text-muted-foreground">Recent</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {readyForRide ? (
             <button
-              disabled={
-                requesting.isPending || (paymentMethod === "stk_push" && msisdn.trim().length < 9)
-              }
+              onClick={() => setStep("ride")}
+              className="mt-5 w-full rounded-full bg-primary px-4 py-3.5 text-sm font-bold text-primary-foreground"
+            >
+              {estimating.isPending
+                ? "Checking prices…"
+                : `Choose your ride${estimating.data ? ` · ${estimating.data.distance_km.toFixed(1)} km` : ""}`}
+            </button>
+          ) : (
+            <p className="mt-4 rounded-2xl border border-border bg-secondary px-3 py-3 text-sm text-secondary-foreground">
+              Tell us where you're going and we'll show every ride option with its price.
+            </p>
+          )}
+        </div>
+      ) : (
+        /* Step two: pick the ride and how you'll pay. The bottom dock is hidden
+           so the request button is the only thing left to tap. */
+        <div className="mx-auto max-w-md px-4 py-4 pb-40">
+          <button
+            onClick={() => setStep("where")}
+            className="rounded-full border border-input px-3 py-1.5 text-xs font-semibold text-foreground"
+          >
+            ← Change trip
+          </button>
+
+          <dl className="mt-3 space-y-1 rounded-2xl border border-border bg-card p-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Pickup</dt>
+              <dd className="truncate text-right text-foreground">{label(pickup)}</dd>
+            </div>
+            {stops.map((stop, index) => (
+              <div key={`summary-${index}`} className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Stop {index + 1}</dt>
+                <dd className="truncate text-right text-foreground">{label(stop)}</dd>
+              </div>
+            ))}
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Destination</dt>
+              <dd className="truncate text-right text-foreground">{label(dropoff)}</dd>
+            </div>
+            {estimating.data ? (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Trip</dt>
+                <dd className="text-right text-foreground">
+                  {estimating.data.distance_km.toFixed(1)} km · {Math.round(estimating.data.duration_minutes)} min
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+
+          <h2 className="mt-5 font-display text-lg font-bold text-foreground">Choose your ride</h2>
+          <div className="mt-2 space-y-2">
+            {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((option) => {
+              const priced = estimates.find((item) => item.vehicleClass === option);
+              const selected = vehicleClass === option;
+              const unavailable = priced ? !priced.available : false;
+              return (
+                <button
+                  key={option}
+                  disabled={unavailable}
+                  onClick={() => setVehicleClass(option)}
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-colors ${
+                    selected ? "border-primary bg-accent" : "border-border bg-card"
+                  } disabled:opacity-60`}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground">{CLASS_LABELS[option].name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {unavailable ? "Not available on this route" : CLASS_LABELS[option].hint}
+                    </span>
+                    {priced && priced.available && priced.discount_percent > 0 ? (
+                      <span className="mt-1 inline-flex rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold text-gold-foreground">
+                        {priced.discount_label ?? `${priced.discount_percent}% off`}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 text-right">
+                    {priced && priced.available ? (
+                      <>
+                        {priced.discount_percent > 0 ? (
+                          <span className="block text-xs text-muted-foreground line-through">
+                            KES {priced.total_before_discount.toFixed(0)}
+                          </span>
+                        ) : null}
+                        <span className="font-display text-base font-bold text-foreground">
+                          KES {priced.total.toFixed(0)}
+                        </span>
+                      </>
+                    ) : estimating.isPending ? (
+                      <span className="text-xs text-muted-foreground">…</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {estimating.isError ? (
+            <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
+          ) : null}
+
+          <div className="mt-5">
+            <span className="text-xs font-medium text-muted-foreground">Payment</span>
+            <div className="mt-1 flex gap-2">
+              {(
+                [
+                  { key: "stk_push", label: "M-PESA" },
+                  { key: "cash", label: "Cash" },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.key}
+                  onClick={() => setPaymentMethod(option.key)}
+                  className={`flex-1 rounded-full px-3 py-2.5 text-sm font-semibold transition-colors ${
+                    paymentMethod === option.key
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border bg-secondary text-secondary-foreground"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {paymentMethod === "stk_push" && (
+            <label className="mt-3 block">
+              <span className="text-xs font-medium text-muted-foreground">M-PESA number</span>
+              <input
+                value={msisdn}
+                onChange={(event) => {
+                  setMsisdnTouched(true);
+                  setMsisdn(event.target.value);
+                }}
+                inputMode="tel"
+                placeholder="07XX XXX XXX"
+                className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+              />
+              {me?.profile?.phone && msisdn === me.profile.phone ? (
+                <span className="mt-1 block text-[11px] text-muted-foreground">
+                  Using the number on your account — change it if someone else is paying.
+                </span>
+              ) : null}
+            </label>
+          )}
+
+          <p className="mt-2 rounded-2xl bg-secondary px-3 py-2.5 text-xs leading-relaxed text-secondary-foreground">
+            {paymentMethod === "stk_push"
+              ? "Paying by M-PESA settles the whole trip — nothing more to pay the driver."
+              : "Cash means you settle with the driver at the end of the trip."}
+          </p>
+
+          <label className="mt-4 block">
+            <span className="text-xs font-medium text-muted-foreground">Pickup notes (optional)</span>
+            <input
+              value={pickupNotes}
+              onChange={(event) => setPickupNotes(event.target.value)}
+              placeholder="Gate colour, landmark, floor…"
+              className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+
+          {/* Promo code */}
+          <div className="mt-4">
+            <span className="text-xs font-medium text-muted-foreground">Promo code</span>
+            <div className="mt-1 flex gap-2">
+              <input
+                value={promoInput}
+                onChange={(e) => {
+                  setPromoInput(e.target.value);
+                  setPromoError(null);
+                }}
+                placeholder="Enter a code"
+                className="flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-sm uppercase"
+              />
+              <button
+                onClick={() => applyingPromo.mutate()}
+                disabled={applyingPromo.isPending || promoInput.trim().length < 2 || !chosen?.available}
+                className="rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold"
+              >
+                {applyingPromo.isPending ? "Checking…" : "Apply"}
+              </button>
+            </div>
+            {appliedPromo ? (
+              <div className="mt-2 rounded-xl bg-success/10 px-3 py-2.5 text-xs text-success">
+                <p className="font-semibold">
+                  {appliedPromo.code} applied — {appliedPromo.discount_percent}% off
+                </p>
+                <p>
+                  You save KES {appliedPromo.discount_amount.toFixed(2)} — new fare KES{" "}
+                  {appliedPromo.total_fare.toFixed(2)}.
+                </p>
+                <button
+                  onClick={() => {
+                    setAppliedPromo(null);
+                    setPromoInput("");
+                    setPromoError(null);
+                    setPromoStatus(null);
+                  }}
+                  className="mt-1 underline"
+                >
+                  Remove code
+                </button>
+              </div>
+            ) : null}
+            {promoError ? <p className="mt-2 text-xs text-destructive">{promoError}</p> : null}
+          </div>
+
+          {requesting.isError && (
+            <p className="mt-3 text-sm text-destructive">{(requesting.error as Error).message}</p>
+          )}
+
+          {/* Floating request button: the only action at this step. */}
+          <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-6">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/90 to-transparent" />
+            <button
+              disabled={requesting.isPending || (paymentMethod === "stk_push" && msisdn.trim().length < 9)}
               onClick={() => requesting.mutate()}
-              className="mt-4 w-full rounded-full bg-primary px-4 py-3.5 text-sm font-bold text-primary-foreground shadow-sm disabled:opacity-60"
+              className="relative mx-auto block w-full max-w-md rounded-full bg-primary px-4 py-4 text-sm font-bold text-primary-foreground shadow-[0_16px_40px_-12px_rgba(0,0,0,0.55)] disabled:opacity-60"
             >
               {requesting.isPending
                 ? "Finding your driver…"
@@ -620,12 +710,9 @@ function BookPage() {
                     chosen && chosen.available ? ` · KES ${chosen.total.toFixed(0)}` : ""
                   }`}
             </button>
-            {requesting.isError && (
-              <p className="mt-2 text-sm text-destructive">{(requesting.error as Error).message}</p>
-            )}
-          </>
-        ) : null}
-      </div>
+          </div>
+        </div>
+      )}
 
       {searchOpen ? (
         <div className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -636,33 +723,33 @@ function BookPage() {
             >
               Close
             </button>
-            <p className="font-display text-lg font-bold text-foreground">Where to?</p>
+            <p className="font-display text-lg font-bold text-foreground">
+              {searchTarget === "stop" ? "Add a stop" : "Where to?"}
+            </p>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <PlaceSearch
               prominent
               inputRef={searchInput}
-              placeholder="Type your destination"
+              placeholder={searchTarget === "stop" ? "Search for a stop" : "Type your destination"}
               near={pickup ?? dropoff}
-              value={pendingDropoff?.label ?? null}
+              value={null}
               onSuggestionsChange={setSuggestionsOpen}
-              onPick={(place) => {
-                // No confirmation step: picking a destination closes the search
-                // and shows the ride options immediately.
-                chooseDestination({
+              onPick={(place) =>
+                choosePlace({
                   lat: place.lat,
                   lng: place.lng,
                   label: place.label,
                   address: place.address,
-                });
-              }}
+                })
+              }
             />
             {!suggestionsOpen
               ? (saved.data ?? []).map((place) => (
                   <button
                     key={place.id}
                     onClick={() =>
-                      chooseDestination({
+                      choosePlace({
                         lat: Number(place.lat),
                         lng: Number(place.lng),
                         label: place.label,
@@ -680,7 +767,7 @@ function BookPage() {
               ? recents.map((place, index) => (
                   <button
                     key={`recent-${index}`}
-                    onClick={() => chooseDestination(place)}
+                    onClick={() => choosePlace(place)}
                     className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
                   >
                     <span>↻</span>
@@ -688,7 +775,6 @@ function BookPage() {
                   </button>
                 ))
               : null}
-
           </div>
         </div>
       ) : null}
