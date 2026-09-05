@@ -253,6 +253,8 @@ export const createQuote = createServerFn({ method: "POST" })
         dropoff_lat: data.dropoff.lat,
         dropoff_lng: data.dropoff.lng,
         dropoff_address: data.dropoff.address ?? null,
+        stops: (data.stops ?? []) as never,
+
         distance_km: route.distance_km,
         duration_minutes: route.duration_minutes,
         route_provider: route.provider,
