@@ -11,10 +11,44 @@ const pointSchema = z.object({
 const quoteSchema = z.object({
   pickup: pointSchema,
   dropoff: pointSchema,
+  /** Extra stops, in the order the customer arranged them. */
+  stops: z.array(pointSchema).max(4).optional().default([]),
   vehicleClass: z.enum(["go", "plus", "comfort", "xl", "boda", "e_boda"]).default("go"),
   pickupNotes: z.string().max(400).optional().nullable(),
   promoCode: z.string().trim().max(40).optional().nullable(),
 });
+
+/**
+ * Prices a trip that may pass through stops: each leg is routed in the order the
+ * customer arranged them, and the legs are added up into one journey.
+ */
+async function routeThroughStops(
+  points: { lat: number; lng: number }[],
+): Promise<{
+  distance_km: number;
+  duration_minutes: number;
+  provider: string;
+  polyline: string | null;
+  traffic_aware: boolean;
+  raw: unknown;
+}> {
+  const { getMapProvider } = await import("./adapters/map.server");
+  const provider = getMapProvider();
+  const legs = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    legs.push(await provider.route(points[index]!, points[index + 1]!));
+  }
+  const first = legs[0]!;
+  return {
+    distance_km: Number(legs.reduce((sum, leg) => sum + leg.distance_km, 0).toFixed(3)),
+    duration_minutes: Number(legs.reduce((sum, leg) => sum + leg.duration_minutes, 0).toFixed(1)),
+    provider: first.provider,
+    polyline: legs.length === 1 ? first.polyline : null,
+    traffic_aware: first.traffic_aware,
+    raw: { legs: legs.map((leg) => leg.raw) },
+  };
+}
+
 
 const requestSchema = z.object({
   quoteId: z.string().uuid(),
