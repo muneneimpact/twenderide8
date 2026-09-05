@@ -382,6 +382,32 @@ export const advanceRide = createServerFn({ method: "POST" })
 
     if (data.next === "trip_completed") {
       const settlement = await settleRide(ride.id);
+      // Release any job the driver lined up behind this trip: it becomes their
+      // current trip and the waiting customer is told they are now on the way.
+      const { data: queued } = await supabaseAdmin
+        .from("rides")
+        .select("id, reference, customer_id")
+        .eq("queued_after_ride_id", ride.id)
+        .in("status", ["driver_assigned", "driver_arriving", "driver_arrived"]);
+      for (const next of queued ?? []) {
+        await supabaseAdmin.from("rides").update({ queued_after_ride_id: null }).eq("id", next.id);
+        await supabaseAdmin.from("ride_status_events").insert({
+          ride_id: next.id,
+          status: "driver_assigned",
+          actor_id: context.userId,
+          actor_role: "driver",
+          note: "Driver finished their previous trip and is heading to this pickup",
+        });
+        await notify({
+          userId: next.customer_id,
+          templateCode: "driver_assigned",
+          title: "Your driver is on the way",
+          body: `Your driver has finished their previous trip and is now heading to your pickup point for ride ${next.reference}.`,
+          rideId: next.id,
+          critical: true,
+        });
+      }
+
       await notify({
         userId: ride.customer_id,
         templateCode: "trip_completed",
