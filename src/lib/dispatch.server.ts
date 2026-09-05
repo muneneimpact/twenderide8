@@ -25,12 +25,26 @@ interface EligibleDriver {
   vehicle_id: string;
   lat: number;
   lng: number;
+  /** Set when the driver is still finishing a trip that ends near this pickup. */
+  finishing_ride_id?: string | null;
+  /** Rough minutes left on that current trip before they can set off. */
+  finishing_minutes?: number;
 }
 
-/** Approved, online, idle drivers of the right class who are not already engaged. */
+/** How close a running trip must end to the new pickup before we chain it. */
+export const CHAIN_HANDOVER_KM = 3;
+/** Assumed minutes still to run on a trip we chain behind. */
+const CHAIN_TAIL_MINUTES = 6;
+
+/**
+ * Approved, online drivers of the right class. Idle drivers come first, but a
+ * driver whose current trip ends close to this pickup is also eligible: they
+ * can line the job up and set off the moment they drop their passenger.
+ */
 async function eligibleDrivers(
   vehicleClass: string,
   cashRide: boolean,
+  pickup: { lat: number; lng: number },
 ): Promise<EligibleDriver[]> {
   const { data: drivers } = await supabaseAdmin
     .from("drivers")
@@ -42,15 +56,32 @@ async function eligibleDrivers(
   // Only genuinely live trips block a driver. A job that has sat untouched for
   // hours was abandoned (app closed mid-trip) and must not lock the driver out
   // of every future request.
-  const busy = new Set(
-    (
-      await supabaseAdmin
-        .from("rides")
-        .select("driver_id")
-        .in("status", ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"])
-        .gt("updated_at", new Date(Date.now() - ABANDONED_RIDE_MS).toISOString())
-    ).data?.map((row) => row.driver_id) ?? [],
-  );
+  const { data: liveRides } = await supabaseAdmin
+    .from("rides")
+    .select("id, driver_id, status, quote_id, queued_after_ride_id")
+    .in("status", ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"])
+    .gt("updated_at", new Date(Date.now() - ABANDONED_RIDE_MS).toISOString());
+
+  const busy = new Set<string>();
+  // Drivers who already have a job lined up behind their current one are full.
+  const chainable = new Map<string, { rideId: string; quoteId: string }>();
+  for (const ride of liveRides ?? []) {
+    if (!ride.driver_id) continue;
+    busy.add(ride.driver_id);
+    if (ride.queued_after_ride_id) continue;
+    if (ride.status === "trip_started") chainable.set(ride.driver_id, { rideId: ride.id, quoteId: ride.quote_id });
+  }
+  // A driver already carrying a queued ride must never be chained twice.
+  for (const ride of liveRides ?? []) {
+    if (ride.driver_id && ride.queued_after_ride_id) chainable.delete(ride.driver_id);
+  }
+
+  // Where each chainable trip ends decides whether it is worth chaining.
+  const quoteIds = [...chainable.values()].map((entry) => entry.quoteId);
+  const { data: quotes } = quoteIds.length
+    ? await supabaseAdmin.from("route_quotes").select("id, dropoff_lat, dropoff_lng").in("id", quoteIds)
+    : { data: [] };
+  const quoteMap = new Map((quotes ?? []).map((q) => [q.id, q]));
 
   // Concurrency: a driver holding a live offer for another request is not
   // offered a second one, so simultaneous bookings fan out to distinct drivers.
@@ -59,7 +90,10 @@ async function eligibleDrivers(
     .select("driver_id")
     .eq("status", "offered")
     .gt("expires_at", new Date().toISOString());
-  for (const row of pending ?? []) busy.add(row.driver_id);
+  for (const row of pending ?? []) {
+    busy.add(row.driver_id);
+    chainable.delete(row.driver_id);
+  }
 
   const vehicleIds = (drivers ?? []).map((d) => d.active_vehicle_id).filter(Boolean) as string[];
   const { data: vehicles } = vehicleIds.length
@@ -67,21 +101,42 @@ async function eligibleDrivers(
     : { data: [] };
   const vehicleMap = new Map((vehicles ?? []).map((v) => [v.id, v]));
 
-  return (drivers ?? [])
-    .filter((driver) => {
-      if (busy.has(driver.id)) return false;
-      if (cashRide && driver.cash_jobs_blocked) return false;
-      if (driver.last_lat == null || driver.last_lng == null) return false;
-      const vehicle = driver.active_vehicle_id ? vehicleMap.get(driver.active_vehicle_id) : null;
-      return Boolean(vehicle && vehicle.status === "approved" && vehicle.vehicle_class === vehicleClass);
-    })
-    .map((driver) => ({
+  const eligible: EligibleDriver[] = [];
+  for (const driver of drivers ?? []) {
+    if (cashRide && driver.cash_jobs_blocked) continue;
+    const vehicle = driver.active_vehicle_id ? vehicleMap.get(driver.active_vehicle_id) : null;
+    if (!vehicle || vehicle.status !== "approved" || vehicle.vehicle_class !== vehicleClass) continue;
+
+    if (!busy.has(driver.id)) {
+      if (driver.last_lat == null || driver.last_lng == null) continue;
+      eligible.push({
+        driver_id: driver.id,
+        vehicle_id: driver.active_vehicle_id as string,
+        lat: Number(driver.last_lat),
+        lng: Number(driver.last_lng),
+      });
+      continue;
+    }
+
+    const chain = chainable.get(driver.id);
+    if (!chain) continue;
+    const quote = quoteMap.get(chain.quoteId);
+    if (!quote) continue;
+    const endsAt = { lat: Number(quote.dropoff_lat), lng: Number(quote.dropoff_lng) };
+    if (haversineKm(endsAt, pickup) > CHAIN_HANDOVER_KM) continue;
+    eligible.push({
       driver_id: driver.id,
       vehicle_id: driver.active_vehicle_id as string,
-      lat: Number(driver.last_lat),
-      lng: Number(driver.last_lng),
-    }));
+      // Rank them from where they will actually be free, not where they are now.
+      lat: endsAt.lat,
+      lng: endsAt.lng,
+      finishing_ride_id: chain.rideId,
+      finishing_minutes: CHAIN_TAIL_MINUTES,
+    });
+  }
+  return eligible;
 }
+
 
 /**
  * Walks hex rings outward from the pickup hex, collecting drivers until we have
