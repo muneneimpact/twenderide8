@@ -884,14 +884,18 @@ export const claimRide = createServerFn({ method: "POST" })
       actor_id: context.userId,
       actor_role: "driver",
     });
+    const queue = await queueBehindCurrentTrip(ride.id, context.userId);
     await notify({
       userId: ride.customer_id,
       templateCode: "driver_assigned",
-      title: "Driver on the way",
-      body: `A driver accepted ride ${ride.reference} and is heading to your pickup point.`,
+      title: queue.queued ? "Driver booked — finishing another trip" : "Driver on the way",
+      body: queue.queued
+        ? `A driver near you accepted ride ${ride.reference}. They are dropping off another passenger close by and will head to you as soon as that trip ends.`
+        : `A driver accepted ride ${ride.reference} and is heading to your pickup point.`,
       rideId: ride.id,
       critical: true,
     });
-    await audit(context.userId, "open_ride_claimed", "ride", ride.id, {});
-    return { ok: true, reason: "assigned", ride_id: ride.id };
+    await audit(context.userId, "open_ride_claimed", "ride", ride.id, { queued: queue.queued });
+    return { ok: true, reason: queue.queued ? "queued" : "assigned", ride_id: ride.id };
+
   });
