@@ -104,6 +104,25 @@ export const getDriverHome = createServerFn({ method: "POST" })
       customer = profile ?? { id: activeRide.customer_id, full_name: null, phone: null };
     }
 
+    // The job waiting behind the current trip, so the driver can plan ahead.
+    let queuedRoute: { pickup_address: string | null; dropoff_address: string | null; distance_km: number } | null =
+      null;
+    if (queuedRide) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: quote } = await supabaseAdmin
+        .from("route_quotes")
+        .select("pickup_address, dropoff_address, distance_km")
+        .eq("id", queuedRide.quote_id)
+        .maybeSingle();
+      queuedRoute = quote
+        ? {
+            pickup_address: quote.pickup_address,
+            dropoff_address: quote.dropoff_address,
+            distance_km: Number(quote.distance_km),
+          }
+        : null;
+    }
+
     return {
       driver,
       vehicles: vehicles ?? [],
@@ -112,9 +131,12 @@ export const getDriverHome = createServerFn({ method: "POST" })
       offers: offers ?? [],
       activeRide,
       activeRoute,
+      queuedRide,
+      queuedRoute,
       customer,
       recent: recent ?? [],
     };
+
   });
 
 /** Going online requires an approved driver record and an approved active vehicle. */
