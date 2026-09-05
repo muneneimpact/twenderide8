@@ -2,6 +2,32 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+const LIVE_STATUSES = ["driver_assigned", "driver_arriving", "driver_arrived", "trip_started"] as const;
+
+/**
+ * A driver may line up a next job while still finishing the current one. When
+ * that happens the new ride is parked behind the running trip so the customer
+ * can be told honestly: the driver is close by, but dropping someone off first.
+ */
+async function queueBehindCurrentTrip(rideId: string, driverId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: running } = await supabaseAdmin
+    .from("rides")
+    .select("id, reference")
+    .eq("driver_id", driverId)
+    .in("status", LIVE_STATUSES as unknown as string[])
+    .neq("id", rideId)
+    .is("queued_after_ride_id", null)
+    .order("assigned_at", { ascending: true })
+    .limit(1);
+  const current = running?.[0];
+  if (!current) return { queued: false, afterRideId: null as string | null };
+  await supabaseAdmin.from("rides").update({ queued_after_ride_id: current.id }).eq("id", rideId);
+  return { queued: true, afterRideId: current.id };
+}
+
+
+
 /** Driver dashboard: approval state, active vehicle, wallet, live offers. */
 export const getDriverHome = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
