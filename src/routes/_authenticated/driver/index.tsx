@@ -558,6 +558,28 @@ function DriverHome() {
           </section>
         )}
 
+        {/* A job lined up behind the current trip. */}
+        {queuedRide && (
+          <section className="surface-card p-4">
+            <h3 className="text-sm font-semibold text-foreground">Next up · {queuedRide.reference}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Waiting for you to finish the current trip. Head there as soon as you drop off — the customer already
+              knows you're close by.
+            </p>
+            {queuedRoute && (
+              <p className="mt-2 text-sm text-foreground">
+                Pick up at {queuedRoute.pickup_address ?? "pin on the map"} → {queuedRoute.dropoff_address ?? "pin on the map"}{" "}
+                ({queuedRoute.distance_km.toFixed(1)} km)
+              </p>
+            )}
+            <p className="mt-2 font-display text-lg font-semibold text-foreground">
+              KES {Number(queuedRide.total_fare).toFixed(2)}
+            </p>
+          </section>
+        )}
+
+
+
         {/* Recent */}
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Recent trips</h3>
