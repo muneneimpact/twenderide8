@@ -256,6 +256,22 @@ export async function dispatchRide(
     });
   }
 
+  // Every other free driver in range still sees the job on their open board,
+  // so they get an alert on their phone too — without a personal offer.
+  const offered = new Set(candidates.map((candidate) => candidate.driver_id));
+  const wider = searchHexRings(pickup, drivers, radiusKm, 12).filter(
+    (driver) => !offered.has(driver.driver_id) && !driver.finishing_ride_id,
+  );
+  for (const driver of wider.slice(0, 8)) {
+    await notify({
+      userId: driver.driver_id,
+      templateCode: "ride_open",
+      title: "New ride available",
+      body: `A customer nearby (about ${driver.straight_km.toFixed(1)} km) is looking for a taxi. Open the app to take it.`,
+      rideId,
+      dedupeKey: `open:${rideId}:${driver.driver_id}`,
+    });
+  }
 
   return {
     offers: candidates.length,
