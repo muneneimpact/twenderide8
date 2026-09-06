@@ -15,7 +15,7 @@ async function queueBehindCurrentTrip(rideId: string, driverId: string) {
     .from("rides")
     .select("id, reference")
     .eq("driver_id", driverId)
-    .in("status", LIVE_STATUSES as unknown as string[])
+    .in("status", [...LIVE_STATUSES])
     .neq("id", rideId)
     .is("queued_after_ride_id", null)
     .order("assigned_at", { ascending: true })
