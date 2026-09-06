@@ -933,6 +933,16 @@ export const claimRide = createServerFn({ method: "POST" })
       rideId: ride.id,
       critical: true,
     });
+    await notify({
+      userId: context.userId,
+      templateCode: "ride_accepted_driver",
+      title: queue.queued ? "Ride queued after your current trip" : "Ride accepted",
+      body: queue.queued
+        ? `Ride ${ride.reference} is yours. Head there as soon as you drop your current passenger.`
+        : `Ride ${ride.reference} is yours. Head to the pickup point now.`,
+      rideId: ride.id,
+      dedupeKey: `accepted:${ride.id}:${context.userId}`,
+    });
     await audit(context.userId, "open_ride_claimed", "ride", ride.id, { queued: queue.queued });
     return { ok: true, reason: queue.queued ? "queued" : "assigned", ride_id: ride.id };
 
