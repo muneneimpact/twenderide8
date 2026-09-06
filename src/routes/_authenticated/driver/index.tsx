@@ -205,7 +205,7 @@ function DriverHome() {
     );
   }
 
-  const { driver, vehicles, wallet, offers, activeRide, activeRoute, customer, recent, documents } = home.data!;
+  const { driver, vehicles, wallet, offers, activeRide, activeRoute, queuedRide, queuedRoute, customer, recent, documents } = home.data!;
 
   if (!driver) {
     return (
