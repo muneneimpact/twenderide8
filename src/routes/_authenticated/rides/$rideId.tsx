@@ -180,6 +180,36 @@ function RideDetail() {
           )}
         </section>
 
+        {/* The driver may be dropping someone off nearby before starting yours. */}
+        {ride.queued_after_ride_id && !ride.status.startsWith("cancelled") ? (
+          <section className="mt-4 rounded-xl border border-warning/40 bg-warning/10 p-4">
+            <h3 className="text-sm font-semibold text-foreground">Your driver is close by, finishing another trip</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              They accepted your ride and will set off to your pickup point as soon as they drop off their current
+              passenger nearby. We'll tell you the moment they're on the way.
+            </p>
+          </section>
+        ) : null}
+
+        {/* Stops the customer arranged along the way. */}
+        {Array.isArray(quote?.stops) && (quote.stops as { address?: string | null }[]).length > 0 ? (
+          <section className="mt-4 rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground">Stops along the way</h3>
+            <ol className="mt-2 space-y-1.5">
+              {(quote!.stops as { address?: string | null }[]).map((stop, index) => (
+                <li key={index} className="flex items-center gap-2 text-sm text-foreground">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {index + 1}
+                  </span>
+                  <span className="truncate">{stop.address ?? "Stop"}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
+
+
+
         {(driver || vehicle) && (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold text-foreground">Your driver</h3>
