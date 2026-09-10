@@ -61,7 +61,7 @@ async function request<T>(
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: init.body ? JSON.stringify(init.body) : undefined,
+    body: init.body ? JSON.stringify(init.body) : null,
   });
 
   let payload: Record<string, unknown> = {};
