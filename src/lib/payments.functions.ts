@@ -106,7 +106,7 @@ export const getPaymentStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ rideId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { data: intent } = await context.supabase
+    let { data: intent } = await context.supabase
       .from("payment_intents")
       .select(
         "id, status, mode, provider, provider_reference, provider_response, failure_reason, amount, msisdn, created_at",
