@@ -29,6 +29,7 @@ import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authent
 import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authenticated/rides/index'
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
 import { Route as ApiPublicBootstrapSuperAdminRouteImport } from './routes/api/public/bootstrap-super-admin'
+import { Route as ApiPublicPaymentsCallbackRouteImport } from './routes/api/public/payments/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -138,6 +139,12 @@ const ApiPublicBootstrapSuperAdminRoute =
     path: '/api/public/bootstrap-super-admin',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicPaymentsCallbackRoute =
+  ApiPublicPaymentsCallbackRouteImport.update({
+    id: '/api/public/payments/callback',
+    path: '/api/public/payments/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/driver/': typeof AuthenticatedDriverIndexRoute
   '/rides/': typeof AuthenticatedRidesIndexRoute
+  '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -180,6 +188,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/driver': typeof AuthenticatedDriverIndexRoute
   '/rides': typeof AuthenticatedRidesIndexRoute
+  '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -203,6 +212,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/driver/': typeof AuthenticatedDriverIndexRoute
   '/_authenticated/rides/': typeof AuthenticatedRidesIndexRoute
+  '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -226,6 +236,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/driver/'
     | '/rides/'
+    | '/api/public/payments/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -247,6 +258,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/driver'
     | '/rides'
+    | '/api/public/payments/callback'
   id:
     | '__root__'
     | '/'
@@ -269,6 +281,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/'
     | '/_authenticated/driver/'
     | '/_authenticated/rides/'
+    | '/api/public/payments/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -278,6 +291,7 @@ export interface RootRouteChildren {
   AuthDriversRoute: typeof AuthDriversRoute
   AuthIndexRoute: typeof AuthIndexRoute
   ApiPublicBootstrapSuperAdminRoute: typeof ApiPublicBootstrapSuperAdminRoute
+  ApiPublicPaymentsCallbackRoute: typeof ApiPublicPaymentsCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -422,6 +436,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicBootstrapSuperAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/payments/callback': {
+      id: '/api/public/payments/callback'
+      path: '/api/public/payments/callback'
+      fullPath: '/api/public/payments/callback'
+      preLoaderRoute: typeof ApiPublicPaymentsCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -469,6 +490,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthDriversRoute: AuthDriversRoute,
   AuthIndexRoute: AuthIndexRoute,
   ApiPublicBootstrapSuperAdminRoute: ApiPublicBootstrapSuperAdminRoute,
+  ApiPublicPaymentsCallbackRoute: ApiPublicPaymentsCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
