@@ -651,6 +651,23 @@ export const setModifier = createServerFn({ method: "POST" })
         percent: z.number().min(0).max(200).optional(),
         active: z.boolean().optional(),
         state: z.enum(["draft", "published", "paused", "archived"]).optional(),
+        ramp_mode: z.enum(["none", "linear"]).optional(),
+        peak_percent: z.number().min(0).max(300).nullable().optional(),
+        peak_at: z
+          .string()
+          .regex(/^\d{2}:\d{2}$/)
+          .nullable()
+          .optional(),
+        window_start: z
+          .string()
+          .regex(/^\d{2}:\d{2}$/)
+          .nullable()
+          .optional(),
+        window_end: z
+          .string()
+          .regex(/^\d{2}:\d{2}$/)
+          .nullable()
+          .optional(),
       })
       .parse(input),
   )
@@ -659,13 +676,12 @@ export const setModifier = createServerFn({ method: "POST" })
     await requireRole(context.userId, SUPER);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { audit } = await import("./notifications.server");
-    const patch: { percent?: number; active?: boolean; state?: "draft" | "published" | "paused" | "archived" } = {};
-    if (data.percent !== undefined) patch.percent = data.percent;
-    if (data.active !== undefined) patch.active = data.active;
-    if (data.state !== undefined) patch.state = data.state;
-    const { error } = await supabaseAdmin.from("pricing_modifiers").update(patch).eq("id", data.id);
+    const { id, ...rest } = data;
+    const patch = Object.fromEntries(Object.entries(rest).filter(([, value]) => value !== undefined));
+    if (Object.keys(patch).length === 0) return { ok: true };
+    const { error } = await supabaseAdmin.from("pricing_modifiers").update(patch).eq("id", id);
     if (error) throw new Error(error.message);
-    await audit(context.userId, "pricing_modifier_updated", "pricing_modifier", data.id, patch);
+    await audit(context.userId, "pricing_modifier_updated", "pricing_modifier", id, patch);
     return { ok: true };
   });
 
