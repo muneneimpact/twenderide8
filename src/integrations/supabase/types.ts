@@ -657,6 +657,87 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_quotes: {
+        Row: {
+          admin_notes: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          currency: string
+          days: number
+          drive_mode: string
+          estimated_total: number
+          id: string
+          kind: string
+          notes: string | null
+          organisation: string | null
+          passengers: number
+          quoted_total: number | null
+          reference: string
+          requester_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          start_at: string
+          status: string
+          stops: Json
+          updated_at: string
+          vehicle_class: Database["public"]["Enums"]["vehicle_class"]
+        }
+        Insert: {
+          admin_notes?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          currency?: string
+          days?: number
+          drive_mode?: string
+          estimated_total?: number
+          id?: string
+          kind?: string
+          notes?: string | null
+          organisation?: string | null
+          passengers?: number
+          quoted_total?: number | null
+          reference?: string
+          requester_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          start_at: string
+          status?: string
+          stops?: Json
+          updated_at?: string
+          vehicle_class: Database["public"]["Enums"]["vehicle_class"]
+        }
+        Update: {
+          admin_notes?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          currency?: string
+          days?: number
+          drive_mode?: string
+          estimated_total?: number
+          id?: string
+          kind?: string
+          notes?: string | null
+          organisation?: string | null
+          passengers?: number
+          quoted_total?: number | null
+          reference?: string
+          requester_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          start_at?: string
+          status?: string
+          stops?: Json
+          updated_at?: string
+          vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
+        }
+        Relationships: []
+      }
       incidents: {
         Row: {
           assigned_to: string | null
@@ -993,7 +1074,10 @@ export type Database = {
           customer_label: string
           explanation: string | null
           id: string
+          peak_at: string | null
+          peak_percent: number | null
           percent: number
+          ramp_mode: string
           state: Database["public"]["Enums"]["policy_state"]
           vehicle_class: Database["public"]["Enums"]["vehicle_class"] | null
           window_end: string | null
@@ -1009,7 +1093,10 @@ export type Database = {
           customer_label: string
           explanation?: string | null
           id?: string
+          peak_at?: string | null
+          peak_percent?: number | null
           percent: number
+          ramp_mode?: string
           state?: Database["public"]["Enums"]["policy_state"]
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"] | null
           window_end?: string | null
@@ -1025,7 +1112,10 @@ export type Database = {
           customer_label?: string
           explanation?: string | null
           id?: string
+          peak_at?: string | null
+          peak_percent?: number | null
           percent?: number
+          ramp_mode?: string
           state?: Database["public"]["Enums"]["policy_state"]
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"] | null
           window_end?: string | null
@@ -1908,6 +1998,10 @@ export type Database = {
           colour: string | null
           created_at: string
           fleet_id: string | null
+          hire_available: boolean
+          hire_daily_rate: number | null
+          hire_mode: string
+          hire_notes: string | null
           id: string
           make: string | null
           model: string | null
@@ -1923,6 +2017,10 @@ export type Database = {
           colour?: string | null
           created_at?: string
           fleet_id?: string | null
+          hire_available?: boolean
+          hire_daily_rate?: number | null
+          hire_mode?: string
+          hire_notes?: string | null
           id?: string
           make?: string | null
           model?: string | null
@@ -1938,6 +2036,10 @@ export type Database = {
           colour?: string | null
           created_at?: string
           fleet_id?: string | null
+          hire_available?: boolean
+          hire_daily_rate?: number | null
+          hire_mode?: string
+          hire_notes?: string | null
           id?: string
           make?: string | null
           model?: string | null
