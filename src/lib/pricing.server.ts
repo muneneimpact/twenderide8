@@ -144,9 +144,10 @@ export async function loadPricingContext(
       code: row.code,
       customer_label: row.customer_label,
       explanation: row.explanation,
-      percent: Number(row.percent),
+      percent: rampedPercent(row, minutes),
       applies_to_base: row.applies_to_base as ActiveModifier["applies_to_base"],
-    }));
+    }))
+    .filter((modifier) => modifier.percent > 0);
 
   return {
     config,
