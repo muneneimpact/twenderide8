@@ -50,6 +50,7 @@ export function AuthForm({
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -79,6 +80,8 @@ export function AuthForm({
     setMode(next);
     setStep("form");
     setCode("");
+    setPassword("");
+    setConfirmPassword("");
     setError(null);
     setNotice(null);
   }
@@ -93,7 +96,9 @@ export function AuthForm({
       if (!isValidKenyanPhone(phone)) {
         throw new Error("Enter a valid Kenyan mobile number, for example 0712 345 678.");
       }
-      if (password.length < 8) throw new Error("Choose a password of at least 8 characters.");
+      if (mode !== "forgot" && password.length < 8) {
+        throw new Error("Choose a password of at least 8 characters.");
+      }
       const result = await startPhoneLogin({ data: { phone: normaliseKenyanPhone(phone) } });
       setStep("code");
       setResendIn(result.resendAfterSeconds);
@@ -111,6 +116,10 @@ export function AuthForm({
     setBusy(true);
     setError(null);
     try {
+      if (mode === "forgot") {
+        if (password.length < 8) throw new Error("Choose a password of at least 8 characters.");
+        if (password !== confirmPassword) throw new Error("The two passwords do not match.");
+      }
       const result = await verifyPhoneLogin({
         data: {
           phone: normaliseKenyanPhone(phone),
@@ -281,9 +290,10 @@ export function AuthForm({
                 </>
               )}
 
+              {!resetting && (
               <label className="auth-rise auth-delay-3 block">
                 <span className="text-xs font-medium text-muted-foreground">
-                  {mode === "signin" ? "Password" : "New password"}
+                  {mode === "signin" ? "Password" : "Password"}
                 </span>
                 <input
                   type="password"
@@ -296,6 +306,7 @@ export function AuthForm({
                   className={input}
                 />
               </label>
+              )}
 
               {notice && <p className="auth-rise text-sm text-foreground">{notice}</p>}
               {error && <p className="auth-rise text-sm text-destructive">{error}</p>}
@@ -345,19 +356,49 @@ export function AuthForm({
                   className={`${input} text-center text-lg tracking-[0.5em]`}
                 />
               </label>
+              {resetting && (
+                <>
+                  <label className="auth-rise auth-delay-1 block">
+                    <span className="text-xs font-medium text-muted-foreground">New password</span>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      required
+                      minLength={8}
+                      autoComplete="new-password"
+                      placeholder="At least 8 characters"
+                      className={input}
+                    />
+                  </label>
+                  <label className="auth-rise auth-delay-1 block">
+                    <span className="text-xs font-medium text-muted-foreground">Re-enter new password</span>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      required
+                      minLength={8}
+                      autoComplete="new-password"
+                      placeholder="Type it once more"
+                      className={input}
+                    />
+                  </label>
+                </>
+              )}
               {notice && <p className="auth-rise auth-delay-1 text-sm text-foreground">{notice}</p>}
               {error && <p className="text-sm text-destructive">{error}</p>}
               <button
                 type="submit"
-                disabled={busy || code.length !== 6}
+                disabled={busy || code.length !== 6 || (resetting && password.length < 8)}
                 className="auth-rise auth-delay-2 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-transform active:scale-[0.98] disabled:opacity-60"
               >
                 {busy ? (
                   <span className="inline-flex items-center gap-2">
-                    <span className="auth-spinner" /> Verifying…
+                    <span className="auth-spinner" /> {resetting ? "Saving…" : "Verifying…"}
                   </span>
                 ) : (
-                  "Verify and continue"
+                  resetting ? "Save new password" : "Verify and continue"
                 )}
               </button>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
