@@ -157,6 +157,16 @@ function RideDetail() {
   const copy = statusCopy[ride.status] ?? { title: ride.status, body: "" };
   const cancellable = !["trip_started", "trip_completed"].includes(ride.status) && !ride.status.startsWith("cancelled");
   const paymentStatus = paymentQuery.data?.ride?.payment_status ?? ride.payment_status;
+  const intent = paymentQuery.data?.intent ?? null;
+  const awaitingPayment = ["pending", "initiating", "awaiting_confirmation", "processing"].includes(
+    paymentStatus,
+  );
+  const waitedTooLong =
+    awaitingPayment && waitingSince.current !== null && Date.now() - waitingSince.current >= 90000;
+  const paymentFailed = ["failed", "cancelled", "timed_out"].includes(paymentStatus);
+  const paymentFailure = intent?.failure_reason ?? null;
+  const mpesaReceipt =
+    (intent?.provider_response as { mpesa_receipt?: string } | null | undefined)?.mpesa_receipt ?? null;
 
   return (
     <AppShell title={`Ride ${ride.reference}`}>
