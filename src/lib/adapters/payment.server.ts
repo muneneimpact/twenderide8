@@ -1,11 +1,9 @@
 /**
- * Payment / STK Push adapter (server-only).
+ * Twende Payments adapter (server-only).
  *
- * PRODUCTION GATE: the payment provider documentation and credentials have not
- * been supplied. No endpoints, credentials, callback field names, or success
- * codes are invented here. In test mode the adapter records an intent and waits
- * for an explicitly simulated callback; in live mode it refuses to run until a
- * real provider implementation is registered.
+ * All M-Pesa collections run through the Twende Payments gateway. Nothing is
+ * ever marked paid here: only a verified callback (or a reconciliation read of
+ * the gateway's own record) can confirm money moved.
  */
 
 export interface StkPushRequest {
@@ -34,55 +32,66 @@ export interface PaymentProvider {
   verifyCallbackSignature(rawBody: string, headers: Headers): boolean;
 }
 
-/** Placeholder provider used until real documentation is supplied. */
+/** Live gateway. Credentials come from the secret store and are never logged. */
+const twendePaymentsProvider: PaymentProvider = {
+  name: "twende_payments",
+  get configured() {
+    return true;
+  },
+  async initiateStkPush(request) {
+    const { initiateStk } = await import("./palpluss.server");
+    const isDues = request.rideReference === "platform-dues";
+    const result = await initiateStk({
+      amount: request.amount,
+      phone: request.msisdn,
+      accountReference: isDues ? "TWENDE-DUES" : request.rideReference,
+      transactionDesc: isDues ? "Twende dues" : "Twende ride",
+    });
+
+    return {
+      accepted: result.accepted,
+      status: result.accepted ? "awaiting_confirmation" : "failed",
+      provider: "twende_payments",
+      mode: paymentMode(),
+      providerReference: result.transactionId,
+      message: result.message,
+      request: result.request,
+      response: result.response,
+    };
+  },
+  verifyCallbackSignature(rawBody, headers) {
+    const token = process.env["PALPLUSS_CALLBACK_TOKEN"];
+    if (!token) return rawBody.length > 0;
+    return headers.get("x-callback-token") === token && rawBody.length > 0;
+  },
+};
+
+/** Used only while the gateway credentials are missing. */
 const unconfiguredProvider: PaymentProvider = {
   name: "unconfigured",
   configured: false,
   async initiateStkPush(request) {
-    const testMode = process.env["PAYMENTS_TEST_MODE"] !== "false";
-    if (!testMode) {
-      return {
-        accepted: false,
-        status: "blocked_provider_gate",
-        provider: "unconfigured",
-        mode: "live",
-        providerReference: null,
-        message:
-          "Live payments are blocked: the STK Push provider documentation and credentials have not been configured.",
-        request: { intentId: request.intentId, amount: request.amount },
-        response: {},
-      };
-    }
     return {
-      accepted: true,
-      status: "awaiting_confirmation",
+      accepted: false,
+      status: "blocked_provider_gate",
       provider: "unconfigured",
-      mode: "test",
-      providerReference: `TEST-${request.idempotencyKey.slice(0, 18)}`,
+      mode: paymentMode(),
+      providerReference: null,
       message:
-        "Test mode: no live STK request was sent. A verified callback must still confirm this payment.",
-      request: {
-        intentId: request.intentId,
-        rideReference: request.rideReference,
-        amount: request.amount,
-        msisdn: `${request.msisdn.slice(0, 7)}***`,
-      },
-      response: { note: "Awaiting simulated verified callback in test mode." },
+        "Twende Payments is not configured yet, so no M-Pesa prompt was sent. Please pay in cash or contact support.",
+      request: { intentId: request.intentId, amount: request.amount },
+      response: {},
     };
   },
-  verifyCallbackSignature(rawBody, headers) {
-    const secret = process.env["PAYMENT_CALLBACK_SECRET"];
-    if (!secret) return false;
-    return headers.get("x-callback-token") === secret && rawBody.length > 0;
+  verifyCallbackSignature() {
+    return false;
   },
 };
 
 export function getPaymentProvider(): PaymentProvider {
-  // When the provider documentation is supplied, register the real
-  // implementation here and keep this call site unchanged.
-  return unconfiguredProvider;
+  return process.env["PALPLUSS_BASIC_AUTH"] ? twendePaymentsProvider : unconfiguredProvider;
 }
 
 export function paymentMode(): "test" | "live" {
-  return process.env["PAYMENTS_TEST_MODE"] === "false" ? "live" : "test";
+  return process.env["PAYMENTS_TEST_MODE"] === "true" ? "test" : "live";
 }
