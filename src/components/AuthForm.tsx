@@ -139,6 +139,13 @@ export function AuthForm({
         type: "email",
       });
       if (sessionError) throw sessionError;
+      // A brand-new account gets trip alerts straight away, without waiting for
+      // a trip to arrive first. Declining the browser prompt is not an error.
+      if (mode !== "forgot") {
+        void import("@/lib/push")
+          .then(({ enablePush }) => enablePush())
+          .catch(() => undefined);
+      }
       navigate({ to: destination, replace: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not verify the code. Please try again.");
