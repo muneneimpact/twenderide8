@@ -13,10 +13,8 @@ export const getPaymentGate = createServerFn({ method: "GET" }).handler(async ()
     configured: provider.configured,
     liveBlocked: mode === "live" && !provider.configured,
     message: provider.configured
-      ? "Payment provider connected."
-      : mode === "live"
-        ? "Live STK Push is blocked until the payment provider credentials and documentation are configured."
-        : "Test mode: STK Push requests are recorded but no live request is sent and no payment is ever auto-confirmed.",
+      ? "Twende Payments is connected."
+      : "Twende Payments is not configured yet, so M-Pesa payments are unavailable. Cash still works.",
   };
 });
 
