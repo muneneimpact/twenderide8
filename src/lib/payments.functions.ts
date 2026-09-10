@@ -13,10 +13,8 @@ export const getPaymentGate = createServerFn({ method: "GET" }).handler(async ()
     configured: provider.configured,
     liveBlocked: mode === "live" && !provider.configured,
     message: provider.configured
-      ? "Payment provider connected."
-      : mode === "live"
-        ? "Live STK Push is blocked until the payment provider credentials and documentation are configured."
-        : "Test mode: STK Push requests are recorded but no live request is sent and no payment is ever auto-confirmed.",
+      ? "Twende Payments is connected."
+      : "Twende Payments is not configured yet, so M-Pesa payments are unavailable. Cash still works.",
   };
 });
 
@@ -43,14 +41,34 @@ export const startStkPush = createServerFn({ method: "POST" })
       return { status: "paid" as const, blocked: false, message: "This ride is already paid." };
     }
 
-    const { data: intent } = await supabaseAdmin
+    const { data: latest } = await supabaseAdmin
       .from("payment_intents")
       .select("*")
       .eq("ride_id", ride.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!intent) throw new Error("No payment intent exists for this ride.");
+    if (!latest) throw new Error("No payment record exists for this ride.");
+
+    // A finished attempt is never reused: a retry gets its own transaction so
+    // an old result can never be mistaken for the new one.
+    let intent = latest;
+    if (["failed", "cancelled", "timed_out"].includes(latest.status)) {
+      const { data: fresh } = await supabaseAdmin
+        .from("payment_intents")
+        .insert({
+          ride_id: ride.id,
+          customer_id: ride.customer_id,
+          method: "stk_push",
+          amount: ride.total_fare,
+          msisdn: latest.msisdn,
+          status: "pending",
+          idempotency_key: `retry:${ride.id}:${Date.now()}`,
+        })
+        .select("*")
+        .single();
+      if (fresh) intent = fresh;
+    }
 
     const provider = getPaymentProvider();
     const result = await provider.initiateStkPush({
@@ -90,7 +108,9 @@ export const getPaymentStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: intent } = await context.supabase
       .from("payment_intents")
-      .select("id, status, mode, provider, provider_reference, failure_reason, amount, msisdn, created_at")
+      .select(
+        "id, status, mode, provider, provider_reference, provider_response, failure_reason, amount, msisdn, created_at",
+      )
       .eq("ride_id", data.rideId)
       .order("created_at", { ascending: false })
       .limit(1)

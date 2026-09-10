@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
 import { supabase } from "@/integrations/supabase/client";
@@ -67,10 +67,24 @@ function RideDetail() {
     refetchInterval: 15000,
   });
 
+  // Waiting on an M-Pesa prompt is checked every 3 seconds for a minute and a
+  // half, then it falls back to the slow poll so nobody is left spinning.
+  const waitingSince = useRef<number | null>(null);
   const paymentQuery = useQuery({
     queryKey: ["ride-payment", rideId],
     queryFn: () => fetchPayment({ data: { rideId } }),
-    refetchInterval: 20000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.ride?.payment_status;
+      const waiting =
+        status !== undefined &&
+        ["pending", "initiating", "awaiting_confirmation", "processing"].includes(status);
+      if (!waiting) {
+        waitingSince.current = null;
+        return 20000;
+      }
+      waitingSince.current ??= Date.now();
+      return Date.now() - waitingSince.current < 90000 ? 3000 : 20000;
+    },
   });
 
   // Realtime keeps the status and driver position fresh between polls.
@@ -143,6 +157,16 @@ function RideDetail() {
   const copy = statusCopy[ride.status] ?? { title: ride.status, body: "" };
   const cancellable = !["trip_started", "trip_completed"].includes(ride.status) && !ride.status.startsWith("cancelled");
   const paymentStatus = paymentQuery.data?.ride?.payment_status ?? ride.payment_status;
+  const intent = paymentQuery.data?.intent ?? null;
+  const awaitingPayment = ["pending", "initiating", "awaiting_confirmation", "processing"].includes(
+    paymentStatus,
+  );
+  const waitedTooLong =
+    awaitingPayment && waitingSince.current !== null && Date.now() - waitingSince.current >= 90000;
+  const paymentFailed = ["failed", "cancelled", "timed_out"].includes(paymentStatus);
+  const paymentFailure = intent?.failure_reason ?? null;
+  const mpesaReceipt =
+    (intent?.provider_response as { mpesa_receipt?: string } | null | undefined)?.mpesa_receipt ?? null;
 
   return (
     <AppShell title={`Ride ${ride.reference}`}>
@@ -260,17 +284,51 @@ function RideDetail() {
         ) : null}
 
 
+        {ride.payment_method === "stk_push" && paymentStatus === "paid" && (
+          <section className="mt-4 rounded-xl border border-success/40 bg-success/10 p-4">
+            <h3 className="text-sm font-semibold text-foreground">Payment received</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Twende Payments confirmed KES {Number(ride.total_fare).toFixed(2)} for this ride.
+              {mpesaReceipt ? ` M-Pesa receipt ${mpesaReceipt}.` : ""}
+            </p>
+          </section>
+        )}
+
         {ride.payment_method === "stk_push" && !["paid", "not_required"].includes(paymentStatus) && (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">Pay with M-PESA</h3>
+            <h3 className="text-sm font-semibold text-foreground">Twende Payments</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Pay KES {Number(ride.total_fare).toFixed(2)} with M-Pesa.
+            </p>
+            {awaitingPayment ? (
+              <div className="mt-3 rounded-md bg-secondary p-3">
+                <p className="text-sm font-medium text-foreground">
+                  {waitedTooLong
+                    ? "Your payment is still being confirmed. This page will automatically update once payment is received."
+                    : "Check your phone for the M-Pesa prompt."}
+                </p>
+                {!waitedTooLong && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Enter your M-Pesa PIN to complete the payment.
+                  </p>
+                )}
+              </div>
+            ) : null}
             <button
               onClick={() => paying.mutate()}
               disabled={paying.isPending}
               className="mt-3 w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
-              {paying.isPending ? "Requesting…" : "Send STK Push"}
+              {paying.isPending
+                ? "Sending prompt…"
+                : awaitingPayment || paymentFailed
+                  ? "Send the prompt again"
+                  : "Pay with M-Pesa"}
             </button>
-            {paying.data && (
+            {paymentFailed && paymentFailure && (
+              <p className="mt-2 text-sm text-destructive">{paymentFailure}</p>
+            )}
+            {paying.data && !awaitingPayment && (
               <p className={`mt-2 text-sm ${paying.data.blocked ? "text-warning" : "text-muted-foreground"}`}>
                 {paying.data.message}
               </p>
