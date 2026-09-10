@@ -30,6 +30,7 @@ import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
 import { Route as ApiPublicBootstrapSuperAdminRouteImport } from './routes/api/public/bootstrap-super-admin'
 import { Route as ApiPublicPaymentsCallbackRouteImport } from './routes/api/public/payments/callback'
+import { Route as ApiPublicPaymentsReconcileRouteImport } from './routes/api/public/payments/reconcile'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -145,6 +146,12 @@ const ApiPublicPaymentsCallbackRoute =
     path: '/api/public/payments/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicPaymentsReconcileRoute =
+  ApiPublicPaymentsReconcileRouteImport.update({
+    id: '/api/public/payments/reconcile',
+    path: '/api/public/payments/reconcile',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/driver/': typeof AuthenticatedDriverIndexRoute
   '/rides/': typeof AuthenticatedRidesIndexRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
+  '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -189,6 +197,7 @@ export interface FileRoutesByTo {
   '/driver': typeof AuthenticatedDriverIndexRoute
   '/rides': typeof AuthenticatedRidesIndexRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
+  '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -213,6 +222,7 @@ export interface FileRoutesById {
   '/_authenticated/driver/': typeof AuthenticatedDriverIndexRoute
   '/_authenticated/rides/': typeof AuthenticatedRidesIndexRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
+  '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -237,6 +247,7 @@ export interface FileRouteTypes {
     | '/driver/'
     | '/rides/'
     | '/api/public/payments/callback'
+    | '/api/public/payments/reconcile'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -259,6 +270,7 @@ export interface FileRouteTypes {
     | '/driver'
     | '/rides'
     | '/api/public/payments/callback'
+    | '/api/public/payments/reconcile'
   id:
     | '__root__'
     | '/'
@@ -282,6 +294,7 @@ export interface FileRouteTypes {
     | '/_authenticated/driver/'
     | '/_authenticated/rides/'
     | '/api/public/payments/callback'
+    | '/api/public/payments/reconcile'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -292,6 +305,7 @@ export interface RootRouteChildren {
   AuthIndexRoute: typeof AuthIndexRoute
   ApiPublicBootstrapSuperAdminRoute: typeof ApiPublicBootstrapSuperAdminRoute
   ApiPublicPaymentsCallbackRoute: typeof ApiPublicPaymentsCallbackRoute
+  ApiPublicPaymentsReconcileRoute: typeof ApiPublicPaymentsReconcileRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -443,6 +457,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/payments/reconcile': {
+      id: '/api/public/payments/reconcile'
+      path: '/api/public/payments/reconcile'
+      fullPath: '/api/public/payments/reconcile'
+      preLoaderRoute: typeof ApiPublicPaymentsReconcileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -491,6 +512,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthIndexRoute: AuthIndexRoute,
   ApiPublicBootstrapSuperAdminRoute: ApiPublicBootstrapSuperAdminRoute,
   ApiPublicPaymentsCallbackRoute: ApiPublicPaymentsCallbackRoute,
+  ApiPublicPaymentsReconcileRoute: ApiPublicPaymentsReconcileRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -67,10 +67,24 @@ function RideDetail() {
     refetchInterval: 15000,
   });
 
+  // Waiting on an M-Pesa prompt is checked every 3 seconds for a minute and a
+  // half, then it falls back to the slow poll so nobody is left spinning.
+  const waitingSince = useRef<number | null>(null);
   const paymentQuery = useQuery({
     queryKey: ["ride-payment", rideId],
     queryFn: () => fetchPayment({ data: { rideId } }),
-    refetchInterval: 20000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.ride?.payment_status;
+      const waiting =
+        status !== undefined &&
+        ["pending", "initiating", "awaiting_confirmation", "processing"].includes(status);
+      if (!waiting) {
+        waitingSince.current = null;
+        return 20000;
+      }
+      waitingSince.current ??= Date.now();
+      return Date.now() - waitingSince.current < 90000 ? 3000 : 20000;
+    },
   });
 
   // Realtime keeps the status and driver position fresh between polls.
