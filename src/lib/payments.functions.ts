@@ -90,7 +90,9 @@ export const getPaymentStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: intent } = await context.supabase
       .from("payment_intents")
-      .select("id, status, mode, provider, provider_reference, failure_reason, amount, msisdn, created_at")
+      .select(
+        "id, status, mode, provider, provider_reference, provider_response, failure_reason, amount, msisdn, created_at",
+      )
       .eq("ride_id", data.rideId)
       .order("created_at", { ascending: false })
       .limit(1)
