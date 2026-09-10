@@ -274,17 +274,51 @@ function RideDetail() {
         ) : null}
 
 
+        {ride.payment_method === "stk_push" && paymentStatus === "paid" && (
+          <section className="mt-4 rounded-xl border border-success/40 bg-success/10 p-4">
+            <h3 className="text-sm font-semibold text-foreground">Payment received</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Twende Payments confirmed KES {Number(ride.total_fare).toFixed(2)} for this ride.
+              {mpesaReceipt ? ` M-Pesa receipt ${mpesaReceipt}.` : ""}
+            </p>
+          </section>
+        )}
+
         {ride.payment_method === "stk_push" && !["paid", "not_required"].includes(paymentStatus) && (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">Pay with M-PESA</h3>
+            <h3 className="text-sm font-semibold text-foreground">Twende Payments</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Pay KES {Number(ride.total_fare).toFixed(2)} with M-Pesa.
+            </p>
+            {awaitingPayment ? (
+              <div className="mt-3 rounded-md bg-secondary p-3">
+                <p className="text-sm font-medium text-foreground">
+                  {waitedTooLong
+                    ? "Your payment is still being confirmed. This page will automatically update once payment is received."
+                    : "Check your phone for the M-Pesa prompt."}
+                </p>
+                {!waitedTooLong && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Enter your M-Pesa PIN to complete the payment.
+                  </p>
+                )}
+              </div>
+            ) : null}
             <button
               onClick={() => paying.mutate()}
               disabled={paying.isPending}
               className="mt-3 w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
-              {paying.isPending ? "Requesting…" : "Send STK Push"}
+              {paying.isPending
+                ? "Sending prompt…"
+                : awaitingPayment || paymentFailed
+                  ? "Send the prompt again"
+                  : "Pay with M-Pesa"}
             </button>
-            {paying.data && (
+            {paymentFailed && paymentFailure && (
+              <p className="mt-2 text-sm text-destructive">{paymentFailure}</p>
+            )}
+            {paying.data && !awaitingPayment && (
               <p className={`mt-2 text-sm ${paying.data.blocked ? "text-warning" : "text-muted-foreground"}`}>
                 {paying.data.message}
               </p>
