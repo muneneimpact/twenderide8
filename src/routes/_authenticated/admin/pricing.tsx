@@ -150,7 +150,16 @@ function PricingWorkspace() {
     },
   });
   const modifier = useMutation({
-    mutationFn: (vars: { id: string; active?: boolean; percent?: number }) => modifierFn({ data: vars }),
+    mutationFn: (vars: {
+      id: string;
+      active?: boolean;
+      percent?: number;
+      ramp_mode?: "none" | "linear";
+      peak_percent?: number | null;
+      peak_at?: string | null;
+      window_start?: string | null;
+      window_end?: string | null;
+    }) => modifierFn({ data: vars }),
     onSuccess: invalidate,
   });
   const setting = useMutation({
