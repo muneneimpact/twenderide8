@@ -150,7 +150,16 @@ function PricingWorkspace() {
     },
   });
   const modifier = useMutation({
-    mutationFn: (vars: { id: string; active?: boolean; percent?: number }) => modifierFn({ data: vars }),
+    mutationFn: (vars: {
+      id: string;
+      active?: boolean;
+      percent?: number;
+      ramp_mode?: "none" | "linear";
+      peak_percent?: number | null;
+      peak_at?: string | null;
+      window_start?: string | null;
+      window_end?: string | null;
+    }) => modifierFn({ data: vars }),
     onSuccess: invalidate,
   });
   const setting = useMutation({
@@ -498,20 +507,80 @@ function PricingWorkspace() {
                   {m.code} · {m.activation} · {m.state}
                 </p>
                 <div className="mt-2 flex items-center gap-2">
-                  <input
-                    defaultValue={String(Number(m.percent))}
-                    onBlur={(e) => modifier.mutate({ id: m.id, percent: Number(e.target.value) || 0 })}
-                    inputMode="decimal"
-                    className="w-24 rounded-xl border border-input bg-background px-2.5 py-2 text-sm"
-                  />
+                  <label className="text-xs text-muted-foreground">
+                    Start %
+                    <input
+                      defaultValue={String(Number(m.percent))}
+                      onBlur={(e) => modifier.mutate({ id: m.id, percent: Number(e.target.value) || 0 })}
+                      inputMode="decimal"
+                      className="mt-1 block w-24 rounded-xl border border-input bg-background px-2.5 py-2 text-sm text-foreground"
+                    />
+                  </label>
                   <button
                     onClick={() => modifier.mutate({ id: m.id, active: !m.active })}
-                    className={`rounded-full px-3 py-2 text-xs font-medium ${
+                    className={`mt-4 rounded-full px-3 py-2 text-xs font-medium ${
                       m.active ? "bg-primary text-primary-foreground" : "border border-input text-foreground"
                     }`}
                   >
                     {m.active ? "Active" : "Paused"}
                   </button>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  <label className="text-xs text-muted-foreground">
+                    Build-up
+                    <select
+                      defaultValue={m.ramp_mode ?? "none"}
+                      onChange={(e) =>
+                        modifier.mutate({ id: m.id, ramp_mode: e.target.value as "none" | "linear" })
+                      }
+                      className="mt-1 block w-full rounded-xl border border-input bg-background px-2 py-2 text-sm text-foreground"
+                    >
+                      <option value="none">Flat rate</option>
+                      <option value="linear">Gradual climb</option>
+                    </select>
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Peak %
+                    <input
+                      defaultValue={m.peak_percent == null ? "" : String(Number(m.peak_percent))}
+                      onBlur={(e) =>
+                        modifier.mutate({
+                          id: m.id,
+                          peak_percent: e.target.value.trim() === "" ? null : Number(e.target.value) || 0,
+                        })
+                      }
+                      inputMode="decimal"
+                      className="mt-1 block w-full rounded-xl border border-input bg-background px-2 py-2 text-sm text-foreground"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Peak at
+                    <input
+                      type="time"
+                      defaultValue={(m.peak_at ?? "").slice(0, 5)}
+                      onBlur={(e) => modifier.mutate({ id: m.id, peak_at: e.target.value || null })}
+                      className="mt-1 block w-full rounded-xl border border-input bg-background px-2 py-2 text-sm text-foreground"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    From
+                    <input
+                      type="time"
+                      defaultValue={(m.window_start ?? "").slice(0, 5)}
+                      onBlur={(e) => modifier.mutate({ id: m.id, window_start: e.target.value || null })}
+                      className="mt-1 block w-full rounded-xl border border-input bg-background px-2 py-2 text-sm text-foreground"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Until
+                    <input
+                      type="time"
+                      defaultValue={(m.window_end ?? "").slice(0, 5)}
+                      onBlur={(e) => modifier.mutate({ id: m.id, window_end: e.target.value || null })}
+                      className="mt-1 block w-full rounded-xl border border-input bg-background px-2 py-2 text-sm text-foreground"
+                    />
+                  </label>
                 </div>
               </li>
             ))}

@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedBookRouteImport } from './routes/_authenticated/book'
 import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/fleet'
+import { Route as AuthenticatedHireRouteImport } from './routes/_authenticated/hire'
 import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AuthAdminRouteImport } from './routes/auth.admin'
 import { Route as AuthDriversRouteImport } from './routes/auth.drivers'
@@ -54,6 +55,11 @@ const AuthenticatedBookRoute = AuthenticatedBookRouteImport.update({
 const AuthenticatedFleetRoute = AuthenticatedFleetRouteImport.update({
   id: '/fleet',
   path: '/fleet',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHireRoute = AuthenticatedHireRouteImport.update({
+  id: '/hire',
+  path: '/hire',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthIndexRoute = AuthIndexRouteImport.update({
@@ -158,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
+  '/hire': typeof AuthenticatedHireRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
   '/auth/': typeof AuthIndexRoute
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
+  '/hire': typeof AuthenticatedHireRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
   '/auth': typeof AuthIndexRoute
@@ -206,6 +214,7 @@ export interface FileRoutesById {
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/book': typeof AuthenticatedBookRoute
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
+  '/_authenticated/hire': typeof AuthenticatedHireRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
   '/auth/': typeof AuthIndexRoute
@@ -231,6 +240,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/book'
     | '/fleet'
+    | '/hire'
     | '/auth/admin'
     | '/auth/drivers'
     | '/auth/'
@@ -254,6 +264,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/book'
     | '/fleet'
+    | '/hire'
     | '/auth/admin'
     | '/auth/drivers'
     | '/auth'
@@ -278,6 +289,7 @@ export interface FileRouteTypes {
     | '/_authenticated/account'
     | '/_authenticated/book'
     | '/_authenticated/fleet'
+    | '/_authenticated/hire'
     | '/auth/admin'
     | '/auth/drivers'
     | '/auth/'
@@ -343,6 +355,13 @@ declare module '@tanstack/react-router' {
       path: '/fleet'
       fullPath: '/fleet'
       preLoaderRoute: typeof AuthenticatedFleetRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/hire': {
+      id: '/_authenticated/hire'
+      path: '/hire'
+      fullPath: '/hire'
+      preLoaderRoute: typeof AuthenticatedHireRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/auth/': {
@@ -471,6 +490,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedBookRoute: typeof AuthenticatedBookRoute
   AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
+  AuthenticatedHireRoute: typeof AuthenticatedHireRoute
   AuthenticatedAdminFinanceRoute: typeof AuthenticatedAdminFinanceRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
   AuthenticatedAdminStaffRoute: typeof AuthenticatedAdminStaffRoute
@@ -488,6 +508,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedBookRoute: AuthenticatedBookRoute,
   AuthenticatedFleetRoute: AuthenticatedFleetRoute,
+  AuthenticatedHireRoute: AuthenticatedHireRoute,
   AuthenticatedAdminFinanceRoute: AuthenticatedAdminFinanceRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
   AuthenticatedAdminStaffRoute: AuthenticatedAdminStaffRoute,

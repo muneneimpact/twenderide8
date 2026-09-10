@@ -56,6 +56,43 @@ function inWindow(start: string | null, end: string | null, now: number): boolea
   return s <= e ? now >= s && now < e : now >= s || now < e;
 }
 
+function toMinutes(value: string): number {
+  const [h = "0", m = "0"] = value.split(":");
+  return Number(h) * 60 + Number(m);
+}
+
+/** Minutes travelled from `start` to `now`, wrapping across midnight. */
+function elapsed(start: number, now: number): number {
+  return now >= start ? now - start : now + 1440 - start;
+}
+
+/**
+ * Time-of-day ramp. A night surcharge can start small at the beginning of its
+ * window and climb steadily to a peak percentage at a chosen hour, then hold
+ * that peak until the window closes. `ramp_mode = 'none'` keeps the flat rate.
+ */
+export function rampedPercent(
+  row: {
+    percent: number | string;
+    ramp_mode?: string | null;
+    peak_percent?: number | string | null;
+    peak_at?: string | null;
+    window_start?: string | null;
+    window_end?: string | null;
+  },
+  nowMinutes: number,
+): number {
+  const base = Number(row.percent);
+  if (row.ramp_mode !== "linear" || row.peak_percent == null || !row.window_start) return base;
+  const peak = Number(row.peak_percent);
+  const start = toMinutes(row.window_start);
+  const peakAt = row.peak_at ? toMinutes(row.peak_at) : row.window_end ? toMinutes(row.window_end) : start;
+  const span = elapsed(start, peakAt);
+  const travelled = elapsed(start, nowMinutes);
+  if (span <= 0 || travelled >= span) return peak;
+  return Number((base + ((peak - base) * travelled) / span).toFixed(2));
+}
+
 export async function loadPricingContext(
   vehicleClass: "go" | "plus" | "comfort" | "xl" | "boda" | "e_boda",
   now = new Date(),
@@ -144,9 +181,10 @@ export async function loadPricingContext(
       code: row.code,
       customer_label: row.customer_label,
       explanation: row.explanation,
-      percent: Number(row.percent),
+      percent: rampedPercent(row, minutes),
       applies_to_base: row.applies_to_base as ActiveModifier["applies_to_base"],
-    }));
+    }))
+    .filter((modifier) => modifier.percent > 0);
 
   return {
     config,
