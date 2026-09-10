@@ -679,7 +679,10 @@ export const setModifier = createServerFn({ method: "POST" })
     const { id, ...rest } = data;
     const patch = Object.fromEntries(Object.entries(rest).filter(([, value]) => value !== undefined));
     if (Object.keys(patch).length === 0) return { ok: true };
-    const { error } = await supabaseAdmin.from("pricing_modifiers").update(patch).eq("id", id);
+    const { error } = await supabaseAdmin
+      .from("pricing_modifiers")
+      .update(patch as never)
+      .eq("id", id);
     if (error) throw new Error(error.message);
     await audit(context.userId, "pricing_modifier_updated", "pricing_modifier", id, patch);
     return { ok: true };
