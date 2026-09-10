@@ -106,7 +106,7 @@ export const getPaymentStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ rideId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { data: intent } = await context.supabase
+    let { data: intent } = await context.supabase
       .from("payment_intents")
       .select(
         "id, status, mode, provider, provider_reference, provider_response, failure_reason, amount, msisdn, created_at",
@@ -115,6 +115,35 @@ export const getPaymentStatus = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    // Safety net: if a payment has been waiting a while, ask the gateway
+    // directly rather than leaving the customer watching a spinner.
+    const waiting =
+      intent && ["pending", "initiating", "awaiting_confirmation", "processing"].includes(intent.status);
+    if (
+      waiting &&
+      intent?.provider_reference &&
+      Date.now() - new Date(intent.created_at).getTime() > 20000
+    ) {
+      try {
+        const { getTransaction } = await import("./adapters/palpluss.server");
+        const { applyGatewayTransaction } = await import("./payments.server");
+        const tx = await getTransaction(intent.provider_reference);
+        if (tx) {
+          await applyGatewayTransaction(tx);
+          const { data: refreshed } = await context.supabase
+            .from("payment_intents")
+            .select(
+              "id, status, mode, provider, provider_reference, provider_response, failure_reason, amount, msisdn, created_at",
+            )
+            .eq("id", intent.id)
+            .maybeSingle();
+          if (refreshed) intent = refreshed;
+        }
+      } catch (error) {
+        console.error("payment reconciliation check failed", error);
+      }
+    }
+
     const { data: ride } = await context.supabase
       .from("rides")
       .select("payment_status, payment_method, total_fare")
