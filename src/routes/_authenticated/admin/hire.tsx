@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/admin/hire")({
 
 function AdminHirePage() {
   return (
-    <RoleGate allow={["ops_admin", "super_admin"]}>
+    <RoleGate allow={["ops_admin", "super_admin"]} title="Hire requests">
       <AdminHireBoard />
     </RoleGate>
   );
@@ -43,7 +43,7 @@ function AdminHireBoard() {
       id: string;
       status: "quoted" | "confirmed" | "declined";
       quotedTotal?: number | null;
-      adminNotes?: string;
+      adminNotes?: string | undefined;
     }) => decideFn({ data: vars }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-hire-quotes"] }),
   });
