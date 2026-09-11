@@ -7,6 +7,7 @@ import { RoleGate } from "@/components/RoleGate";
 import { MapPanel } from "@/components/MapPanel";
 import { RideChat } from "@/components/RideChat";
 import { CarBadge } from "@/components/CarBadge";
+import { PushSettings } from "@/components/PushSettings";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acceptOffer,
@@ -579,6 +580,8 @@ function DriverHome() {
         )}
 
 
+
+        <PushSettings />
 
         {/* Recent */}
         <section className="surface-card p-4">
