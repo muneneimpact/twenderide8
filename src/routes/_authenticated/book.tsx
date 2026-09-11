@@ -383,6 +383,22 @@ function BookPage() {
             </span>
           </button>
 
+          {/* Some places have no name to search for — drop the pin on the map instead. */}
+          <button
+            onClick={() => {
+              setSearchOpen(false);
+              setPlacing("dropoff");
+            }}
+            className={`mt-2 w-full rounded-full px-3 py-2 text-xs font-medium ${
+              placing === "dropoff"
+                ? "bg-primary text-primary-foreground"
+                : "border border-input text-muted-foreground"
+            }`}
+          >
+            {placing === "dropoff" ? "Tap the map to set your destination" : "Pick the destination on the map"}
+          </button>
+
+
           {/* Stops along the way, in the order the customer arranges them. */}
           {dropoff ? (
             <div className="mt-4 rounded-2xl border border-border bg-card p-3">
