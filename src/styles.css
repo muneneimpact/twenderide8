@@ -224,6 +224,16 @@ h1, h2, h3, .font-display {
   box-shadow: var(--shadow-card);
 }
 
+@utility input-base {
+  width: 100%;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-input);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+}
+
 @utility hero-gradient {
   background-image: var(--gradient-hero);
   color: var(--color-brand-foreground);
