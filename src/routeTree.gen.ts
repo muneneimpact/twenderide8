@@ -20,6 +20,7 @@ import { Route as AuthAdminRouteImport } from './routes/auth.admin'
 import { Route as AuthDriversRouteImport } from './routes/auth.drivers'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminFinanceRouteImport } from './routes/_authenticated/admin/finance'
+import { Route as AuthenticatedAdminHireRouteImport } from './routes/_authenticated/admin/hire'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin/pricing'
 import { Route as AuthenticatedAdminStaffRouteImport } from './routes/_authenticated/admin/staff'
 import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin/support'
@@ -88,6 +89,11 @@ const AuthenticatedAdminFinanceRoute =
     path: '/admin/finance',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminHireRoute = AuthenticatedAdminHireRouteImport.update({
+  id: '/admin/hire',
+  path: '/admin/hire',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminPricingRoute =
   AuthenticatedAdminPricingRouteImport.update({
     id: '/admin/pricing',
@@ -169,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/auth/drivers': typeof AuthDriversRoute
   '/auth/': typeof AuthIndexRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
+  '/admin/hire': typeof AuthenticatedAdminHireRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/support': typeof AuthenticatedAdminSupportRoute
@@ -193,6 +200,7 @@ export interface FileRoutesByTo {
   '/auth/drivers': typeof AuthDriversRoute
   '/auth': typeof AuthIndexRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
+  '/admin/hire': typeof AuthenticatedAdminHireRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/support': typeof AuthenticatedAdminSupportRoute
@@ -219,6 +227,7 @@ export interface FileRoutesById {
   '/auth/drivers': typeof AuthDriversRoute
   '/auth/': typeof AuthIndexRoute
   '/_authenticated/admin/finance': typeof AuthenticatedAdminFinanceRoute
+  '/_authenticated/admin/hire': typeof AuthenticatedAdminHireRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/_authenticated/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
@@ -245,6 +254,7 @@ export interface FileRouteTypes {
     | '/auth/drivers'
     | '/auth/'
     | '/admin/finance'
+    | '/admin/hire'
     | '/admin/pricing'
     | '/admin/staff'
     | '/admin/support'
@@ -269,6 +279,7 @@ export interface FileRouteTypes {
     | '/auth/drivers'
     | '/auth'
     | '/admin/finance'
+    | '/admin/hire'
     | '/admin/pricing'
     | '/admin/staff'
     | '/admin/support'
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/auth/drivers'
     | '/auth/'
     | '/_authenticated/admin/finance'
+    | '/_authenticated/admin/hire'
     | '/_authenticated/admin/pricing'
     | '/_authenticated/admin/staff'
     | '/_authenticated/admin/support'
@@ -399,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFinanceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/hire': {
+      id: '/_authenticated/admin/hire'
+      path: '/admin/hire'
+      fullPath: '/admin/hire'
+      preLoaderRoute: typeof AuthenticatedAdminHireRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/pricing': {
       id: '/_authenticated/admin/pricing'
       path: '/admin/pricing'
@@ -492,6 +511,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
   AuthenticatedHireRoute: typeof AuthenticatedHireRoute
   AuthenticatedAdminFinanceRoute: typeof AuthenticatedAdminFinanceRoute
+  AuthenticatedAdminHireRoute: typeof AuthenticatedAdminHireRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
   AuthenticatedAdminStaffRoute: typeof AuthenticatedAdminStaffRoute
   AuthenticatedAdminSupportRoute: typeof AuthenticatedAdminSupportRoute
@@ -510,6 +530,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFleetRoute: AuthenticatedFleetRoute,
   AuthenticatedHireRoute: AuthenticatedHireRoute,
   AuthenticatedAdminFinanceRoute: AuthenticatedAdminFinanceRoute,
+  AuthenticatedAdminHireRoute: AuthenticatedAdminHireRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
   AuthenticatedAdminStaffRoute: AuthenticatedAdminStaffRoute,
   AuthenticatedAdminSupportRoute: AuthenticatedAdminSupportRoute,

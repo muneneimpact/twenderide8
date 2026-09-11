@@ -11,6 +11,7 @@ type Tab = { to: string; label: string };
 const customerTabs: Tab[] = [
   { to: "/book", label: "Book" },
   { to: "/rides", label: "My rides" },
+  { to: "/hire", label: "Hire" },
   { to: "/account", label: "Account" },
 ];
 
@@ -31,6 +32,7 @@ export function tabsForRoles(roles: AppRole[]): Tab[] {
   const tabs: Tab[] = [...customerTabs];
   if (has("fleet_owner")) tabs.push({ to: "/fleet", label: "Fleet" });
   if (has("ops_admin", "super_admin")) tabs.push({ to: "/admin", label: "Ops" });
+  if (has("ops_admin", "super_admin")) tabs.push({ to: "/admin/hire", label: "Hire ops" });
   if (has("finance_admin", "super_admin")) tabs.push({ to: "/admin/finance", label: "Finance" });
   if (has("super_admin")) tabs.push({ to: "/admin/pricing", label: "Pricing" });
   if (has("super_admin")) tabs.push({ to: "/admin/staff", label: "People" });
