@@ -72,19 +72,19 @@ export const requestPhoneOtp = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error("Could not start phone verification. Please try again.");
 
-    const smsResult = canSms
-      ? await sendTransactionalSms({
-          to: phone,
-          message: `Your Twende Meru Rides verification code is ${code}. It expires in 5 minutes. Do not share this code.`,
-          eventType: "phone_verification",
-          idempotencyKey: `otp:${record.id}`,
-          context: { userId: context.userId },
-        })
-      : null;
-
-    const emailResult =
+    // SMS and email go out together so the text is not held up by the email.
+    const [smsResult, emailResult] = await Promise.all([
+      canSms
+        ? sendTransactionalSms({
+            to: phone,
+            message: `Your Twende Meru Rides verification code is ${code}. It expires in 5 minutes. Do not share this code.`,
+            eventType: "phone_verification",
+            idempotencyKey: `otp:${record.id}`,
+            context: { userId: context.userId },
+          })
+        : Promise.resolve(null),
       canEmail && email
-        ? await sendTransactionalEmail({
+        ? sendTransactionalEmail({
             to: email,
             template: {
               code: "phone_verification",
@@ -94,7 +94,8 @@ export const requestPhoneOtp = createServerFn({ method: "POST" })
             idempotencyKey: `otp-email:${record.id}`,
             context: { userId: context.userId },
           })
-        : null;
+        : Promise.resolve(null),
+    ]);
 
     const sentBySms = Boolean(smsResult?.sent);
     const sentByEmail = Boolean(emailResult?.sent);
