@@ -50,10 +50,30 @@ export function estimateHireTotal(input: {
   return Math.round(perDay * input.days + extraStops);
 }
 
+export interface HireVehicleRow {
+  id: string;
+  plate_number: string;
+  make: string | null;
+  model: string | null;
+  colour: string | null;
+  year: number | null;
+  seats: number | null;
+  vehicle_class: VehicleClass;
+  hire_mode: string | null;
+  hire_daily_rate: number | null;
+  hire_notes: string | null;
+  hire_description: string | null;
+  hire_available: boolean;
+  photo_url: string | null;
+  status: string;
+  owner_driver_id: string | null;
+  fleet_id: string | null;
+}
+
 /** Photos live in a private bucket, so customers get a short-lived link. */
-async function withPhotos<T extends { photo_url: string | null }>(rows: T[]) {
+async function withPhotos(rows: HireVehicleRow[]): Promise<Array<HireVehicleRow & { photo_link: string | null }>> {
   const paths = rows.map((row) => row.photo_url).filter((value): value is string => Boolean(value));
-  if (paths.length === 0) return rows.map((row) => ({ ...row, photo_link: null as string | null }));
+  if (paths.length === 0) return rows.map((row) => ({ ...row, photo_link: null }));
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin.storage.from("vehicle-photos").createSignedUrls(paths, 3600);
   const links = new Map((data ?? []).map((item) => [item.path, item.signedUrl]));
@@ -76,16 +96,14 @@ export const listHireVehicles = createServerFn({ method: "GET" })
       .eq("hire_available", true)
       .eq("status", "approved")
       .limit(60);
-    const rows = (data ?? []) as never as Array<Record<string, unknown> & { photo_url: string | null }>;
-    return withPhotos(rows).then((list) =>
-      list.map((vehicle) => ({
-        ...vehicle,
-        day_rate:
-          Number(vehicle["hire_daily_rate"] ?? 0) > 0
-            ? Number(vehicle["hire_daily_rate"])
-            : DAY_RATE[(vehicle["vehicle_class"] as VehicleClass) ?? "go"],
-      })),
-    );
+    const list = await withPhotos((data ?? []) as unknown as HireVehicleRow[]);
+    return list.map((vehicle) => ({
+      ...vehicle,
+      day_rate:
+        Number(vehicle.hire_daily_rate ?? 0) > 0
+          ? Number(vehicle.hire_daily_rate)
+          : DAY_RATE[vehicle.vehicle_class ?? "go"],
+    }));
   });
 
 /** Cars I own (directly or through my fleet), for managing their listing. */
@@ -101,9 +119,9 @@ export const listMyVehicles = createServerFn({ method: "GET" })
       ? `owner_driver_id.eq.${context.userId},fleet_id.in.(${fleetIds.join(",")})`
       : `owner_driver_id.eq.${context.userId}`;
     const { data } = await context.supabase.from("vehicles").select(VEHICLE_FIELDS).or(filter);
-    const rows = (data ?? []) as never as Array<Record<string, unknown> & { photo_url: string | null }>;
-    return withPhotos(rows);
+    return withPhotos((data ?? []) as unknown as HireVehicleRow[]);
   });
+
 
 /** Owners decide whether a car is available for hire, and at what day rate. */
 export const updateVehicleHire = createServerFn({ method: "POST" })
