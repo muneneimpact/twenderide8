@@ -657,9 +657,62 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_offers: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          price: number
+          quote_id: string
+          responder_id: string
+          status: string
+          updated_at: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          price: number
+          quote_id: string
+          responder_id: string
+          status?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          price?: number
+          quote_id?: string
+          responder_id?: string
+          status?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hire_offers_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "hire_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hire_offers_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hire_quotes: {
         Row: {
+          accepted_offer_id: string | null
           admin_notes: string | null
+          assigned_driver_id: string | null
           contact_email: string | null
           contact_name: string | null
           contact_phone: string | null
@@ -673,6 +726,9 @@ export type Database = {
           notes: string | null
           organisation: string | null
           passengers: number
+          pickup_label: string | null
+          pickup_lat: number | null
+          pickup_lng: number | null
           quoted_total: number | null
           reference: string
           requester_id: string
@@ -683,9 +739,12 @@ export type Database = {
           stops: Json
           updated_at: string
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
+          vehicle_id: string | null
         }
         Insert: {
+          accepted_offer_id?: string | null
           admin_notes?: string | null
+          assigned_driver_id?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
@@ -699,6 +758,9 @@ export type Database = {
           notes?: string | null
           organisation?: string | null
           passengers?: number
+          pickup_label?: string | null
+          pickup_lat?: number | null
+          pickup_lng?: number | null
           quoted_total?: number | null
           reference?: string
           requester_id: string
@@ -709,9 +771,12 @@ export type Database = {
           stops?: Json
           updated_at?: string
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
+          vehicle_id?: string | null
         }
         Update: {
+          accepted_offer_id?: string | null
           admin_notes?: string | null
+          assigned_driver_id?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
@@ -725,6 +790,9 @@ export type Database = {
           notes?: string | null
           organisation?: string | null
           passengers?: number
+          pickup_label?: string | null
+          pickup_lat?: number | null
+          pickup_lng?: number | null
           quoted_total?: number | null
           reference?: string
           requester_id?: string
@@ -735,8 +803,17 @@ export type Database = {
           stops?: Json
           updated_at?: string
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
+          vehicle_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "hire_quotes_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       incidents: {
         Row: {
@@ -2000,13 +2077,16 @@ export type Database = {
           fleet_id: string | null
           hire_available: boolean
           hire_daily_rate: number | null
+          hire_description: string | null
           hire_mode: string
           hire_notes: string | null
           id: string
           make: string | null
           model: string | null
           owner_driver_id: string | null
+          photo_url: string | null
           plate_number: string
+          seats: number | null
           status: Database["public"]["Enums"]["approval_state"]
           updated_at: string
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
@@ -2019,13 +2099,16 @@ export type Database = {
           fleet_id?: string | null
           hire_available?: boolean
           hire_daily_rate?: number | null
+          hire_description?: string | null
           hire_mode?: string
           hire_notes?: string | null
           id?: string
           make?: string | null
           model?: string | null
           owner_driver_id?: string | null
+          photo_url?: string | null
           plate_number: string
+          seats?: number | null
           status?: Database["public"]["Enums"]["approval_state"]
           updated_at?: string
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
@@ -2038,13 +2121,16 @@ export type Database = {
           fleet_id?: string | null
           hire_available?: boolean
           hire_daily_rate?: number | null
+          hire_description?: string | null
           hire_mode?: string
           hire_notes?: string | null
           id?: string
           make?: string | null
           model?: string | null
           owner_driver_id?: string | null
+          photo_url?: string | null
           plate_number?: string
+          seats?: number | null
           status?: Database["public"]["Enums"]["approval_state"]
           updated_at?: string
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
