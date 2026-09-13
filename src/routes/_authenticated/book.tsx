@@ -99,6 +99,9 @@ function BookPage() {
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>("go");
   const [pickupNotes, setPickupNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
+  const [paymentTouched, setPaymentTouched] = useState(false);
+  const [tripKind, setTripKind] = useState<"ride" | "delivery">("ride");
+  const [promoOpen, setPromoOpen] = useState(false);
   const [msisdn, setMsisdn] = useState("");
   const [msisdnTouched, setMsisdnTouched] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -125,6 +128,13 @@ function BookPage() {
     const phone = me?.profile?.phone;
     if (phone && !msisdnTouched && msisdn.length === 0) setMsisdn(phone);
   }, [me?.profile?.phone, msisdnTouched, msisdn.length]);
+
+  // Whatever you chose on your account is already selected here, so paying
+  // by cash is one less tap. M-PESA stands in when nothing is saved.
+  useEffect(() => {
+    const preference = me?.profile?.payment_preference;
+    if (!paymentTouched && preference === "cash") setPaymentMethod("cash");
+  }, [me?.profile?.payment_preference, paymentTouched]);
 
   // Saved places live with the customer, so Home and Office survive devices.
   const saved = useQuery({
