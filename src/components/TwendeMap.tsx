@@ -41,6 +41,7 @@ export default function TwendeMap({
   dropoff,
   driver,
   nearbyDrivers,
+  polyline,
   placing,
   onPlace,
   className,
