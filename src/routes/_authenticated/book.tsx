@@ -568,9 +568,42 @@ function BookPage() {
             ) : null}
           </dl>
 
-          <h2 className="mt-5 font-display text-lg font-bold text-foreground">Choose your ride</h2>
+          <h2 className="mt-5 font-display text-lg font-bold text-foreground">
+            {tripKind === "delivery" ? "Choose your delivery" : "Choose your ride"}
+          </h2>
+
+          {/* Same drivers, two jobs: carry a person or send a parcel. */}
+          <div className="mt-2 flex gap-2">
+            {(
+              [
+                { key: "ride", label: "Ride" },
+                { key: "delivery", label: "Twende Delivery" },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.key}
+                onClick={() => {
+                  setTripKind(option.key);
+                  setVehicleClass(option.key === "delivery" ? "boda" : "go");
+                }}
+                className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
+                  tripKind === option.key
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-border bg-secondary text-secondary-foreground"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
           <div className="mt-2 space-y-2">
-            {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((option) => {
+            {(tripKind === "delivery"
+              ? (["boda", "go"] as const)
+              : (["boda", "e_boda", "go", "plus", "comfort", "xl"] as const)
+            ).map((option) => {
+              const naming =
+                (tripKind === "delivery" ? DELIVERY_LABELS[option] : undefined) ?? CLASS_LABELS[option];
               const priced = estimates.find((item) => item.vehicleClass === option);
               const selected = vehicleClass === option;
               const unavailable = priced ? !priced.available : false;
