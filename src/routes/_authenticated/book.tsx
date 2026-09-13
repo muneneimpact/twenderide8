@@ -617,9 +617,9 @@ function BookPage() {
                   } disabled:opacity-60`}
                 >
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-foreground">{CLASS_LABELS[option].name}</span>
+                    <span className="block text-sm font-semibold text-foreground">{naming.name}</span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {unavailable ? "Not available on this route" : CLASS_LABELS[option].hint}
+                      {unavailable ? "Not available on this route" : naming.hint}
                     </span>
                     {priced && priced.available && priced.discount_percent > 0 ? (
                       <span className="mt-1 inline-flex rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold text-gold-foreground">
