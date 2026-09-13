@@ -39,11 +39,25 @@ async function routeThroughStops(
     legs.push(await provider.route(points[index]!, points[index + 1]!));
   }
   const first = legs[0]!;
+  // Stitch the legs together so the drawn route still follows the road.
+  let merged: string | null = first.polyline;
+  if (legs.length > 1) {
+    const { decodePolyline, encodePolyline } = await import("./polyline");
+    const path: { lat: number; lng: number }[] = [];
+    for (const leg of legs) {
+      if (!leg.polyline) {
+        merged = null;
+        break;
+      }
+      for (const point of decodePolyline(leg.polyline)) path.push(point);
+    }
+    merged = path.length > 1 ? encodePolyline(path) : null;
+  }
   return {
     distance_km: Number(legs.reduce((sum, leg) => sum + leg.distance_km, 0).toFixed(3)),
     duration_minutes: Number(legs.reduce((sum, leg) => sum + leg.duration_minutes, 0).toFixed(1)),
     provider: first.provider,
-    polyline: legs.length === 1 ? first.polyline : null,
+    polyline: merged,
     traffic_aware: first.traffic_aware,
     raw: { legs: legs.map((leg) => leg.raw) },
   };
@@ -164,6 +178,7 @@ export const estimateClasses = createServerFn({ method: "POST" })
     return {
       distance_km: route.distance_km,
       duration_minutes: route.duration_minutes,
+      polyline: route.polyline,
       options,
     };
   });

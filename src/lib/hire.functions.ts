@@ -387,7 +387,7 @@ export const listHireRequestsForProvider = createServerFn({ method: "GET" })
       }>),
     ].filter((vehicle, index, list) => list.findIndex((item) => item.id === vehicle.id) === index);
 
-    const classes = [...new Set(vehicles.map((vehicle) => vehicle.vehicle_class))];
+    const classes = [...new Set(vehicles.map((vehicle) => vehicle.vehicle_class))] as VehicleClass[];
     if (classes.length === 0) return { vehicles: [], requests: [] };
 
     const { data: requests } = await supabaseAdmin

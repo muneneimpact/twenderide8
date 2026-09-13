@@ -31,12 +31,18 @@ export const Route = createFileRoute("/_authenticated/book")({
 type VehicleClass = "boda" | "e_boda" | "go" | "plus" | "comfort" | "xl";
 
 const CLASS_LABELS: Record<VehicleClass, { name: string; hint: string }> = {
-  boda: { name: "Boda", hint: "One rider, quickest" },
-  e_boda: { name: "e-Boda", hint: "Electric bike, cleaner ride" },
-  go: { name: "Go", hint: "Everyday saloon car" },
-  plus: { name: "Plus", hint: "Extra space and comfort" },
-  comfort: { name: "Comfort", hint: "Newer, roomier car" },
-  xl: { name: "XL", hint: "Up to 6 seats" },
+  boda: { name: "Twende Boda", hint: "One rider, quickest" },
+  e_boda: { name: "Twende E-Boda", hint: "Electric bike, cleaner ride" },
+  go: { name: "Twende Go", hint: "Everyday saloon car" },
+  plus: { name: "Twende Plus", hint: "Extra space and comfort" },
+  comfort: { name: "Twende Comfort", hint: "Newer, roomier car" },
+  xl: { name: "Twende XL", hint: "Up to 6 seats" },
+};
+
+/** Sending a parcel uses the same cars and bodas, under their own names. */
+const DELIVERY_LABELS: Partial<Record<VehicleClass, { name: string; hint: string }>> = {
+  boda: { name: "Twende Delivery Boda", hint: "Small parcels, fastest across town" },
+  go: { name: "Twende Delivery Car", hint: "Bigger or fragile items" },
 };
 
 interface Point {
@@ -93,6 +99,9 @@ function BookPage() {
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>("go");
   const [pickupNotes, setPickupNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
+  const [paymentTouched, setPaymentTouched] = useState(false);
+  const [tripKind, setTripKind] = useState<"ride" | "delivery">("ride");
+  const [promoOpen, setPromoOpen] = useState(false);
   const [msisdn, setMsisdn] = useState("");
   const [msisdnTouched, setMsisdnTouched] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -119,6 +128,13 @@ function BookPage() {
     const phone = me?.profile?.phone;
     if (phone && !msisdnTouched && msisdn.length === 0) setMsisdn(phone);
   }, [me?.profile?.phone, msisdnTouched, msisdn.length]);
+
+  // Whatever you chose on your account is already selected here, so paying
+  // by cash is one less tap. M-PESA stands in when nothing is saved.
+  useEffect(() => {
+    const preference = me?.profile?.payment_preference;
+    if (!paymentTouched && preference === "cash") setPaymentMethod("cash");
+  }, [me?.profile?.payment_preference, paymentTouched]);
 
   // Saved places live with the customer, so Home and Office survive devices.
   const saved = useQuery({
@@ -302,6 +318,8 @@ function BookPage() {
       const next = [point, ...recents.filter((item) => label(item) !== label(point))].slice(0, 5);
       setRecents(next);
       writeRecents(next);
+      // Once we know where you're going, go straight to choosing the ride.
+      if (pickup) setStep("ride");
     }
     setSearchOpen(false);
   }
@@ -333,6 +351,7 @@ function BookPage() {
           pickup={pickup}
           dropoff={dropoff}
           nearbyDrivers={nearby}
+          polyline={estimating.data?.polyline ?? null}
           placing={placing}
           onPlace={placePin}
           className="h-64 w-full"
@@ -549,9 +568,42 @@ function BookPage() {
             ) : null}
           </dl>
 
-          <h2 className="mt-5 font-display text-lg font-bold text-foreground">Choose your ride</h2>
+          <h2 className="mt-5 font-display text-lg font-bold text-foreground">
+            {tripKind === "delivery" ? "Choose your delivery" : "Choose your ride"}
+          </h2>
+
+          {/* Same drivers, two jobs: carry a person or send a parcel. */}
+          <div className="mt-2 flex gap-2">
+            {(
+              [
+                { key: "ride", label: "Ride" },
+                { key: "delivery", label: "Twende Delivery" },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.key}
+                onClick={() => {
+                  setTripKind(option.key);
+                  setVehicleClass(option.key === "delivery" ? "boda" : "go");
+                }}
+                className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
+                  tripKind === option.key
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-border bg-secondary text-secondary-foreground"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
           <div className="mt-2 space-y-2">
-            {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((option) => {
+            {(tripKind === "delivery"
+              ? (["boda", "go"] as const)
+              : (["boda", "e_boda", "go", "plus", "comfort", "xl"] as const)
+            ).map((option) => {
+              const naming =
+                (tripKind === "delivery" ? DELIVERY_LABELS[option] : undefined) ?? CLASS_LABELS[option];
               const priced = estimates.find((item) => item.vehicleClass === option);
               const selected = vehicleClass === option;
               const unavailable = priced ? !priced.available : false;
@@ -565,9 +617,9 @@ function BookPage() {
                   } disabled:opacity-60`}
                 >
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-foreground">{CLASS_LABELS[option].name}</span>
+                    <span className="block text-sm font-semibold text-foreground">{naming.name}</span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {unavailable ? "Not available on this route" : CLASS_LABELS[option].hint}
+                      {unavailable ? "Not available on this route" : naming.hint}
                     </span>
                     {priced && priced.available && priced.discount_percent > 0 ? (
                       <span className="mt-1 inline-flex rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold text-gold-foreground">
@@ -601,29 +653,21 @@ function BookPage() {
             <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
           ) : null}
 
-          <div className="mt-5">
-            <span className="text-xs font-medium text-muted-foreground">Payment</span>
-            <div className="mt-1 flex gap-2">
-              {(
-                [
-                  { key: "stk_push", label: "M-PESA" },
-                  { key: "cash", label: "Cash" },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.key}
-                  onClick={() => setPaymentMethod(option.key)}
-                  className={`flex-1 rounded-full px-3 py-2.5 text-sm font-semibold transition-colors ${
-                    paymentMethod === option.key
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-secondary text-secondary-foreground"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* One compact line showing how you'll pay, tapped open to change. */}
+          <label className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5">
+            <span className="text-xs font-medium text-muted-foreground">Paying with</span>
+            <select
+              value={paymentMethod}
+              onChange={(event) => {
+                setPaymentTouched(true);
+                setPaymentMethod(event.target.value as "stk_push" | "cash");
+              }}
+              className="rounded-full border border-input bg-background px-3 py-1.5 text-sm font-semibold text-foreground outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="stk_push">M-PESA</option>
+              <option value="cash">Cash</option>
+            </select>
+          </label>
 
           {paymentMethod === "stk_push" && (
             <label className="mt-3 block">
