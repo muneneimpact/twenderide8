@@ -123,20 +123,34 @@ export default function TwendeMap({
       points.push(dropoff);
     }
     if (pickup && dropoff) {
-      const line = new maps.Polyline({
-        path: [pickup, dropoff],
-        map: instance,
-        strokeColor: "#1f6f4a",
-        strokeOpacity: 0,
-        icons: [
-          {
-            icon: { path: "M 0,-1 0,1", strokeOpacity: 0.8, scale: 3, strokeColor: "#1f6f4a" },
-            offset: "0",
-            repeat: "14px",
-          },
-        ],
-      });
-      overlays.current.push(line);
+      // Prefer the real road route; only fall back to a dashed direct line.
+      const road = polyline ? decodePolyline(polyline) : [];
+      if (road.length > 1) {
+        const line = new maps.Polyline({
+          path: road,
+          map: instance,
+          strokeColor: "#1f6f4a",
+          strokeOpacity: 0.95,
+          strokeWeight: 5,
+        });
+        overlays.current.push(line);
+        road.forEach((point) => points.push(point));
+      } else {
+        const line = new maps.Polyline({
+          path: [pickup, dropoff],
+          map: instance,
+          strokeColor: "#1f6f4a",
+          strokeOpacity: 0,
+          icons: [
+            {
+              icon: { path: "M 0,-1 0,1", strokeOpacity: 0.8, scale: 3, strokeColor: "#1f6f4a" },
+              offset: "0",
+              repeat: "14px",
+            },
+          ],
+        });
+        overlays.current.push(line);
+      }
     }
     if (driver) {
       addMarker(driver, "#0f4c81", "Driver");
