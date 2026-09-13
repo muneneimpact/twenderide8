@@ -318,6 +318,8 @@ function BookPage() {
       const next = [point, ...recents.filter((item) => label(item) !== label(point))].slice(0, 5);
       setRecents(next);
       writeRecents(next);
+      // Once we know where you're going, go straight to choosing the ride.
+      if (pickup) setStep("ride");
     }
     setSearchOpen(false);
   }
