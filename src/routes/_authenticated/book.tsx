@@ -31,12 +31,18 @@ export const Route = createFileRoute("/_authenticated/book")({
 type VehicleClass = "boda" | "e_boda" | "go" | "plus" | "comfort" | "xl";
 
 const CLASS_LABELS: Record<VehicleClass, { name: string; hint: string }> = {
-  boda: { name: "Boda", hint: "One rider, quickest" },
-  e_boda: { name: "e-Boda", hint: "Electric bike, cleaner ride" },
-  go: { name: "Go", hint: "Everyday saloon car" },
-  plus: { name: "Plus", hint: "Extra space and comfort" },
-  comfort: { name: "Comfort", hint: "Newer, roomier car" },
-  xl: { name: "XL", hint: "Up to 6 seats" },
+  boda: { name: "Twende Boda", hint: "One rider, quickest" },
+  e_boda: { name: "Twende E-Boda", hint: "Electric bike, cleaner ride" },
+  go: { name: "Twende Go", hint: "Everyday saloon car" },
+  plus: { name: "Twende Plus", hint: "Extra space and comfort" },
+  comfort: { name: "Twende Comfort", hint: "Newer, roomier car" },
+  xl: { name: "Twende XL", hint: "Up to 6 seats" },
+};
+
+/** Sending a parcel uses the same cars and bodas, under their own names. */
+const DELIVERY_LABELS: Partial<Record<VehicleClass, { name: string; hint: string }>> = {
+  boda: { name: "Twende Delivery Boda", hint: "Small parcels, fastest across town" },
+  go: { name: "Twende Delivery Car", hint: "Bigger or fragile items" },
 };
 
 interface Point {
