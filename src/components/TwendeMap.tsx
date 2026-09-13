@@ -200,7 +200,7 @@ export default function TwendeMap({
       points.forEach((point) => bounds.extend(point));
       instance.fitBounds(bounds, 48);
     }
-  }, [pickup, dropoff, driver, nearbyDrivers, ready]);
+  }, [pickup, dropoff, driver, nearbyDrivers, polyline, ready]);
 
   return (
     <div className={`relative ${className ?? "h-full w-full"}`}>
