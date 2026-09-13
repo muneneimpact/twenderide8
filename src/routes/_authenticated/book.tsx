@@ -653,29 +653,21 @@ function BookPage() {
             <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
           ) : null}
 
-          <div className="mt-5">
-            <span className="text-xs font-medium text-muted-foreground">Payment</span>
-            <div className="mt-1 flex gap-2">
-              {(
-                [
-                  { key: "stk_push", label: "M-PESA" },
-                  { key: "cash", label: "Cash" },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.key}
-                  onClick={() => setPaymentMethod(option.key)}
-                  className={`flex-1 rounded-full px-3 py-2.5 text-sm font-semibold transition-colors ${
-                    paymentMethod === option.key
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-secondary text-secondary-foreground"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* One compact line showing how you'll pay, tapped open to change. */}
+          <label className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5">
+            <span className="text-xs font-medium text-muted-foreground">Paying with</span>
+            <select
+              value={paymentMethod}
+              onChange={(event) => {
+                setPaymentTouched(true);
+                setPaymentMethod(event.target.value as "stk_push" | "cash");
+              }}
+              className="rounded-full border border-input bg-background px-3 py-1.5 text-sm font-semibold text-foreground outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="stk_push">M-PESA</option>
+              <option value="cash">Cash</option>
+            </select>
+          </label>
 
           {paymentMethod === "stk_push" && (
             <label className="mt-3 block">
