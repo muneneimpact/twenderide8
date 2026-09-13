@@ -178,6 +178,7 @@ export const estimateClasses = createServerFn({ method: "POST" })
     return {
       distance_km: route.distance_km,
       duration_minutes: route.duration_minutes,
+      polyline: route.polyline,
       options,
     };
   });
