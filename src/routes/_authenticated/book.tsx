@@ -351,6 +351,7 @@ function BookPage() {
           pickup={pickup}
           dropoff={dropoff}
           nearbyDrivers={nearby}
+          polyline={estimating.data?.polyline ?? null}
           placing={placing}
           onPlace={placePin}
           className="h-64 w-full"
