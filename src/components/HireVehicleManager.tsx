@@ -17,7 +17,15 @@ export function HireVehicleManager() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const update = useMutation({
-    mutationFn: (vars: Parameters<typeof updateFn>[0]["data"]) => updateFn({ data: vars }),
+    mutationFn: (vars: {
+      vehicleId: string;
+      hireAvailable?: boolean;
+      hireMode?: "self_drive" | "chauffeured" | "both";
+      dailyRate?: number | null;
+      seats?: number | null;
+      description?: string | null;
+      photoPath?: string | null;
+    }) => updateFn({ data: vars }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-vehicles"] }),
     onError: (error) => setNotice((error as Error).message),
   });
