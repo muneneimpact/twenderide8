@@ -706,27 +706,39 @@ function BookPage() {
             />
           </label>
 
-          {/* Promo code */}
+          {/* The coupon box stays out of the way until it's wanted. */}
           <div className="mt-4">
-            <span className="text-xs font-medium text-muted-foreground">Promo code</span>
-            <div className="mt-1 flex gap-2">
-              <input
-                value={promoInput}
-                onChange={(e) => {
-                  setPromoInput(e.target.value);
-                  setPromoError(null);
-                }}
-                placeholder="Enter a code"
-                className="flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-sm uppercase"
-              />
+            {!promoOpen && !appliedPromo ? (
               <button
-                onClick={() => applyingPromo.mutate()}
-                disabled={applyingPromo.isPending || promoInput.trim().length < 2 || !chosen?.available}
-                className="rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold"
+                onClick={() => setPromoOpen(true)}
+                className="w-full rounded-2xl border border-dashed border-input px-3 py-2.5 text-sm font-semibold text-foreground"
               >
-                {applyingPromo.isPending ? "Checking…" : "Apply"}
+                Have a Promo Coupon?
               </button>
-            </div>
+            ) : null}
+            {promoOpen && !appliedPromo ? (
+              <>
+                <span className="text-xs font-medium text-muted-foreground">Promo code</span>
+                <div className="mt-1 flex gap-2">
+                  <input
+                    value={promoInput}
+                    onChange={(e) => {
+                      setPromoInput(e.target.value);
+                      setPromoError(null);
+                    }}
+                    placeholder="Enter a code"
+                    className="flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-sm uppercase"
+                  />
+                  <button
+                    onClick={() => applyingPromo.mutate()}
+                    disabled={applyingPromo.isPending || promoInput.trim().length < 2 || !chosen?.available}
+                    className="rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold"
+                  >
+                    {applyingPromo.isPending ? "Checking…" : "Apply"}
+                  </button>
+                </div>
+              </>
+            ) : null}
             {appliedPromo ? (
               <div className="mt-2 rounded-xl bg-success/10 px-3 py-2.5 text-xs text-success">
                 <p className="font-semibold">
