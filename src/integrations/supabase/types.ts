@@ -720,6 +720,7 @@ export type Database = {
           currency: string
           days: number
           drive_mode: string
+          end_at: string | null
           estimated_total: number
           id: string
           kind: string
@@ -752,6 +753,7 @@ export type Database = {
           currency?: string
           days?: number
           drive_mode?: string
+          end_at?: string | null
           estimated_total?: number
           id?: string
           kind?: string
@@ -784,6 +786,7 @@ export type Database = {
           currency?: string
           days?: number
           drive_mode?: string
+          end_at?: string | null
           estimated_total?: number
           id?: string
           kind?: string
