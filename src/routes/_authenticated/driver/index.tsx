@@ -8,6 +8,8 @@ import { MapPanel } from "@/components/MapPanel";
 import { RideChat } from "@/components/RideChat";
 import { CarBadge } from "@/components/CarBadge";
 import { PushSettings } from "@/components/PushSettings";
+import { HireRequestsBoard } from "@/components/HireRequestsBoard";
+import { HireVehicleManager } from "@/components/HireVehicleManager";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acceptOffer,
