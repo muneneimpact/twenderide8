@@ -544,7 +544,30 @@ export const listMyRides = createServerFn({ method: "POST" })
       .eq("customer_id", context.userId)
       .order("requested_at", { ascending: false })
       .limit(30);
-    return data ?? [];
+    const rides = data ?? [];
+
+    // Each trip is named by where it went, so the list reads like a journey
+    // rather than a row of reference codes.
+    const quoteIds = rides.map((ride) => ride.quote_id).filter((id): id is string => Boolean(id));
+    const { data: quotes } = quoteIds.length
+      ? await context.supabase
+          .from("route_quotes")
+          .select("id, pickup_address, dropoff_address")
+          .in("id", quoteIds)
+      : { data: [] };
+    const byId = new Map((quotes ?? []).map((quote) => [quote.id, quote]));
+
+    return rides.map((ride) => {
+      const quote = ride.quote_id ? byId.get(ride.quote_id) : undefined;
+      const from = quote?.pickup_address ?? null;
+      const to = quote?.dropoff_address ?? null;
+      return {
+        ...ride,
+        pickup_address: from,
+        dropoff_address: to,
+        trip_name: to ? (from ? `${from} → ${to}` : to) : ride.reference,
+      };
+    });
   });
 
 /** Customer cancellation with a server-calculated, snapshotted fee. */

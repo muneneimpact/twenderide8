@@ -181,12 +181,10 @@ export const googleMapProvider: MapProvider = {
             kind: item.primaryType ?? "place",
           } satisfies PlaceResult;
         })
-        .filter((value): value is PlaceResult => value !== null)
-        .sort(
-          (a, b) =>
-            haversineKm(near, { lat: a.lat, lng: a.lng }) -
-            haversineKm(near, { lat: b.lat, lng: b.lng }),
-        );
+        // Google's own ranking already blends relevance with the location bias.
+        // Re-sorting by distance moved the exact typed match down the list, so
+        // people tapped a nearby place instead of the one they searched for.
+        .filter((value): value is PlaceResult => value !== null);
     } catch {
       return [];
     }
