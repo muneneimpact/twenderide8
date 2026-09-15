@@ -608,6 +608,9 @@ function DriverHome() {
             </ul>
           )}
         </section>
+
+        <HireRequestsBoard />
+        <HireVehicleManager />
       </div>
     </AppShell>
   );
