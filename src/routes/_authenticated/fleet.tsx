@@ -205,6 +205,9 @@ function FleetBoard() {
             ))}
           </ul>
         </section>
+
+        <HireVehicleManager />
+        <HireRequestsBoard />
       </div>
     </AppShell>
   );
