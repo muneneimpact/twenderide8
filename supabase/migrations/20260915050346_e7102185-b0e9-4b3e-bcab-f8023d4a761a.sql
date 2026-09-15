@@ -1,0 +1,1 @@
+ALTER TABLE public.hire_quotes ADD COLUMN IF NOT EXISTS end_at timestamptz;
