@@ -5,6 +5,8 @@ import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { getFleetBoard, updateFleetSettlement } from "@/lib/admin.functions";
+import { HireVehicleManager } from "@/components/HireVehicleManager";
+import { HireRequestsBoard } from "@/components/HireRequestsBoard";
 
 export const Route = createFileRoute("/_authenticated/fleet")({
   head: () => ({
@@ -203,6 +205,9 @@ function FleetBoard() {
             ))}
           </ul>
         </section>
+
+        <HireVehicleManager />
+        <HireRequestsBoard />
       </div>
     </AppShell>
   );
