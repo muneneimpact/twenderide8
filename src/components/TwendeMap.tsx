@@ -124,7 +124,8 @@ export default function TwendeMap({
       points.push(dropoff);
     }
     if (pickup && dropoff) {
-      // Prefer the real road route; only fall back to a dashed direct line.
+      // A road route may still be loading or unavailable. Never suggest that a
+      // direct line between the pins is a drivable road.
       const road = polyline ? decodePolyline(polyline) : [];
       if (road.length > 1) {
         const line = new maps.Polyline({
@@ -136,21 +137,6 @@ export default function TwendeMap({
         });
         overlays.current.push(line);
         road.forEach((point) => points.push(point));
-      } else {
-        const line = new maps.Polyline({
-          path: [pickup, dropoff],
-          map: instance,
-          strokeColor: "#1f6f4a",
-          strokeOpacity: 0,
-          icons: [
-            {
-              icon: { path: "M 0,-1 0,1", strokeOpacity: 0.8, scale: 3, strokeColor: "#1f6f4a" },
-              offset: "0",
-              repeat: "14px",
-            },
-          ],
-        });
-        overlays.current.push(line);
       }
     }
     if (driver) {
