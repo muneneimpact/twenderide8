@@ -471,6 +471,7 @@ function DriverHome() {
                   <MapPanel
                     pickup={activeRoute.pickup}
                     dropoff={activeRoute.dropoff}
+                    polyline={activeRoute.polyline}
                     className="h-52 w-full"
                   />
                 </div>

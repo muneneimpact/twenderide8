@@ -70,13 +70,14 @@ export const getDriverHome = createServerFn({ method: "POST" })
       dropoff_address: string | null;
       pickup_notes: string | null;
       distance_km: number;
+      polyline: string | null;
     } | null = null;
     if (activeRide) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: quote } = await supabaseAdmin
         .from("route_quotes")
         .select(
-          "pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, pickup_notes, distance_km",
+          "pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, pickup_notes, distance_km, polyline",
         )
         .eq("id", activeRide.quote_id)
         .maybeSingle();
@@ -88,6 +89,7 @@ export const getDriverHome = createServerFn({ method: "POST" })
           dropoff_address: quote.dropoff_address,
           pickup_notes: quote.pickup_notes,
           distance_km: Number(quote.distance_km),
+          polyline: quote.polyline,
         };
       }
     }

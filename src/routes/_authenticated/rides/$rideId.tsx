@@ -174,6 +174,7 @@ function RideDetail() {
         <MapPanel
           pickup={quote ? { lat: Number(quote.pickup_lat), lng: Number(quote.pickup_lng) } : null}
           dropoff={quote ? { lat: Number(quote.dropoff_lat), lng: Number(quote.dropoff_lng) } : null}
+          polyline={quote?.polyline ?? null}
           driver={
             lastLocation
               ? {
