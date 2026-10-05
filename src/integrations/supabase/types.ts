@@ -722,8 +722,11 @@ export type Database = {
           drive_mode: string
           end_at: string | null
           estimated_total: number
+          hirer_type: string
           id: string
+          id_document_path: string | null
           kind: string
+          license_document_path: string | null
           notes: string | null
           organisation: string | null
           passengers: number
@@ -732,9 +735,12 @@ export type Database = {
           pickup_lng: number | null
           quoted_total: number | null
           reference: string
+          renter_id_number: string | null
+          renter_name: string | null
           requester_id: string
           reviewed_at: string | null
           reviewed_by: string | null
+          rules_accepted_at: string | null
           start_at: string
           status: string
           stops: Json
@@ -755,8 +761,11 @@ export type Database = {
           drive_mode?: string
           end_at?: string | null
           estimated_total?: number
+          hirer_type?: string
           id?: string
+          id_document_path?: string | null
           kind?: string
+          license_document_path?: string | null
           notes?: string | null
           organisation?: string | null
           passengers?: number
@@ -765,9 +774,12 @@ export type Database = {
           pickup_lng?: number | null
           quoted_total?: number | null
           reference?: string
+          renter_id_number?: string | null
+          renter_name?: string | null
           requester_id: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          rules_accepted_at?: string | null
           start_at: string
           status?: string
           stops?: Json
@@ -788,8 +800,11 @@ export type Database = {
           drive_mode?: string
           end_at?: string | null
           estimated_total?: number
+          hirer_type?: string
           id?: string
+          id_document_path?: string | null
           kind?: string
+          license_document_path?: string | null
           notes?: string | null
           organisation?: string | null
           passengers?: number
@@ -798,9 +813,12 @@ export type Database = {
           pickup_lng?: number | null
           quoted_total?: number | null
           reference?: string
+          renter_id_number?: string | null
+          renter_name?: string | null
           requester_id?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          rules_accepted_at?: string | null
           start_at?: string
           status?: string
           stops?: Json
@@ -2083,11 +2101,13 @@ export type Database = {
           hire_description: string | null
           hire_mode: string
           hire_notes: string | null
+          hire_rules: string | null
           id: string
           make: string | null
           model: string | null
           owner_driver_id: string | null
           photo_url: string | null
+          photo_urls: string[]
           plate_number: string
           seats: number | null
           status: Database["public"]["Enums"]["approval_state"]
@@ -2105,11 +2125,13 @@ export type Database = {
           hire_description?: string | null
           hire_mode?: string
           hire_notes?: string | null
+          hire_rules?: string | null
           id?: string
           make?: string | null
           model?: string | null
           owner_driver_id?: string | null
           photo_url?: string | null
+          photo_urls?: string[]
           plate_number: string
           seats?: number | null
           status?: Database["public"]["Enums"]["approval_state"]
@@ -2127,11 +2149,13 @@ export type Database = {
           hire_description?: string | null
           hire_mode?: string
           hire_notes?: string | null
+          hire_rules?: string | null
           id?: string
           make?: string | null
           model?: string | null
           owner_driver_id?: string | null
           photo_url?: string | null
+          photo_urls?: string[]
           plate_number?: string
           seats?: number | null
           status?: Database["public"]["Enums"]["approval_state"]
