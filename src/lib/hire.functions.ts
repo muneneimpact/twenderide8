@@ -65,26 +65,36 @@ export interface HireVehicleRow {
   hire_description: string | null;
   hire_available: boolean;
   photo_url: string | null;
+  photo_urls: string[] | null;
+  hire_rules: string | null;
   status: string;
   owner_driver_id: string | null;
   fleet_id: string | null;
 }
 
-/** Photos live in a private bucket, so customers get a short-lived link. */
-async function withPhotos(rows: HireVehicleRow[]): Promise<Array<HireVehicleRow & { photo_link: string | null }>> {
-  const paths = rows.map((row) => row.photo_url).filter((value): value is string => Boolean(value));
-  if (paths.length === 0) return rows.map((row) => ({ ...row, photo_link: null }));
+/** Photos live in a private bucket, so customers get short-lived links. */
+async function withPhotos(
+  rows: HireVehicleRow[],
+): Promise<Array<HireVehicleRow & { photo_link: string | null; photo_links: string[] }>> {
+  const allFor = (row: HireVehicleRow) =>
+    [row.photo_url, ...(row.photo_urls ?? [])].filter(
+      (value, index, list): value is string => Boolean(value) && list.indexOf(value) === index,
+    );
+  const paths = [...new Set(rows.flatMap(allFor))];
+  if (paths.length === 0) return rows.map((row) => ({ ...row, photo_link: null, photo_links: [] }));
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin.storage.from("vehicle-photos").createSignedUrls(paths, 3600);
   const links = new Map((data ?? []).map((item) => [item.path, item.signedUrl]));
-  return rows.map((row) => ({
-    ...row,
-    photo_link: row.photo_url ? (links.get(row.photo_url) ?? null) : null,
-  }));
+  return rows.map((row) => {
+    const photoLinks = allFor(row)
+      .map((path) => links.get(path))
+      .filter((value): value is string => Boolean(value));
+    return { ...row, photo_link: photoLinks[0] ?? null, photo_links: photoLinks };
+  });
 }
 
 const VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_daily_rate, hire_notes, hire_description, hire_available, photo_url, status, owner_driver_id, fleet_id";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_daily_rate, hire_notes, hire_description, hire_available, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
@@ -97,8 +107,26 @@ export const listHireVehicles = createServerFn({ method: "GET" })
       .eq("status", "approved")
       .limit(60);
     const list = await withPhotos((data ?? []) as unknown as HireVehicleRow[]);
+    // Booked dates only (no customer details), so people can pick free days.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const ids = list.map((vehicle) => vehicle.id);
+    const { data: booked } = ids.length
+      ? await supabaseAdmin
+          .from("hire_quotes")
+          .select("vehicle_id, start_at, end_at, days")
+          .in("vehicle_id", ids)
+          .in("status", ["submitted", "quoted", "confirmed"])
+          .gte("start_at", new Date(Date.now() - 90 * 86_400_000).toISOString())
+      : { data: [] as Array<{ vehicle_id: string | null; start_at: string; end_at: string | null; days: number }> };
     return list.map((vehicle) => ({
       ...vehicle,
+      bookings: (booked ?? [])
+        .filter((row) => row.vehicle_id === vehicle.id)
+        .map((row) => ({
+          start: row.start_at,
+          end: row.end_at ?? new Date(new Date(row.start_at).getTime() + row.days * 86_400_000).toISOString(),
+        }))
+        .filter((range) => new Date(range.end).getTime() > Date.now()),
       day_rate:
         Number(vehicle.hire_daily_rate ?? 0) > 0
           ? Number(vehicle.hire_daily_rate)
@@ -136,6 +164,9 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         seats: z.number().int().min(1).max(60).nullable().optional(),
         description: z.string().max(500).nullable().optional(),
         photoPath: z.string().max(400).nullable().optional(),
+        addPhotoPath: z.string().max(400).optional(),
+        removePhotoPath: z.string().max(400).optional(),
+        rules: z.string().max(2000).nullable().optional(),
       })
       .parse(input),
   )
@@ -147,6 +178,20 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
     if (data.seats !== undefined) patch["seats"] = data.seats;
     if (data.description !== undefined) patch["hire_description"] = data.description;
     if (data.photoPath !== undefined) patch["photo_url"] = data.photoPath;
+    if (data.rules !== undefined) patch["hire_rules"] = data.rules;
+    if (data.addPhotoPath || data.removePhotoPath) {
+      const { data: current } = await context.supabase
+        .from("vehicles")
+        .select("photo_url, photo_urls")
+        .eq("id", data.vehicleId)
+        .maybeSingle();
+      let list = (current?.photo_urls ?? []) as string[];
+      if (data.addPhotoPath) list = [...list, data.addPhotoPath].slice(-12);
+      if (data.removePhotoPath) list = list.filter((path) => path !== data.removePhotoPath);
+      patch["photo_urls"] = list;
+      if (!current?.photo_url && data.addPhotoPath) patch["photo_url"] = data.addPhotoPath;
+      if (data.removePhotoPath && current?.photo_url === data.removePhotoPath) patch["photo_url"] = list[0] ?? null;
+    }
     if (Object.keys(patch).length === 0) return { ok: true };
 
     // RLS keeps this to the vehicle's owner or its fleet owner.
@@ -180,11 +225,25 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         pickupLng: z.number().min(-180).max(180).nullable().optional(),
         stops: z.array(stopSchema).max(20).default([]),
         notes: z.string().max(1000).optional(),
+        hirerType: z.enum(["individual", "company"]).default("individual"),
+        renterName: z.string().max(120).optional(),
+        renterIdNumber: z.string().max(40).optional(),
+        idDocumentPath: z.string().max(400).optional(),
+        licenseDocumentPath: z.string().max(400).optional(),
+        rulesAccepted: z.boolean().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    for (const path of [data.idDocumentPath, data.licenseDocumentPath]) {
+      if (path && !path.startsWith(`${context.userId}/`)) throw new Error("Upload your documents again.");
+    }
+    if (!data.idDocumentPath) throw new Error("Upload a photo of your ID.");
+    if (data.driveMode === "self_drive" && !data.licenseDocumentPath) {
+      throw new Error("Upload your driving licence to drive the car yourself.");
+    }
+    if (data.vehicleId && !data.rulesAccepted) throw new Error("Please accept the owner's rules.");
     const startAt = new Date(data.startAt);
     if (Number.isNaN(startAt.getTime())) throw new Error("Choose a valid start date and time.");
     if (startAt.getTime() < Date.now() - 60_000) throw new Error("Choose a date and time in the future.");
@@ -233,10 +292,22 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         stops: data.stops as never,
         notes: data.notes ?? null,
         estimated_total: estimate,
+        end_at: new Date(startAt.getTime() + data.days * 86_400_000).toISOString(),
+        hirer_type: data.hirerType,
+        renter_name: data.renterName ?? null,
+        renter_id_number: data.renterIdNumber ?? null,
+        id_document_path: data.idDocumentPath ?? null,
+        license_document_path: data.licenseDocumentPath ?? null,
+        rules_accepted_at: data.rulesAccepted ? new Date().toISOString() : null,
       } as never)
       .select("id, reference, estimated_total, status")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.message.includes("already booked")) {
+        throw new Error("This vehicle is already booked for some of those dates. Please choose other dates.");
+      }
+      throw new Error(error.message);
+    }
 
     try {
       const { notify } = await import("./notifications.server");
@@ -403,10 +474,25 @@ export const listHireRequestsForProvider = createServerFn({ method: "GET" })
       ? await supabaseAdmin.from("hire_offers").select("*").in("quote_id", ids)
       : { data: [] as never[] };
 
+    // Owners of the requested car may check the renter's ID and licence.
+    const ownIds = new Set(vehicles.map((vehicle) => vehicle.id));
+    const docPaths = (requests ?? [])
+      .filter((request) => request.vehicle_id && ownIds.has(request.vehicle_id))
+      .flatMap((request) => [request.id_document_path, request.license_document_path])
+      .filter((value): value is string => Boolean(value));
+    const { data: signed } = docPaths.length
+      ? await supabaseAdmin.storage.from("hire-documents").createSignedUrls(docPaths, 1800)
+      : { data: [] as Array<{ path: string | null; signedUrl: string }> };
+    const docLinks = new Map((signed ?? []).map((item) => [item.path, item.signedUrl]));
+
     return {
       vehicles,
       requests: (requests ?? []).map((request) => ({
         ...request,
+        id_document_link: request.id_document_path ? (docLinks.get(request.id_document_path) ?? null) : null,
+        license_document_link: request.license_document_path
+          ? (docLinks.get(request.license_document_path) ?? null)
+          : null,
         offers: (offers ?? []).filter((offer) => offer.quote_id === request.id),
         my_offer: (offers ?? []).find(
           (offer) => offer.quote_id === request.id && offer.responder_id === context.userId,
