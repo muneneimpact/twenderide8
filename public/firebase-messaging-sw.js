@@ -33,7 +33,12 @@ async function show(payload) {
   // ring the Twende alert so the person hears it, not just a silent banner.
   const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
   for (const client of clients) {
-    client.postMessage({ type: "twende-push", tone: data.templateCode === "ride_offer" ? "offer" : "status" });
+    client.postMessage({
+      type: "twende-push",
+      tone: data.templateCode === "ride_offer" ? "offer" : "status",
+      title,
+      body: data.body || "",
+    });
   }
 }
 

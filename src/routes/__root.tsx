@@ -178,10 +178,25 @@ function RootComponent() {
       if (event === "SIGNED_IN") void start();
     });
 
+    // Background pushes: the worker shows the banner and asks open tabs to
+    // ring the chime and read the alert aloud.
+    const onWorkerMessage = async (event: MessageEvent) => {
+      const msg = event.data as { type?: string; tone?: string; title?: string; body?: string } | null;
+      if (msg?.type !== "twende-push") return;
+      const { announce } = await import("@/lib/audio");
+      announce(msg.tone === "offer" ? "offer" : "status", msg.title ?? "Twende Meru Rides", msg.body ?? "");
+    };
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", onWorkerMessage);
+    }
+
     return () => {
       cancelled = true;
       unsubscribe?.();
       sub.subscription.unsubscribe();
+      if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", onWorkerMessage);
+      }
     };
   }, [router]);
 
