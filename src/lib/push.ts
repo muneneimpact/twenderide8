@@ -152,22 +152,40 @@ export async function listenForForegroundPush(onNavigate: (path: string) => void
     const { initializeApp, getApps, getApp } = await import("firebase/app");
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
+    const { announce } = await import("@/lib/audio");
     return onMessage(getMessaging(app), (payload) => {
       const data = (payload.data ?? {}) as Record<string, string>;
       const title = data["title"] || "Twende Meru Rides";
+      const body = data["body"] ?? "";
       const path = data["path"] || "/";
-      if (document.visibilityState === "visible") {
-        const notification = new Notification(title, {
-          body: data["body"] ?? "",
-          icon: "/icons/icon-192.png",
-          tag: data["dedupeKey"] || data["templateCode"] || "twende",
-        });
-        notification.onclick = () => {
+      const tag = data["dedupeKey"] || data["templateCode"] || "twende";
+      announce(data["templateCode"] === "ride_offer" ? "offer" : "status", title, body);
+      // Always show the notification bar entry, even with the app open.
+      void (async () => {
+        try {
+          const reg = await navigator.serviceWorker.getRegistration("/");
+          if (reg) {
+            await reg.showNotification(title, {
+              body,
+              icon: "/icons/icon-192.png",
+              badge: "/icons/icon-192.png",
+              tag,
+              renotify: true,
+              silent: false,
+              data: { path },
+            } as NotificationOptions);
+            return;
+          }
+        } catch {
+          // fall back below
+        }
+        const n = new Notification(title, { body, icon: "/icons/icon-192.png", tag });
+        n.onclick = () => {
           window.focus();
           onNavigate(path);
-          notification.close();
+          n.close();
         };
-      }
+      })();
     });
   } catch (error) {
     console.error("foreground push listener failed", error);

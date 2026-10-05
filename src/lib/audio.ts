@@ -62,6 +62,29 @@ export function primeAudio() {
     });
 }
 
+/** Reads a notification aloud (voice alert) after the chime. */
+export function speak(text: string, delayMs = 900) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window) || !text) return;
+  window.setTimeout(() => {
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text.slice(0, 200));
+      u.lang = "en-GB";
+      u.rate = 1;
+      u.volume = 1;
+      window.speechSynthesis.speak(u);
+    } catch {
+      // voice is a bonus; the chime and banner still show
+    }
+  }, delayMs);
+}
+
+/** Chime + voice for an incoming push. */
+export function announce(tone: Tone, title: string, body: string) {
+  playAlert(tone);
+  speak(body ? `${title}. ${body}` : title);
+}
+
 /** Stops the ride-offer jingle (offer accepted, declined, or expired). */
 export function stopAlert() {
   if (!jingle) return;
