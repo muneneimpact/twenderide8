@@ -173,7 +173,7 @@ export function HireVehicleManager() {
                     {vehicle.photo_urls?.[i] ? (
                       <button
                         aria-label="Remove photo"
-                        onClick={() => update.mutate({ vehicleId: vehicle.id, removePhotoPath: vehicle.photo_urls![i] })}
+                        onClick={() => update.mutate({ vehicleId: vehicle.id, removePhotoPath: vehicle.photo_urls?.[i] ?? "" })}
                         className="absolute right-0.5 top-0.5 rounded-full bg-card px-1.5 text-[10px] text-destructive"
                       >
                         ✕
