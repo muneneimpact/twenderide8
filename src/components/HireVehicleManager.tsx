@@ -25,6 +25,9 @@ export function HireVehicleManager() {
       seats?: number | null;
       description?: string | null;
       photoPath?: string | null;
+      addPhotoPath?: string;
+      removePhotoPath?: string;
+      rules?: string | null;
     }) => updateFn({ data: vars }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-vehicles"] }),
     onError: (error) => setNotice((error as Error).message),
@@ -43,7 +46,7 @@ export function HireVehicleManager() {
       setNotice(error.message);
       return;
     }
-    update.mutate({ vehicleId, photoPath: path });
+    update.mutate({ vehicleId, addPhotoPath: path });
   }
 
   return (
@@ -86,14 +89,16 @@ export function HireVehicleManager() {
                   {vehicle.plate_number} · {vehicle.vehicle_class} · {vehicle.status}
                 </p>
                 <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground">
-                  {busyId === vehicle.id ? "Uploading…" : "Upload photo"}
+                  {busyId === vehicle.id ? "Uploading…" : "Add photos"}
                   <input
                     type="file"
                     accept="image/*"
+                    multiple
                     className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void uploadPhoto(vehicle.id, file);
+                    onChange={async (event) => {
+                      for (const file of Array.from(event.target.files ?? [])) {
+                        await uploadPhoto(vehicle.id, file);
+                      }
                     }}
                   />
                 </label>
@@ -156,6 +161,36 @@ export function HireVehicleManager() {
                 onBlur={(event) =>
                   update.mutate({ vehicleId: vehicle.id, description: event.target.value || null })
                 }
+                className="input-base"
+              />
+            </label>
+
+            {vehicle.photo_links.length > 1 ? (
+              <div className="mt-2 flex gap-2 overflow-x-auto">
+                {vehicle.photo_links.map((src, i) => (
+                  <div key={src} className="relative shrink-0">
+                    <img src={src} alt={`Vehicle photo ${i + 1}`} className="h-14 w-20 rounded-lg object-cover" />
+                    {vehicle.photo_urls?.[i] ? (
+                      <button
+                        aria-label="Remove photo"
+                        onClick={() => update.mutate({ vehicleId: vehicle.id, removePhotoPath: vehicle.photo_urls?.[i] ?? "" })}
+                        className="absolute right-0.5 top-0.5 rounded-full bg-card px-1.5 text-[10px] text-destructive"
+                      >
+                        ✕
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <label className="mt-2 block">
+              <span className="text-[11px] text-muted-foreground">Your rules for hirers</span>
+              <textarea
+                defaultValue={vehicle.hire_rules ?? ""}
+                rows={3}
+                placeholder="No smoking. No carrying livestock or heavy goods. Return with the same fuel level."
+                onBlur={(event) => update.mutate({ vehicleId: vehicle.id, rules: event.target.value || null })}
                 className="input-base"
               />
             </label>
