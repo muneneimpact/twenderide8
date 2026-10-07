@@ -147,7 +147,28 @@ export const listMyVehicles = createServerFn({ method: "GET" })
       ? `owner_driver_id.eq.${context.userId},fleet_id.in.(${fleetIds.join(",")})`
       : `owner_driver_id.eq.${context.userId}`;
     const { data } = await context.supabase.from("vehicles").select(VEHICLE_FIELDS).or(filter);
-    return withPhotos((data ?? []) as unknown as HireVehicleRow[]);
+    const list = await withPhotos((data ?? []) as unknown as HireVehicleRow[]);
+    const vehicleIds = list.map((vehicle) => vehicle.id);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const now = new Date().toISOString();
+    const { data: bookings } = vehicleIds.length
+      ? await supabaseAdmin
+          .from("hire_quotes")
+          .select("vehicle_id, start_at, end_at, days, status")
+          .in("vehicle_id", vehicleIds)
+          .in("status", ["submitted", "quoted", "confirmed"])
+          .or(`end_at.gte.${now},end_at.is.null`)
+      : { data: [] as Array<{ vehicle_id: string | null; start_at: string; end_at: string | null; days: number; status: string }> };
+    return list.map((vehicle) => ({
+      ...vehicle,
+      hire_bookings: (bookings ?? [])
+        .filter((booking) => booking.vehicle_id === vehicle.id)
+        .map((booking) => ({
+          start: booking.start_at,
+          end: booking.end_at ?? new Date(new Date(booking.start_at).getTime() + booking.days * 86_400_000).toISOString(),
+          status: booking.status,
+        })),
+    }));
   });
 
 
@@ -261,6 +282,8 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       }
       dailyRate = vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate);
       vehicleClass = vehicle.vehicle_class as VehicleClass;
+      const { assertVehicleHasNoLiveRide } = await import("./vehicle-hire-lock.server");
+      await assertVehicleHasNoLiveRide(data.vehicleId, startAt);
     }
 
     const estimate = estimateHireTotal({
@@ -595,7 +618,7 @@ export const respondToHireOffer = createServerFn({ method: "POST" })
 
     const { data: quote } = await supabaseAdmin
       .from("hire_quotes")
-      .select("id, reference, requester_id, status")
+      .select("id, reference, requester_id, status, start_at")
       .eq("id", offer.quote_id)
       .maybeSingle();
     if (!quote || quote.requester_id !== context.userId) throw new Error("Not your request.");
@@ -611,13 +634,11 @@ export const respondToHireOffer = createServerFn({ method: "POST" })
         await supabaseAdmin.from("hire_quotes").update({ status: "submitted" }).eq("id", offer.quote_id);
       }
     } else {
-      await supabaseAdmin.from("hire_offers").update({ status: "accepted" }).eq("id", offer.id);
-      await supabaseAdmin
-        .from("hire_offers")
-        .update({ status: "superseded" })
-        .eq("quote_id", offer.quote_id)
-        .neq("id", offer.id);
-      await supabaseAdmin
+      if (offer.vehicle_id) {
+        const { assertVehicleHasNoLiveRide } = await import("./vehicle-hire-lock.server");
+        await assertVehicleHasNoLiveRide(offer.vehicle_id, new Date(quote.start_at));
+      }
+      const { error: confirmError } = await supabaseAdmin
         .from("hire_quotes")
         .update({
           status: "confirmed",
@@ -627,6 +648,18 @@ export const respondToHireOffer = createServerFn({ method: "POST" })
           accepted_offer_id: offer.id,
         } as never)
         .eq("id", offer.quote_id);
+      if (confirmError) throw new Error(confirmError.message);
+      const { error: acceptedError } = await supabaseAdmin
+        .from("hire_offers")
+        .update({ status: "accepted" })
+        .eq("id", offer.id);
+      if (acceptedError) throw new Error(acceptedError.message);
+      const { error: supersededError } = await supabaseAdmin
+        .from("hire_offers")
+        .update({ status: "superseded" })
+        .eq("quote_id", offer.quote_id)
+        .neq("id", offer.id);
+      if (supersededError) throw new Error(supersededError.message);
     }
 
     try {

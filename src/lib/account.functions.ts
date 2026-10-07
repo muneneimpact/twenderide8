@@ -230,15 +230,42 @@ export const submitDocument = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: type } = await context.supabase
       .from("document_types")
-      .select("label, requires_image")
+      .select("label, requires_image, active, applies_to")
       .eq("id", data.documentTypeId)
       .maybeSingle();
+    if (!type?.active || !["driver", "vehicle"].includes(type.applies_to)) {
+      throw new Error("That compliance document type is not available for driver submission.");
+    }
     if (type?.requires_image && !data.filePath) {
       throw new Error(`Attach a clear photo or scan of your ${type.label.toLowerCase()}.`);
+    }
+    if (type.applies_to === "vehicle" && !data.vehicleId) {
+      throw new Error("Choose which vehicle this document belongs to.");
+    }
+    if (type.applies_to === "driver" && data.vehicleId) {
+      throw new Error("This document belongs to your driver profile, not a vehicle.");
     }
     // A driver may only reference a file inside their own folder.
     if (data.filePath && !data.filePath.startsWith(`${context.userId}/`)) {
       throw new Error("That upload does not belong to your account.");
+    }
+    if (data.vehicleId) {
+      const [{ data: owned }, { data: authorised }] = await Promise.all([
+        context.supabase
+          .from("vehicles")
+          .select("id")
+          .eq("id", data.vehicleId)
+          .eq("owner_driver_id", context.userId)
+          .maybeSingle(),
+        context.supabase
+          .from("driver_vehicle_authorisations")
+          .select("vehicle_id")
+          .eq("vehicle_id", data.vehicleId)
+          .eq("driver_id", context.userId)
+          .is("revoked_at", null)
+          .maybeSingle(),
+      ]);
+      if (!owned && !authorised) throw new Error("You can only attach a vehicle document to a vehicle you own or are authorised to drive.");
     }
     const { error } = await context.supabase.from("documents").insert({
       document_type_id: data.documentTypeId,

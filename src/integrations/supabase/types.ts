@@ -2173,6 +2173,92 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversations: {
+        Row: {
+          created_at: string
+          customer_name: string | null
+          customer_phone: string
+          id: string
+          last_inbound_at: string | null
+          last_message_at: string
+          last_message_preview: string | null
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone: string
+          id?: string
+          last_inbound_at?: string | null
+          last_message_at?: string
+          last_message_preview?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string
+          id?: string
+          last_inbound_at?: string | null
+          last_message_at?: string
+          last_message_preview?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          attachment_meta: Json
+          body: string
+          conversation_id: string
+          created_at: string
+          direction: string
+          error_message: string | null
+          id: string
+          message_type: string
+          provider_message_id: string | null
+          sent_by: string | null
+          status: string
+        }
+        Insert: {
+          attachment_meta?: Json
+          body: string
+          conversation_id: string
+          created_at?: string
+          direction: string
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          provider_message_id?: string | null
+          sent_by?: string | null
+          status?: string
+        }
+        Update: {
+          attachment_meta?: Json
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          provider_message_id?: string | null
+          sent_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallet_ledger: {
         Row: {
           actor_id: string | null
@@ -2386,6 +2472,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      increment_whatsapp_unread: { Args: { _conversation_id: string }; Returns: undefined }
       accept_ride_offer: {
         Args: {
           _driver_id: string

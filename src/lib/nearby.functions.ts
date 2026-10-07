@@ -66,6 +66,8 @@ export const nearbyDrivers = createServerFn({ method: "POST" })
       ? await supabaseAdmin.from("vehicles").select("id, vehicle_class, status").in("id", vehicleIds)
       : { data: [] };
     const vehicleMap = new Map((vehicles ?? []).map((v) => [v.id, v]));
+    const { activeHireWindows } = await import("./vehicle-hire-lock.server");
+    const rentedVehicleIds = new Set((await activeHireWindows(vehicleIds)).map((hire) => hire.vehicle_id));
 
     const stale = Date.now() - 600_000;
     const result: NearbyDriver[] = [];
@@ -75,6 +77,7 @@ export const nearbyDrivers = createServerFn({ method: "POST" })
       if (driver.last_location_at && new Date(driver.last_location_at).getTime() < stale) continue;
       const vehicle = driver.active_vehicle_id ? vehicleMap.get(driver.active_vehicle_id) : null;
       if (!vehicle || vehicle.status !== "approved") continue;
+      if (rentedVehicleIds.has(vehicle.id)) continue;
       if (data.vehicleClass && vehicle.vehicle_class !== data.vehicleClass) continue;
 
       const point = { lat: Number(driver.last_lat), lng: Number(driver.last_lng) };

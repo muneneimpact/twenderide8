@@ -124,6 +124,7 @@ function DriverApply() {
     mutationFn: async () => {
       let filePath: string | undefined;
       if (docFile) {
+        if (docFile.size > 10 * 1024 * 1024) throw new Error("Each compliance document must be 10 MB or smaller.");
         const { data: session } = await supabase.auth.getUser();
         const userId = session.user?.id;
         if (!userId) throw new Error("Your session expired. Sign in again.");
@@ -357,7 +358,7 @@ function DriverApply() {
         </section>
 
         {/* Step 4 — documents */}
-        <section className="surface-card p-4">
+        <section id="compliance-documents" className="surface-card scroll-mt-20 p-4">
           <h3 className="text-sm font-semibold text-foreground">4 · Compliance documents</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Tap a document below to add it. National ID, driving licence and certificate of good conduct need a clear

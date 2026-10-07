@@ -36,6 +36,9 @@ export const getDriverHome = createServerFn({ method: "POST" })
     const { data: driver } = await supabase.from("drivers").select("*").eq("id", userId).maybeSingle();
     const { data: vehicles } = await supabase.from("vehicles").select("*").eq("owner_driver_id", userId);
     const { data: documents } = await supabase.from("documents").select("*").eq("subject_user_id", userId);
+    const activeVehicleHire = driver?.active_vehicle_id
+      ? await (await import("./vehicle-hire-lock.server")).activeHireForVehicle(driver.active_vehicle_id)
+      : null;
     const { data: wallet } = await supabase.from("wallets").select("*").eq("driver_id", userId).maybeSingle();
     const { data: offers } = await supabase
       .from("driver_offers")
@@ -129,6 +132,7 @@ export const getDriverHome = createServerFn({ method: "POST" })
       driver,
       vehicles: vehicles ?? [],
       documents: documents ?? [],
+      activeVehicleHire,
       wallet,
       offers: offers ?? [],
       activeRide,
@@ -165,6 +169,11 @@ export const setDriverOnline = createServerFn({ method: "POST" })
           .eq("id", driver.active_vehicle_id)
           .maybeSingle();
         if (vehicle?.status !== "approved") blockers.push("Your active vehicle is not approved yet.");
+        const currentHire = await (await import("./vehicle-hire-lock.server")).activeHireForVehicle(driver.active_vehicle_id);
+        if (currentHire) {
+          const returnAt = currentHire.end_at ?? new Date(new Date(currentHire.start_at).getTime() + currentHire.days * 86_400_000).toISOString();
+          blockers.push(`Your vehicle is hired until ${new Date(returnAt).toLocaleString("en-KE")}. Ride offers are paused until it is returned.`);
+        }
       }
       if (blockers.length) return { online: false, blockers };
     }
@@ -181,6 +190,10 @@ export const setActiveVehicle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ vehicleId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
+    const { activeHireForVehicle } = await import("./vehicle-hire-lock.server");
+    if (await activeHireForVehicle(data.vehicleId)) {
+      throw new Error("This vehicle is currently on hire and cannot be selected for rides until it is returned.");
+    }
     const { error } = await context.supabase
       .from("drivers")
       .update({ active_vehicle_id: data.vehicleId })
@@ -255,6 +268,10 @@ export const acceptOffer = createServerFn({ method: "POST" })
     if (!offer) return { ok: false, reason: "offer_not_found", ride_id: null };
     if (offer.status !== "offered" || new Date(offer.expires_at).getTime() < Date.now()) {
       return { ok: false, reason: "offer_expired", ride_id: null };
+    }
+    const { activeHireForVehicle } = await import("./vehicle-hire-lock.server");
+    if (offer.vehicle_id && (await activeHireForVehicle(offer.vehicle_id))) {
+      return { ok: false, reason: "vehicle_on_hire", ride_id: null };
     }
     const { data: result, error } = await supabaseAdmin.rpc("accept_ride_offer", {
       _ride_id: offer.ride_id,
@@ -830,6 +847,15 @@ export const listOpenRides = createServerFn({ method: "POST" })
       };
     }
 
+    const { activeHireForVehicle } = await import("./vehicle-hire-lock.server");
+    if (await activeHireForVehicle(driver.active_vehicle_id)) {
+      return {
+        eligible: false,
+        reason: "This vehicle is currently on hire and cannot take rides until it is returned.",
+        rides: [],
+      };
+    }
+
     await expireStaleDispatch();
     const { data: rides } = await supabaseAdmin
       .from("rides")
@@ -889,6 +915,11 @@ export const claimRide = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!driver || driver.status !== "approved" || !driver.active_vehicle_id) {
       return { ok: false, reason: "You are not cleared to accept rides yet.", ride_id: null };
+    }
+
+    const { activeHireForVehicle } = await import("./vehicle-hire-lock.server");
+    if (await activeHireForVehicle(driver.active_vehicle_id)) {
+      return { ok: false, reason: "This vehicle is currently on hire and cannot accept rides until it is returned.", ride_id: null };
     }
 
     // A driver may already have an offer row for this ride in any state

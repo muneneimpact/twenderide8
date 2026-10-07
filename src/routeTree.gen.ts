@@ -25,6 +25,7 @@ import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminStaffRouteImport } from './routes/_authenticated/admin/staff'
 import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin/support'
 import { Route as AuthenticatedAdminUnattendedRouteImport } from './routes/_authenticated/admin/unattended'
+import { Route as AuthenticatedAdminWhatsappRouteImport } from './routes/_authenticated/admin/whatsapp'
 import { Route as AuthenticatedDriverIndexRouteImport } from './routes/_authenticated/driver/index'
 import { Route as AuthenticatedDriverApplyRouteImport } from './routes/_authenticated/driver/apply'
 import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authenticated/driver/wallet'
@@ -33,6 +34,7 @@ import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenti
 import { Route as ApiPublicBootstrapSuperAdminRouteImport } from './routes/api/public/bootstrap-super-admin'
 import { Route as ApiPublicPaymentsCallbackRouteImport } from './routes/api/public/payments/callback'
 import { Route as ApiPublicPaymentsReconcileRouteImport } from './routes/api/public/payments/reconcile'
+import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -117,6 +119,12 @@ const AuthenticatedAdminUnattendedRoute =
     path: '/admin/unattended',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminWhatsappRoute =
+  AuthenticatedAdminWhatsappRouteImport.update({
+    id: '/admin/whatsapp',
+    path: '/admin/whatsapp',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDriverIndexRoute =
   AuthenticatedDriverIndexRouteImport.update({
     id: '/driver/',
@@ -164,6 +172,12 @@ const ApiPublicPaymentsReconcileRoute =
     path: '/api/public/payments/reconcile',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicWhatsappWebhookRoute =
+  ApiPublicWhatsappWebhookRouteImport.update({
+    id: '/api/public/whatsapp/webhook',
+    path: '/api/public/whatsapp/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -180,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/unattended': typeof AuthenticatedAdminUnattendedRoute
+  '/admin/whatsapp': typeof AuthenticatedAdminWhatsappRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -189,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/rides/': typeof AuthenticatedRidesIndexRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
   '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
+  '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -205,6 +221,7 @@ export interface FileRoutesByTo {
   '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/unattended': typeof AuthenticatedAdminUnattendedRoute
+  '/admin/whatsapp': typeof AuthenticatedAdminWhatsappRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -214,6 +231,7 @@ export interface FileRoutesByTo {
   '/rides': typeof AuthenticatedRidesIndexRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
   '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
+  '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -232,6 +250,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
   '/_authenticated/admin/unattended': typeof AuthenticatedAdminUnattendedRoute
+  '/_authenticated/admin/whatsapp': typeof AuthenticatedAdminWhatsappRoute
   '/_authenticated/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/_authenticated/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -241,6 +260,7 @@ export interface FileRoutesById {
   '/_authenticated/rides/': typeof AuthenticatedRidesIndexRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
   '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
+  '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -259,6 +279,7 @@ export interface FileRouteTypes {
     | '/admin/staff'
     | '/admin/support'
     | '/admin/unattended'
+    | '/admin/whatsapp'
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
@@ -268,6 +289,7 @@ export interface FileRouteTypes {
     | '/rides/'
     | '/api/public/payments/callback'
     | '/api/public/payments/reconcile'
+    | '/api/public/whatsapp/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -284,6 +306,7 @@ export interface FileRouteTypes {
     | '/admin/staff'
     | '/admin/support'
     | '/admin/unattended'
+    | '/admin/whatsapp'
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
@@ -293,6 +316,7 @@ export interface FileRouteTypes {
     | '/rides'
     | '/api/public/payments/callback'
     | '/api/public/payments/reconcile'
+    | '/api/public/whatsapp/webhook'
   id:
     | '__root__'
     | '/'
@@ -310,6 +334,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/staff'
     | '/_authenticated/admin/support'
     | '/_authenticated/admin/unattended'
+    | '/_authenticated/admin/whatsapp'
     | '/_authenticated/driver/apply'
     | '/_authenticated/driver/wallet'
     | '/_authenticated/rides/$rideId'
@@ -319,6 +344,7 @@ export interface FileRouteTypes {
     | '/_authenticated/rides/'
     | '/api/public/payments/callback'
     | '/api/public/payments/reconcile'
+    | '/api/public/whatsapp/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -330,6 +356,7 @@ export interface RootRouteChildren {
   ApiPublicBootstrapSuperAdminRoute: typeof ApiPublicBootstrapSuperAdminRoute
   ApiPublicPaymentsCallbackRoute: typeof ApiPublicPaymentsCallbackRoute
   ApiPublicPaymentsReconcileRoute: typeof ApiPublicPaymentsReconcileRoute
+  ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -446,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUnattendedRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/whatsapp': {
+      id: '/_authenticated/admin/whatsapp'
+      path: '/admin/whatsapp'
+      fullPath: '/admin/whatsapp'
+      preLoaderRoute: typeof AuthenticatedAdminWhatsappRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/driver/': {
       id: '/_authenticated/driver/'
       path: '/driver'
@@ -502,6 +536,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsReconcileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/whatsapp/webhook': {
+      id: '/api/public/whatsapp/webhook'
+      path: '/api/public/whatsapp/webhook'
+      fullPath: '/api/public/whatsapp/webhook'
+      preLoaderRoute: typeof ApiPublicWhatsappWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -516,6 +557,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminStaffRoute: typeof AuthenticatedAdminStaffRoute
   AuthenticatedAdminSupportRoute: typeof AuthenticatedAdminSupportRoute
   AuthenticatedAdminUnattendedRoute: typeof AuthenticatedAdminUnattendedRoute
+  AuthenticatedAdminWhatsappRoute: typeof AuthenticatedAdminWhatsappRoute
   AuthenticatedDriverApplyRoute: typeof AuthenticatedDriverApplyRoute
   AuthenticatedDriverWalletRoute: typeof AuthenticatedDriverWalletRoute
   AuthenticatedRidesRideIdRoute: typeof AuthenticatedRidesRideIdRoute
@@ -535,6 +577,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminStaffRoute: AuthenticatedAdminStaffRoute,
   AuthenticatedAdminSupportRoute: AuthenticatedAdminSupportRoute,
   AuthenticatedAdminUnattendedRoute: AuthenticatedAdminUnattendedRoute,
+  AuthenticatedAdminWhatsappRoute: AuthenticatedAdminWhatsappRoute,
   AuthenticatedDriverApplyRoute: AuthenticatedDriverApplyRoute,
   AuthenticatedDriverWalletRoute: AuthenticatedDriverWalletRoute,
   AuthenticatedRidesRideIdRoute: AuthenticatedRidesRideIdRoute,
@@ -555,6 +598,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicBootstrapSuperAdminRoute: ApiPublicBootstrapSuperAdminRoute,
   ApiPublicPaymentsCallbackRoute: ApiPublicPaymentsCallbackRoute,
   ApiPublicPaymentsReconcileRoute: ApiPublicPaymentsReconcileRoute,
+  ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

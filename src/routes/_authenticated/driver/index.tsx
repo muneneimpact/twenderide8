@@ -208,7 +208,20 @@ function DriverHome() {
     );
   }
 
-  const { driver, vehicles, wallet, offers, activeRide, activeRoute, queuedRide, queuedRoute, customer, recent, documents } = home.data!;
+  const {
+    driver,
+    vehicles,
+    wallet,
+    offers,
+    activeRide,
+    activeRoute,
+    queuedRide,
+    queuedRoute,
+    customer,
+    recent,
+    documents,
+    activeVehicleHire,
+  } = home.data!;
 
   if (!driver) {
     return (
@@ -280,6 +293,11 @@ function DriverHome() {
                 ))}
               </ul>
             ) : null}
+            {activeVehicleHire ? (
+              <p className="mt-3 rounded-xl border border-warning/30 bg-warning/15 px-3 py-2 text-xs font-medium text-warning-foreground">
+                This vehicle is on hire until {new Date(activeVehicleHire.end_at ?? new Date(new Date(activeVehicleHire.start_at).getTime() + activeVehicleHire.days * 86_400_000)).toLocaleString("en-KE")}. Ride offers are paused until it is returned.
+              </p>
+            ) : null}
           </section>
 
           {/* Vehicle + wallet */}
@@ -301,6 +319,9 @@ function DriverHome() {
                 {documents.filter((d) => d.status === "approved").length}/{documents.length || 0}
               </p>
               <p className="mt-1 text-xs text-brand-foreground/70">approved</p>
+              <Link to="/driver/apply" className="mt-2 inline-flex text-xs font-semibold text-brand-foreground">
+                Add or update documents →
+              </Link>
             </section>
           </div>
 

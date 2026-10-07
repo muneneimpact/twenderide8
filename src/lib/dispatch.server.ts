@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { haversineKm } from "./geo";
 import { hexKey, hexOf, hexRing, ringsWithin } from "./hex";
 import { notify } from "./notifications.server";
+import { activeHireWindows } from "./vehicle-hire-lock.server";
 
 export interface DispatchResult {
   offers: number;
@@ -100,12 +101,14 @@ async function eligibleDrivers(
     ? await supabaseAdmin.from("vehicles").select("id, vehicle_class, status").in("id", vehicleIds)
     : { data: [] };
   const vehicleMap = new Map((vehicles ?? []).map((v) => [v.id, v]));
+  const rentedVehicleIds = new Set((await activeHireWindows(vehicleIds)).map((hire) => hire.vehicle_id));
 
   const eligible: EligibleDriver[] = [];
   for (const driver of drivers ?? []) {
     if (cashRide && driver.cash_jobs_blocked) continue;
     const vehicle = driver.active_vehicle_id ? vehicleMap.get(driver.active_vehicle_id) : null;
     if (!vehicle || vehicle.status !== "approved" || vehicle.vehicle_class !== vehicleClass) continue;
+    if (rentedVehicleIds.has(vehicle.id)) continue;
 
     if (!busy.has(driver.id)) {
       if (driver.last_lat == null || driver.last_lng == null) continue;

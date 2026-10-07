@@ -119,6 +119,7 @@ export const adminTabs: Tab[] = [
   { to: "/admin", label: "Ops" },
   { to: "/admin/unattended", label: "Unattended" },
   { to: "/admin/support", label: "Claims" },
+  { to: "/admin/whatsapp", label: "WhatsApp" },
   { to: "/admin/finance", label: "Finance" },
   { to: "/admin/pricing", label: "Pricing" },
   { to: "/admin/staff", label: "People" },

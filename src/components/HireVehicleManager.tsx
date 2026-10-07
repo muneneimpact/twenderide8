@@ -29,7 +29,10 @@ export function HireVehicleManager() {
       removePhotoPath?: string;
       rules?: string | null;
     }) => updateFn({ data: vars }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-vehicles"] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["my-vehicles"] });
+      void queryClient.invalidateQueries({ queryKey: ["hire-vehicles"] });
+    },
     onError: (error) => setNotice((error as Error).message),
   });
 
@@ -53,7 +56,7 @@ export function HireVehicleManager() {
     <section className="surface-card p-4">
       <h3 className="text-sm font-semibold text-foreground">My vehicles for hire</h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Add a photo and a daily price, then switch a car on when it is free to be hired.
+        Drivers can list their approved vehicles here. Confirmed hire days are reserved, and ride offers pause while a vehicle is out with a hirer.
       </p>
 
       {vehicles.isPending ? (
@@ -66,7 +69,12 @@ export function HireVehicleManager() {
       ) : null}
 
       <div className="mt-3 space-y-3">
-        {(vehicles.data ?? []).map((vehicle) => (
+        {(vehicles.data ?? []).map((vehicle) => {
+          const currentHire = vehicle.hire_bookings.find(
+            (booking) => booking.status === "confirmed" && new Date(booking.start).getTime() <= Date.now() && new Date(booking.end).getTime() > Date.now(),
+          );
+          const heldBookings = vehicle.hire_bookings.filter((booking) => new Date(booking.end).getTime() > Date.now());
+          return (
           <article key={vehicle.id} className="rounded-2xl border border-border p-3">
             <div className="flex gap-3">
               {vehicle.photo_link ? (
@@ -88,6 +96,16 @@ export function HireVehicleManager() {
                 <p className="text-xs text-muted-foreground">
                   {vehicle.plate_number} · {vehicle.vehicle_class} · {vehicle.status}
                 </p>
+                {currentHire ? (
+                  <p className="mt-1 text-[11px] font-semibold text-warning-foreground">
+                    Out on hire until {new Date(currentHire.end).toLocaleString("en-KE")}. Ride dispatch is blocked.
+                  </p>
+                ) : null}
+                {heldBookings.length > 0 ? (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Reserved: {heldBookings.map((booking) => `${new Date(booking.start).toLocaleDateString("en-KE")}–${new Date(booking.end).toLocaleDateString("en-KE")}`).join(" · ")}
+                  </p>
+                ) : null}
                 <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground">
                   {busyId === vehicle.id ? "Uploading…" : "Add photos"}
                   <input
@@ -199,16 +217,22 @@ export function HireVehicleManager() {
               onClick={() =>
                 update.mutate({ vehicleId: vehicle.id, hireAvailable: !vehicle.hire_available })
               }
+              disabled={vehicle.status !== "approved" || update.isPending}
               className={`mt-3 w-full rounded-full px-3 py-2 text-xs font-semibold ${
                 vehicle.hire_available
                   ? "bg-primary text-primary-foreground"
                   : "border border-input bg-secondary text-secondary-foreground"
-              }`}
+              } disabled:opacity-50`}
             >
-              {vehicle.hire_available ? "Available for hire" : "Not available"}
+              {vehicle.status !== "approved"
+                ? "Available for hire after vehicle approval"
+                : vehicle.hire_available
+                  ? "Available for hire"
+                  : "Not available"}
             </button>
           </article>
-        ))}
+          );
+        })}
       </div>
       {notice ? <p className="mt-2 text-xs text-destructive">{notice}</p> : null}
     </section>

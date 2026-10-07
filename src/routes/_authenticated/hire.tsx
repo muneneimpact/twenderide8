@@ -82,6 +82,7 @@ function HirePage() {
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [modalStartDate, setModalStartDate] = useState<Date | null>(null);
 
   // Filters
   const [fSeats, setFSeats] = useState("");
@@ -324,6 +325,7 @@ function HirePage() {
                       onClick={() => {
                         setOpenId(v.id);
                         setPhotoIndex(0);
+                        setModalStartDate(start ? new Date(start.getFullYear(), start.getMonth(), start.getDate()) : null);
                       }}
                       className="block w-full text-left"
                     >
@@ -693,7 +695,7 @@ function HirePage() {
             </div>
 
             <div className="mt-3">
-              <p className="text-xs font-semibold text-foreground">Already booked</p>
+              <p className="text-xs font-semibold text-foreground">Unavailable dates</p>
               {opened.bookings.length ? (
                 <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
                   {opened.bookings.map((b) => (
@@ -707,15 +709,25 @@ function HirePage() {
               )}
             </div>
 
+            <AvailabilityCalendar
+              key={opened.id}
+              vehicle={opened}
+              days={days}
+              selected={modalStartDate}
+              onSelect={setModalStartDate}
+            />
+
             <button
               onClick={() => {
                 setVehicleId(opened.id);
                 setRulesAccepted(false);
+                if (modalStartDate) setStartAt(toLocalDateTime(modalStartDate, start));
                 setOpenId(null);
               }}
-              className="mt-4 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+              disabled={!modalStartDate || overlaps(opened, modalStartDate, days)}
+              className="mt-4 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
-              Select this vehicle
+              {modalStartDate ? "Start booking with this car" : "Choose an available date first"}
             </button>
           </div>
         </div>
@@ -731,6 +743,114 @@ function Detail({ k, v }: { k: string; v: string }) {
       <dd className="font-medium text-foreground">{v}</dd>
     </div>
   );
+}
+
+function AvailabilityCalendar({
+  vehicle,
+  days,
+  selected,
+  onSelect,
+}: {
+  vehicle: Vehicle;
+  days: number;
+  selected: Date | null;
+  onSelect: (date: Date) => void;
+}) {
+  const [month, setMonth] = useState(() => {
+    const value = selected ?? new Date();
+    return new Date(value.getFullYear(), value.getMonth(), 1);
+  });
+  const firstWeekday = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
+  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const cells: Array<number | null> = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+
+  return (
+    <section className="mt-4 rounded-2xl border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold text-foreground">Choose a free start day</p>
+          <p className="text-[10px] text-muted-foreground">Unavailable days are disabled for a {days}-day hire.</p>
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+            aria-label="Previous month"
+            className="rounded-full border border-input px-2.5 py-1 text-sm text-foreground"
+          >
+            ‹
+          </button>
+          <button
+            onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+            aria-label="Next month"
+            className="rounded-full border border-input px-2.5 py-1 text-sm text-foreground"
+          >
+            ›
+          </button>
+        </div>
+      </div>
+      <p className="mt-2 text-center text-xs font-semibold text-foreground">
+        {month.toLocaleDateString("en-KE", { month: "long", year: "numeric" })}
+      </p>
+      <div className="mt-2 grid grid-cols-7 gap-1 text-center">
+        {[
+          ["Su", "Sunday"],
+          ["Mo", "Monday"],
+          ["Tu", "Tuesday"],
+          ["We", "Wednesday"],
+          ["Th", "Thursday"],
+          ["Fr", "Friday"],
+          ["Sa", "Saturday"],
+        ].map(([short, full]) => (
+          <span key={full} className="py-1 text-[10px] font-medium text-muted-foreground">
+            {short}
+          </span>
+        ))}
+        {cells.map((day, index) => {
+          if (day === null) return <span key={`blank-${index}`} />;
+          const date = new Date(month.getFullYear(), month.getMonth(), day);
+          const past = date < today;
+          const busy = overlaps(vehicle, date, days);
+          const isSelected = selected?.toDateString() === date.toDateString();
+          const disabled = past || busy;
+          return (
+            <button
+              key={day}
+              type="button"
+              disabled={disabled}
+              title={busy ? "Unavailable for some of these hire days" : past ? "Past date" : "Available"}
+              onClick={() => onSelect(date)}
+              className={`aspect-square rounded-lg text-xs font-medium ${
+                isSelected && !busy
+                  ? "bg-primary text-primary-foreground"
+                  : busy
+                    ? "cursor-not-allowed bg-destructive/10 text-destructive/70 line-through"
+                    : past
+                      ? "cursor-not-allowed text-muted-foreground/40"
+                      : "border border-success/30 bg-success/5 text-foreground hover:bg-success/15"
+              }`}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+      {selected ? (
+        <p className="mt-2 text-center text-[11px] font-medium text-primary">
+          Selected: {selected.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" })}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function toLocalDateTime(date: Date, current: Date | null) {
+  const local = new Date(date.getFullYear(), date.getMonth(), date.getDate(), current?.getHours() ?? 9, current?.getMinutes() ?? 0);
+  return new Date(local.getTime() - local.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
 function UploadBox({
