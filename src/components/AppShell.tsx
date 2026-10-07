@@ -31,6 +31,8 @@ export function tabsForRoles(roles: AppRole[]): Tab[] {
   }
   const tabs: Tab[] = [...customerTabs];
   if (has("fleet_owner")) tabs.push({ to: "/fleet", label: "Fleet" });
+  if (has("fleet_owner")) tabs.push({ to: "/delivery/business", label: "Delivery" });
+  if (has("ops_admin", "super_admin")) tabs.push({ to: "/admin/whatsapp", label: "WhatsApp" });
   if (has("ops_admin", "super_admin")) tabs.push({ to: "/admin", label: "Ops" });
   if (has("ops_admin", "super_admin")) tabs.push({ to: "/admin/hire", label: "Hire ops" });
   if (has("finance_admin", "super_admin")) tabs.push({ to: "/admin/finance", label: "Finance" });

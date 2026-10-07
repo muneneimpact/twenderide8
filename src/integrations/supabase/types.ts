@@ -580,38 +580,6 @@ export type Database = {
           },
         ]
       }
-      fleet_memberships: {
-        Row: {
-          created_at: string
-          driver_id: string
-          fleet_id: string
-          id: string
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          driver_id: string
-          fleet_id: string
-          id?: string
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          driver_id?: string
-          fleet_id?: string
-          id?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fleet_memberships_fleet_id_fkey"
-            columns: ["fleet_id"]
-            isOneToOne: false
-            referencedRelation: "fleets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       fleet_delivery_rate_proposals: {
         Row: {
           base_fee: number
@@ -664,6 +632,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "fleet_delivery_rate_proposals_fleet_id_fkey"
+            columns: ["fleet_id"]
+            isOneToOne: false
+            referencedRelation: "fleets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fleet_memberships: {
+        Row: {
+          created_at: string
+          driver_id: string
+          fleet_id: string
+          id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          driver_id: string
+          fleet_id: string
+          id?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          driver_id?: string
+          fleet_id?: string
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fleet_memberships_fleet_id_fkey"
             columns: ["fleet_id"]
             isOneToOne: false
             referencedRelation: "fleets"
@@ -1879,6 +1879,7 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string
+          delivery_fleet_id: string | null
           distance_km: number
           distance_policy_id: string | null
           dropoff_address: string | null
@@ -1898,9 +1899,8 @@ export type Database = {
           route_response: Json
           stops: Json
           total_fare: number
-          unrounded_total: number
-          delivery_fleet_id: string | null
           trip_kind: string
+          unrounded_total: number
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
         }
         Insert: {
@@ -1909,6 +1909,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id: string
+          delivery_fleet_id?: string | null
           distance_km: number
           distance_policy_id?: string | null
           dropoff_address?: string | null
@@ -1928,9 +1929,8 @@ export type Database = {
           route_response?: Json
           stops?: Json
           total_fare: number
-          unrounded_total: number
-          delivery_fleet_id?: string | null
           trip_kind?: string
+          unrounded_total: number
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
         }
         Update: {
@@ -1939,6 +1939,7 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string
+          delivery_fleet_id?: string | null
           distance_km?: number
           distance_policy_id?: string | null
           dropoff_address?: string | null
@@ -1958,12 +1959,18 @@ export type Database = {
           route_response?: Json
           stops?: Json
           total_fare?: number
-          unrounded_total?: number
-          delivery_fleet_id?: string | null
           trip_kind?: string
+          unrounded_total?: number
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
         }
         Relationships: [
+          {
+            foreignKeyName: "route_quotes_delivery_fleet_id_fkey"
+            columns: ["delivery_fleet_id"]
+            isOneToOne: false
+            referencedRelation: "fleets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "route_quotes_distance_policy_id_fkey"
             columns: ["distance_policy_id"]
@@ -2186,14 +2193,14 @@ export type Database = {
           created_at: string
           fleet_id: string | null
           hire_approval_status: string
-          hire_rejection_reason: string | null
-          hire_reviewed_at: string | null
-          hire_reviewed_by: string | null
           hire_available: boolean
           hire_daily_rate: number | null
           hire_description: string | null
           hire_mode: string
           hire_notes: string | null
+          hire_rejection_reason: string | null
+          hire_reviewed_at: string | null
+          hire_reviewed_by: string | null
           hire_rules: string | null
           id: string
           make: string | null
@@ -2214,14 +2221,14 @@ export type Database = {
           created_at?: string
           fleet_id?: string | null
           hire_approval_status?: string
-          hire_rejection_reason?: string | null
-          hire_reviewed_at?: string | null
-          hire_reviewed_by?: string | null
           hire_available?: boolean
           hire_daily_rate?: number | null
           hire_description?: string | null
           hire_mode?: string
           hire_notes?: string | null
+          hire_rejection_reason?: string | null
+          hire_reviewed_at?: string | null
+          hire_reviewed_by?: string | null
           hire_rules?: string | null
           id?: string
           make?: string | null
@@ -2242,14 +2249,14 @@ export type Database = {
           created_at?: string
           fleet_id?: string | null
           hire_approval_status?: string
-          hire_rejection_reason?: string | null
-          hire_reviewed_at?: string | null
-          hire_reviewed_by?: string | null
           hire_available?: boolean
           hire_daily_rate?: number | null
           hire_description?: string | null
           hire_mode?: string
           hire_notes?: string | null
+          hire_rejection_reason?: string | null
+          hire_reviewed_at?: string | null
+          hire_reviewed_by?: string | null
           hire_rules?: string | null
           id?: string
           make?: string | null
@@ -2270,92 +2277,6 @@ export type Database = {
             columns: ["fleet_id"]
             isOneToOne: false
             referencedRelation: "fleets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      whatsapp_conversations: {
-        Row: {
-          created_at: string
-          customer_name: string | null
-          customer_phone: string
-          id: string
-          last_inbound_at: string | null
-          last_message_at: string
-          last_message_preview: string | null
-          unread_count: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          customer_name?: string | null
-          customer_phone: string
-          id?: string
-          last_inbound_at?: string | null
-          last_message_at?: string
-          last_message_preview?: string | null
-          unread_count?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          customer_name?: string | null
-          customer_phone?: string
-          id?: string
-          last_inbound_at?: string | null
-          last_message_at?: string
-          last_message_preview?: string | null
-          unread_count?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      whatsapp_messages: {
-        Row: {
-          attachment_meta: Json
-          body: string
-          conversation_id: string
-          created_at: string
-          direction: string
-          error_message: string | null
-          id: string
-          message_type: string
-          provider_message_id: string | null
-          sent_by: string | null
-          status: string
-        }
-        Insert: {
-          attachment_meta?: Json
-          body: string
-          conversation_id: string
-          created_at?: string
-          direction: string
-          error_message?: string | null
-          id?: string
-          message_type?: string
-          provider_message_id?: string | null
-          sent_by?: string | null
-          status?: string
-        }
-        Update: {
-          attachment_meta?: Json
-          body?: string
-          conversation_id?: string
-          created_at?: string
-          direction?: string
-          error_message?: string | null
-          id?: string
-          message_type?: string
-          provider_message_id?: string | null
-          sent_by?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -2477,6 +2398,92 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversations: {
+        Row: {
+          created_at: string
+          customer_name: string | null
+          customer_phone: string
+          id: string
+          last_inbound_at: string | null
+          last_message_at: string
+          last_message_preview: string | null
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone: string
+          id?: string
+          last_inbound_at?: string | null
+          last_message_at?: string
+          last_message_preview?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string
+          id?: string
+          last_inbound_at?: string | null
+          last_message_at?: string
+          last_message_preview?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          attachment_meta: Json
+          body: string
+          conversation_id: string
+          created_at: string
+          direction: string
+          error_message: string | null
+          id: string
+          message_type: string
+          provider_message_id: string | null
+          sent_by: string | null
+          status: string
+        }
+        Insert: {
+          attachment_meta?: Json
+          body: string
+          conversation_id: string
+          created_at?: string
+          direction: string
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          provider_message_id?: string | null
+          sent_by?: string | null
+          status?: string
+        }
+        Update: {
+          attachment_meta?: Json
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          provider_message_id?: string | null
+          sent_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       withdrawal_events: {
         Row: {
           actor_id: string | null
@@ -2573,7 +2580,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      increment_whatsapp_unread: { Args: { _conversation_id: string }; Returns: undefined }
       accept_ride_offer: {
         Args: {
           _driver_id: string
@@ -2608,6 +2614,7 @@ export type Database = {
           started_at: string | null
           status: Database["public"]["Enums"]["ride_status"]
           total_fare: number
+          trip_kind: string
           updated_at: string
           vehicle_id: string | null
         }
@@ -2636,6 +2643,10 @@ export type Database = {
         Args: { _fleet_id: string; _user_id: string }
         Returns: boolean
       }
+      increment_whatsapp_unread: {
+        Args: { _conversation_id: string }
+        Returns: undefined
+      }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
       may_drive_vehicle: {
         Args: { _user_id: string; _vehicle_id: string }
@@ -2649,11 +2660,20 @@ export type Database = {
         Args: { _user_id: string; _vehicle_id: string }
         Returns: boolean
       }
+      requires_phone_verification: { Args: never; Returns: boolean }
       review_delivery_rate_proposal: {
-        Args: { p_decision: string; p_note?: string | null; p_proposal_id: string; p_reviewer_id: string }
+        Args: {
+          p_decision: string
+          p_note?: string
+          p_proposal_id: string
+          p_reviewer_id: string
+        }
         Returns: undefined
       }
-      requires_phone_verification: { Args: never; Returns: boolean }
+      vehicle_has_active_hire: {
+        Args: { _at?: string; _vehicle_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role:
