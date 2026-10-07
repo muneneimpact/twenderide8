@@ -1,10 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { MapPanel } from "@/components/MapPanel";
-import { createQuote, estimateClasses, requestRide, reverseGeocode } from "@/lib/rides.functions";
+import {
+  createDeliveryQuote,
+  createQuote,
+  estimateClasses,
+  requestRide,
+  reverseGeocode,
+} from "@/lib/rides.functions";
+import { getDeliveryOptions } from "@/lib/delivery.functions";
 import { validatePromoCode } from "@/lib/admin.functions";
 import type { PromoState } from "@/lib/discounts";
 import { PlaceSearch } from "@/components/PlaceSearch";
@@ -22,7 +29,10 @@ export const Route = createFileRoute("/_authenticated/book")({
           "Set your pickup pin and destination, add stops along the way, then choose your ride and pay by M-PESA or cash.",
       },
       { property: "og:title", content: "Book a taxi — Twende Meru Rides" },
-      { property: "og:description", content: "Map-led taxi booking in Meru with a locked, itemised fare." },
+      {
+        property: "og:description",
+        content: "Map-led taxi booking in Meru with a locked, itemised fare.",
+      },
     ],
   }),
   component: BookPage,
@@ -84,6 +94,8 @@ function BookPage() {
   const reverse = useServerFn(reverseGeocode);
   const estimateFn = useServerFn(estimateClasses);
   const quoteFn = useServerFn(createQuote);
+  const deliveryQuoteFn = useServerFn(createDeliveryQuote);
+  const deliveryOptionsFn = useServerFn(getDeliveryOptions);
   const requestFn = useServerFn(requestRide);
   const nearbyFn = useServerFn(nearbyDrivers);
   const { me } = useMe();
@@ -101,6 +113,7 @@ function BookPage() {
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [paymentTouched, setPaymentTouched] = useState(false);
   const [tripKind, setTripKind] = useState<"ride" | "delivery">("ride");
+  const [deliveryFleetId, setDeliveryFleetId] = useState<string | null>(null);
   const [promoOpen, setPromoOpen] = useState(false);
   const [msisdn, setMsisdn] = useState("");
   const [msisdnTouched, setMsisdnTouched] = useState(false);
@@ -160,7 +173,8 @@ function BookPage() {
     [reverse],
   );
 
-  const stopPayload = () => stops.map((stop) => ({ lat: stop.lat, lng: stop.lng, address: label(stop) }));
+  const stopPayload = () =>
+    stops.map((stop) => ({ lat: stop.lat, lng: stop.lng, address: label(stop) }));
 
   const estimating = useMutation({
     mutationFn: () =>
@@ -175,6 +189,51 @@ function BookPage() {
 
   const estimates = estimating.data?.options ?? [];
   const chosen = estimates.find((item) => item.vehicleClass === vehicleClass);
+  const deliveryOptionsQuery = useQuery({
+    queryKey: [
+      "delivery-options",
+      pickup?.lat,
+      pickup?.lng,
+      dropoff?.lat,
+      dropoff?.lng,
+      stops.map(({ lat, lng }) => [lat, lng]),
+      tripKind,
+    ],
+    queryFn: () =>
+      deliveryOptionsFn({
+        data: {
+          pickup: { lat: pickup!.lat, lng: pickup!.lng, address: label(pickup) },
+          dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
+          stops: stopPayload(),
+        },
+      }),
+    enabled: step === "ride" && tripKind === "delivery" && Boolean(pickup && dropoff),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+  const deliveryCompanies = useMemo(
+    () => deliveryOptionsQuery.data?.options ?? [],
+    [deliveryOptionsQuery.data],
+  );
+  const selectedDelivery =
+    deliveryCompanies.find((option) => option.fleetId === deliveryFleetId) ?? null;
+  const selectedDeliveryVehicle =
+    selectedDelivery?.availableVehicles.find((vehicle) => vehicle.vehicleClass === vehicleClass) ??
+    null;
+  useEffect(() => {
+    if (tripKind !== "delivery" || !deliveryOptionsQuery.data) return;
+    const company =
+      deliveryCompanies.find((option) => option.fleetId === deliveryFleetId) ??
+      deliveryCompanies[0];
+    if (!company) {
+      setDeliveryFleetId(null);
+      return;
+    }
+    if (company.fleetId !== deliveryFleetId) setDeliveryFleetId(company.fleetId);
+    if (!company.availableVehicles.some((vehicle) => vehicle.vehicleClass === vehicleClass)) {
+      setVehicleClass(company.availableVehicles[0]!.vehicleClass as VehicleClass);
+    }
+  }, [tripKind, deliveryOptionsQuery.data, deliveryCompanies, deliveryFleetId, vehicleClass]);
 
   const promoFn = useServerFn(validatePromoCode);
   const applyingPromo = useMutation({
@@ -212,16 +271,28 @@ function BookPage() {
   // driver search. The customer never has to "lock" a fare by hand.
   const requesting = useMutation({
     mutationFn: async () => {
-      const priced = await quoteFn({
-        data: {
-          pickup: { lat: pickup!.lat, lng: pickup!.lng, address: label(pickup) },
-          dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
-          stops: stopPayload(),
-          vehicleClass,
-          pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
-          ...(appliedPromo?.code ? { promoCode: appliedPromo.code } : {}),
-        },
-      });
+      const priced =
+        tripKind === "delivery"
+          ? await deliveryQuoteFn({
+              data: {
+                pickup: { lat: pickup!.lat, lng: pickup!.lng, address: label(pickup) },
+                dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
+                stops: stopPayload(),
+                vehicleClass,
+                deliveryFleetId: selectedDelivery!.fleetId,
+                pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
+              },
+            })
+          : await quoteFn({
+              data: {
+                pickup: { lat: pickup!.lat, lng: pickup!.lng, address: label(pickup) },
+                dropoff: { lat: dropoff!.lat, lng: dropoff!.lng, address: label(dropoff) },
+                stops: stopPayload(),
+                vehicleClass,
+                pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
+                ...(appliedPromo?.code ? { promoCode: appliedPromo.code } : {}),
+              },
+            });
       return requestFn({
         data: {
           quoteId: priced.quote.id,
@@ -253,7 +324,7 @@ function BookPage() {
   }
 
   // Pickup defaults to where the phone says you are; you only type where to.
-  const useCurrentLocation = useCallback(() => {
+  const requestCurrentLocation = useCallback(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocating(false);
       setLocateError("This device can't share your location — drop the pickup pin on the map.");
@@ -280,21 +351,20 @@ function BookPage() {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvePoint]);
 
   useEffect(() => {
-    useCurrentLocation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    requestCurrentLocation();
+  }, [requestCurrentLocation]);
 
   // Price every vehicle class as soon as both ends of the trip (and any stops)
   // are known.
+  const stopsPriceKey = JSON.stringify(stops.map((stop) => [stop.lat, stop.lng]));
   useEffect(() => {
     if (!pickup || !dropoff) return;
     estimating.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stops.length, JSON.stringify(stops.map((s) => s.lat))]);
+  }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, stops.length, stopsPriceKey]);
 
   // Live, anonymised supply around the pickup: the rider sees real cars, and
   // the hex-bounded server query keeps map-provider usage flat.
@@ -345,7 +415,10 @@ function BookPage() {
   const readyForRide = Boolean(pickup && dropoff);
 
   return (
-    <AppShell title={step === "ride" ? "Choose your ride" : "Book a taxi"} hideNav={searchOpen || step === "ride"}>
+    <AppShell
+      title={step === "ride" ? "Choose your ride" : "Book a taxi"}
+      hideNav={searchOpen || step === "ride"}
+    >
       <div className="h-64 w-full border-b border-border">
         <MapPanel
           pickup={pickup}
@@ -363,14 +436,16 @@ function BookPage() {
           {/* Pickup is your current location by default — you only say where to. */}
           <div className="surface-card flex items-center justify-between gap-3 p-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pickup</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Pickup
+              </p>
               <p className="truncate text-sm font-medium text-foreground">
                 {locating ? "Finding your location…" : label(pickup)}
               </p>
             </div>
             <div className="flex shrink-0 gap-1.5">
               <button
-                onClick={useCurrentLocation}
+                onClick={requestCurrentLocation}
                 className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground"
               >
                 Use my location
@@ -414,9 +489,10 @@ function BookPage() {
                 : "border border-input text-muted-foreground"
             }`}
           >
-            {placing === "dropoff" ? "Tap the map to set your destination" : "Pick the destination on the map"}
+            {placing === "dropoff"
+              ? "Tap the map to set your destination"
+              : "Pick the destination on the map"}
           </button>
-
 
           {/* Stops along the way, in the order the customer arranges them. */}
           {dropoff ? (
@@ -433,7 +509,8 @@ function BookPage() {
               </div>
               {stops.length === 0 ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Need to pick someone up or drop something off? Add a stop and order them as you like.
+                  Need to pick someone up or drop something off? Add a stop and order them as you
+                  like.
                 </p>
               ) : (
                 <ol className="mt-2 space-y-2">
@@ -445,7 +522,9 @@ function BookPage() {
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                         {index + 1}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{label(stop)}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                        {label(stop)}
+                      </span>
                       <button
                         onClick={() => moveStop(index, -1)}
                         disabled={index === 0}
@@ -494,7 +573,9 @@ function BookPage() {
                 >
                   <span className="text-base">★</span>
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-foreground">{place.label}</span>
+                    <span className="block truncate text-sm font-semibold text-foreground">
+                      {place.label}
+                    </span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {place.address ?? "Saved place"}
                     </span>
@@ -509,7 +590,9 @@ function BookPage() {
                 >
                   <span className="text-base">↻</span>
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-foreground">{label(place)}</span>
+                    <span className="block truncate text-sm font-semibold text-foreground">
+                      {label(place)}
+                    </span>
                     <span className="block truncate text-xs text-muted-foreground">Recent</span>
                   </span>
                 </button>
@@ -562,7 +645,8 @@ function BookPage() {
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Trip</dt>
                 <dd className="text-right text-foreground">
-                  {estimating.data.distance_km.toFixed(1)} km · {Math.round(estimating.data.duration_minutes)} min
+                  {estimating.data.distance_km.toFixed(1)} km ·{" "}
+                  {Math.round(estimating.data.duration_minutes)} min
                 </dd>
               </div>
             ) : null}
@@ -584,6 +668,11 @@ function BookPage() {
                 key={option.key}
                 onClick={() => {
                   setTripKind(option.key);
+                  setDeliveryFleetId(null);
+                  if (option.key === "delivery") {
+                    setAppliedPromo(null);
+                    setPromoError(null);
+                  }
                   setVehicleClass(option.key === "delivery" ? "boda" : "go");
                 }}
                 className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-colors ${
@@ -597,58 +686,159 @@ function BookPage() {
             ))}
           </div>
 
-          <div className="mt-2 space-y-2">
-            {(tripKind === "delivery"
-              ? (["boda", "go"] as const)
-              : (["boda", "e_boda", "go", "plus", "comfort", "xl"] as const)
-            ).map((option) => {
-              const naming =
-                (tripKind === "delivery" ? DELIVERY_LABELS[option] : undefined) ?? CLASS_LABELS[option];
-              const priced = estimates.find((item) => item.vehicleClass === option);
-              const selected = vehicleClass === option;
-              const unavailable = priced ? !priced.available : false;
-              return (
-                <button
-                  key={option}
-                  disabled={unavailable}
-                  onClick={() => setVehicleClass(option)}
-                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-colors ${
-                    selected ? "border-primary bg-accent" : "border-border bg-card"
-                  } disabled:opacity-60`}
-                >
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-foreground">{naming.name}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {unavailable ? "Not available on this route" : naming.hint}
-                    </span>
-                    {priced && priced.available && priced.discount_percent > 0 ? (
-                      <span className="mt-1 inline-flex rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold text-gold-foreground">
-                        {priced.discount_label ?? `${priced.discount_percent}% off`}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="shrink-0 text-right">
-                    {priced && priced.available ? (
-                      <>
-                        {priced.discount_percent > 0 ? (
-                          <span className="block text-xs text-muted-foreground line-through">
-                            KES {priced.total_before_discount.toFixed(0)}
-                          </span>
-                        ) : null}
-                        <span className="font-display text-base font-bold text-foreground">
-                          KES {priced.total.toFixed(0)}
+          {tripKind === "delivery" ? (
+            <div className="mt-3 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Compare each approved company's route price, then choose a nearby vehicle type. The
+                request only goes to that company's available drivers.
+              </p>
+              {deliveryOptionsQuery.isPending ? (
+                <p className="rounded-xl bg-secondary p-3 text-sm text-muted-foreground">
+                  Finding approved delivery companies and nearby vehicles…
+                </p>
+              ) : null}
+              {deliveryOptionsQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  {(deliveryOptionsQuery.error as Error).message}
+                </p>
+              ) : null}
+              {!deliveryOptionsQuery.isPending && deliveryCompanies.length === 0 ? (
+                <p className="rounded-xl border border-border bg-secondary p-3 text-sm text-muted-foreground">
+                  No approved delivery company has an available vehicle near this pickup right now.
+                  Try again in a moment or choose a cab.
+                </p>
+              ) : null}
+              {deliveryCompanies.map((company) => {
+                const selected = company.fleetId === deliveryFleetId;
+                return (
+                  <section
+                    key={company.fleetId}
+                    className={`rounded-2xl border-2 p-3 ${selected ? "border-primary bg-accent/40" : "border-border bg-card"}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeliveryFleetId(company.fleetId);
+                        setVehicleClass(company.availableVehicles[0]!.vehicleClass as VehicleClass);
+                      }}
+                      className="flex w-full items-start justify-between gap-3 text-left"
+                    >
+                      <span>
+                        <span className="block text-sm font-bold text-foreground">
+                          {company.businessName}
                         </span>
-                      </>
-                    ) : estimating.isPending ? (
-                      <span className="text-xs text-muted-foreground">…</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {company.availableVehicles.length} nearby vehicle
+                          {company.availableVehicles.length === 1 ? "" : "s"} ·{" "}
+                          {company.distanceKm.toFixed(1)} km route
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="block font-display text-lg font-bold text-foreground">
+                          KES {company.feeEstimate.toFixed(0)}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          estimated delivery fee
+                        </span>
+                      </span>
+                    </button>
+                    <p className="mt-2 text-[10px] text-muted-foreground">
+                      Base {company.baseFee.toFixed(0)} + distance {company.distanceFee.toFixed(0)}{" "}
+                      + time {company.timeFee.toFixed(0)} KES; minimum fee applies where higher.
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {company.availableVehicles.map((vehicle, index) => (
+                        <button
+                          key={vehicle.id}
+                          type="button"
+                          onClick={() => {
+                            setDeliveryFleetId(company.fleetId);
+                            setVehicleClass(vehicle.vehicleClass as VehicleClass);
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-xl border px-2.5 py-2 text-left ${selected && vehicleClass === vehicle.vehicleClass ? "border-primary bg-primary/10" : "border-border bg-background"}`}
+                        >
+                          {vehicle.photoUrl ? (
+                            <img
+                              src={vehicle.photoUrl}
+                              alt={`${vehicle.make ?? "Delivery"} ${vehicle.model ?? "vehicle"}`}
+                              className="h-12 w-16 shrink-0 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <span className="grid h-12 w-16 shrink-0 place-items-center rounded-lg bg-secondary text-[10px] text-muted-foreground">
+                              Vehicle
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-semibold text-foreground">
+                              {[vehicle.make, vehicle.model, vehicle.colour]
+                                .filter(Boolean)
+                                .join(" ") ||
+                                `${vehicle.vehicleClass.replace("_", " ")} delivery vehicle`}
+                            </span>
+                            <span className="block text-[10px] text-muted-foreground">
+                              {vehicle.vehicleClass.replace("_", " ").toUpperCase()} · about{" "}
+                              {vehicle.etaMinutes} min away · {vehicle.distanceKm.toFixed(1)} km
+                            </span>
+                          </span>
+                          <span className="text-[10px] font-semibold text-primary">
+                            {selected && vehicleClass === vehicle.vehicleClass
+                              ? "Selected"
+                              : index === 0
+                                ? "Choose"
+                                : "Select"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {(["boda", "e_boda", "go", "plus", "comfort", "xl"] as const).map((option) => {
+                const naming = CLASS_LABELS[option];
+                const priced = estimates.find((item) => item.vehicleClass === option);
+                const selected = vehicleClass === option;
+                const unavailable = priced ? !priced.available : false;
+                return (
+                  <button
+                    key={option}
+                    disabled={unavailable}
+                    onClick={() => setVehicleClass(option)}
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-colors ${selected ? "border-primary bg-accent" : "border-border bg-card"} disabled:opacity-60`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-foreground">
+                        {naming.name}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {unavailable ? "Not available on this route" : naming.hint}
+                      </span>
+                      {priced && priced.available && priced.discount_percent > 0 ? (
+                        <span className="mt-1 inline-flex rounded-full bg-gold px-2 py-0.5 text-[10px] font-semibold text-gold-foreground">
+                          {priced.discount_label ?? `${priced.discount_percent}% off`}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="shrink-0 text-right">
+                      {priced && priced.available ? (
+                        <>
+                          <span className="font-display text-base font-bold text-foreground">
+                            KES {priced.total.toFixed(0)}
+                          </span>
+                        </>
+                      ) : estimating.isPending ? (
+                        <span className="text-xs text-muted-foreground">…</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {estimating.isError ? (
             <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
           ) : null}
@@ -697,7 +887,9 @@ function BookPage() {
           </p>
 
           <label className="mt-4 block">
-            <span className="text-xs font-medium text-muted-foreground">Pickup notes (optional)</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Pickup notes (optional)
+            </span>
             <input
               value={pickupNotes}
               onChange={(event) => setPickupNotes(event.target.value)}
@@ -707,62 +899,68 @@ function BookPage() {
           </label>
 
           {/* The coupon box stays out of the way until it's wanted. */}
-          <div className="mt-4">
-            {!promoOpen && !appliedPromo ? (
-              <button
-                onClick={() => setPromoOpen(true)}
-                className="w-full rounded-2xl border border-dashed border-input px-3 py-2.5 text-sm font-semibold text-foreground"
-              >
-                Have a Promo Coupon?
-              </button>
-            ) : null}
-            {promoOpen && !appliedPromo ? (
-              <>
-                <span className="text-xs font-medium text-muted-foreground">Promo code</span>
-                <div className="mt-1 flex gap-2">
-                  <input
-                    value={promoInput}
-                    onChange={(e) => {
-                      setPromoInput(e.target.value);
-                      setPromoError(null);
-                    }}
-                    placeholder="Enter a code"
-                    className="flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-sm uppercase"
-                  />
+          {tripKind === "ride" ? (
+            <div className="mt-4">
+              {!promoOpen && !appliedPromo ? (
+                <button
+                  onClick={() => setPromoOpen(true)}
+                  className="w-full rounded-2xl border border-dashed border-input px-3 py-2.5 text-sm font-semibold text-foreground"
+                >
+                  Have a Promo Coupon?
+                </button>
+              ) : null}
+              {promoOpen && !appliedPromo ? (
+                <>
+                  <span className="text-xs font-medium text-muted-foreground">Promo code</span>
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      value={promoInput}
+                      onChange={(e) => {
+                        setPromoInput(e.target.value);
+                        setPromoError(null);
+                      }}
+                      placeholder="Enter a code"
+                      className="flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-sm uppercase"
+                    />
+                    <button
+                      onClick={() => applyingPromo.mutate()}
+                      disabled={
+                        applyingPromo.isPending ||
+                        promoInput.trim().length < 2 ||
+                        !chosen?.available
+                      }
+                      className="rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold"
+                    >
+                      {applyingPromo.isPending ? "Checking…" : "Apply"}
+                    </button>
+                  </div>
+                </>
+              ) : null}
+              {appliedPromo ? (
+                <div className="mt-2 rounded-xl bg-success/10 px-3 py-2.5 text-xs text-success">
+                  <p className="font-semibold">
+                    {appliedPromo.code} applied — {appliedPromo.discount_percent}% off
+                  </p>
+                  <p>
+                    You save KES {appliedPromo.discount_amount.toFixed(2)} — new fare KES{" "}
+                    {appliedPromo.total_fare.toFixed(2)}.
+                  </p>
                   <button
-                    onClick={() => applyingPromo.mutate()}
-                    disabled={applyingPromo.isPending || promoInput.trim().length < 2 || !chosen?.available}
-                    className="rounded-xl border border-input bg-secondary px-4 py-2.5 text-sm font-semibold"
+                    onClick={() => {
+                      setAppliedPromo(null);
+                      setPromoInput("");
+                      setPromoError(null);
+                      setPromoStatus(null);
+                    }}
+                    className="mt-1 underline"
                   >
-                    {applyingPromo.isPending ? "Checking…" : "Apply"}
+                    Remove code
                   </button>
                 </div>
-              </>
-            ) : null}
-            {appliedPromo ? (
-              <div className="mt-2 rounded-xl bg-success/10 px-3 py-2.5 text-xs text-success">
-                <p className="font-semibold">
-                  {appliedPromo.code} applied — {appliedPromo.discount_percent}% off
-                </p>
-                <p>
-                  You save KES {appliedPromo.discount_amount.toFixed(2)} — new fare KES{" "}
-                  {appliedPromo.total_fare.toFixed(2)}.
-                </p>
-                <button
-                  onClick={() => {
-                    setAppliedPromo(null);
-                    setPromoInput("");
-                    setPromoError(null);
-                    setPromoStatus(null);
-                  }}
-                  className="mt-1 underline"
-                >
-                  Remove code
-                </button>
-              </div>
-            ) : null}
-            {promoError ? <p className="mt-2 text-xs text-destructive">{promoError}</p> : null}
-          </div>
+              ) : null}
+              {promoError ? <p className="mt-2 text-xs text-destructive">{promoError}</p> : null}
+            </div>
+          ) : null}
 
           {requesting.isError && (
             <p className="mt-3 text-sm text-destructive">{(requesting.error as Error).message}</p>
@@ -772,15 +970,21 @@ function BookPage() {
           <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-6">
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/90 to-transparent" />
             <button
-              disabled={requesting.isPending || (paymentMethod === "stk_push" && msisdn.trim().length < 9)}
+              disabled={
+                requesting.isPending ||
+                (paymentMethod === "stk_push" && msisdn.trim().length < 9) ||
+                (tripKind === "delivery" && (!selectedDelivery || !selectedDeliveryVehicle))
+              }
               onClick={() => requesting.mutate()}
               className="relative mx-auto block w-full max-w-md rounded-full bg-primary px-4 py-4 text-sm font-bold text-primary-foreground shadow-[0_16px_40px_-12px_rgba(0,0,0,0.55)] disabled:opacity-60"
             >
               {requesting.isPending
-                ? "Finding your driver…"
-                : `Find a driver · ${CLASS_LABELS[vehicleClass].name}${
-                    chosen && chosen.available ? ` · KES ${chosen.total.toFixed(0)}` : ""
-                  }`}
+                ? tripKind === "delivery"
+                  ? "Finding your delivery driver…"
+                  : "Finding your driver…"
+                : tripKind === "delivery"
+                  ? `Book ${selectedDelivery?.businessName ?? "delivery"}${selectedDelivery ? ` · KES ${selectedDelivery.feeEstimate.toFixed(0)}` : ""}`
+                  : `Find a driver · ${CLASS_LABELS[vehicleClass].name}${chosen && chosen.available ? ` · KES ${chosen.total.toFixed(0)}` : ""}`}
             </button>
           </div>
         </div>
@@ -831,7 +1035,9 @@ function BookPage() {
                     className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
                   >
                     <span>★</span>
-                    <span className="truncate text-sm font-semibold text-foreground">{place.label}</span>
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      {place.label}
+                    </span>
                   </button>
                 ))
               : null}
@@ -843,7 +1049,9 @@ function BookPage() {
                     className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left"
                   >
                     <span>↻</span>
-                    <span className="truncate text-sm font-semibold text-foreground">{label(place)}</span>
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      {label(place)}
+                    </span>
                   </button>
                 ))
               : null}

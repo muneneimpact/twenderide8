@@ -30,7 +30,10 @@ export const Route = createFileRoute("/_authenticated/rides/$rideId")({
           "Watch your Twende Meru Rides driver approach in real time, see the locked fare, pay by M-PESA or cancel.",
       },
       { property: "og:title", content: "Track your taxi — Twende Meru Rides" },
-      { property: "og:description", content: "Live driver approach tracking and payment for your Meru taxi." },
+      {
+        property: "og:description",
+        content: "Live driver approach tracking and payment for your Meru taxi.",
+      },
     ],
   }),
   component: RideDetail,
@@ -38,14 +41,26 @@ export const Route = createFileRoute("/_authenticated/rides/$rideId")({
 
 const statusCopy: Record<string, { title: string; body: string }> = {
   searching: { title: "Finding a driver", body: "We are offering your ride to nearby drivers." },
-  driver_assigned: { title: "Driver on the way", body: "Your driver is approaching the pickup pin." },
-  driver_arrived: { title: "Driver has arrived", body: "Your driver is waiting at the pickup pin." },
+  driver_assigned: {
+    title: "Driver on the way",
+    body: "Your driver is approaching the pickup pin.",
+  },
+  driver_arrived: {
+    title: "Driver has arrived",
+    body: "Your driver is waiting at the pickup pin.",
+  },
   trip_started: { title: "On trip", body: "Enjoy the ride — the fare is already locked." },
   trip_completed: { title: "Trip completed", body: "Thanks for riding with Twende." },
   cancelled_by_customer: { title: "Cancelled", body: "You cancelled this ride." },
-  cancelled_by_driver: { title: "Cancelled by driver", body: "The driver cancelled. No fare is due." },
+  cancelled_by_driver: {
+    title: "Cancelled by driver",
+    body: "The driver cancelled. No fare is due.",
+  },
   cancelled_by_ops: { title: "Cancelled by operations", body: "Operations cancelled this ride." },
-  no_driver_found: { title: "No driver found", body: "No driver was available nearby. Nothing was charged." },
+  no_driver_found: {
+    title: "No driver found",
+    body: "No driver was available nearby. Nothing was charged.",
+  },
 };
 
 function RideDetail() {
@@ -101,7 +116,12 @@ function RideDetail() {
       )
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "ride_locations", filter: `ride_id=eq.${rideId}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "ride_locations",
+          filter: `ride_id=eq.${rideId}`,
+        },
         () => queryClient.invalidateQueries({ queryKey: ["ride", rideId] }),
       )
       .subscribe();
@@ -153,9 +173,11 @@ function RideDetail() {
     );
   }
 
-  const { ride, quote, driver, vehicle, lastLocation, events } = rideQuery.data!;
+  const { ride, quote, driver, vehicle, lastLocation, events, tracking } = rideQuery.data!;
   const copy = statusCopy[ride.status] ?? { title: ride.status, body: "" };
-  const cancellable = !["trip_started", "trip_completed"].includes(ride.status) && !ride.status.startsWith("cancelled");
+  const cancellable =
+    !["trip_started", "trip_completed"].includes(ride.status) &&
+    !ride.status.startsWith("cancelled");
   const paymentStatus = paymentQuery.data?.ride?.payment_status ?? ride.payment_status;
   const intent = paymentQuery.data?.intent ?? null;
   const awaitingPayment = ["pending", "initiating", "awaiting_confirmation", "processing"].includes(
@@ -166,15 +188,19 @@ function RideDetail() {
   const paymentFailed = ["failed", "cancelled", "timed_out"].includes(paymentStatus);
   const paymentFailure = intent?.failure_reason ?? null;
   const mpesaReceipt =
-    (intent?.provider_response as { mpesa_receipt?: string } | null | undefined)?.mpesa_receipt ?? null;
+    (intent?.provider_response as { mpesa_receipt?: string } | null | undefined)?.mpesa_receipt ??
+    null;
 
   return (
-    <AppShell title={`Ride ${ride.reference}`}>
+    <AppShell title={`${ride.trip_kind === "delivery" ? "Delivery" : "Ride"} ${ride.reference}`}>
       <div className="h-64 w-full border-b border-border">
         <MapPanel
           pickup={quote ? { lat: Number(quote.pickup_lat), lng: Number(quote.pickup_lng) } : null}
-          dropoff={quote ? { lat: Number(quote.dropoff_lat), lng: Number(quote.dropoff_lng) } : null}
+          dropoff={
+            quote ? { lat: Number(quote.dropoff_lat), lng: Number(quote.dropoff_lng) } : null
+          }
           polyline={quote?.polyline ?? null}
+          driverRoutePolyline={tracking.routePolyline}
           driver={
             lastLocation
               ? {
@@ -190,13 +216,55 @@ function RideDetail() {
 
       <div className="mx-auto max-w-md px-4 py-4">
         <section className="rounded-xl border border-border bg-card p-4">
-          <h2 className="font-display text-lg font-semibold text-foreground">{copy.title}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{copy.body}</p>
+          <h2 className="font-display text-lg font-semibold text-foreground">
+            {ride.trip_kind === "delivery" &&
+            ["driver_assigned", "driver_arriving"].includes(ride.status)
+              ? "Your delivery driver is on the way"
+              : ride.trip_kind === "delivery" && ride.status === "trip_started"
+                ? "Delivery in progress"
+                : copy.title}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {ride.trip_kind === "delivery" &&
+            ["driver_assigned", "driver_arriving"].includes(ride.status)
+              ? "Your delivery driver is approaching the pickup point."
+              : copy.body}
+          </p>
+          {ride.status === "driver_arrived" ? (
+            <p className="mt-3 rounded-lg bg-success/10 px-3 py-2 text-sm font-semibold text-success">
+              Your {ride.trip_kind === "delivery" ? "delivery driver" : "driver"} is at the pickup
+              point.
+            </p>
+          ) : ["driver_assigned", "driver_arriving", "trip_started"].includes(ride.status) ? (
+            <div className="mt-3 rounded-lg bg-primary/10 px-3 py-2">
+              <p className="text-sm font-semibold text-foreground">
+                {tracking.etaMinutes != null
+                  ? ride.status === "trip_started"
+                    ? `Estimated arrival at destination: about ${tracking.etaMinutes} min`
+                    : `${ride.trip_kind === "delivery" ? "Delivery driver" : "Driver"} is about ${tracking.etaMinutes} min away`
+                  : lastLocation
+                    ? "Waiting for a fresh location to calculate arrival time…"
+                    : "Waiting for the driver’s first live location…"}
+              </p>
+              {tracking.distanceKm != null ? (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  About {tracking.distanceKm.toFixed(1)} km away by road.
+                </p>
+              ) : null}
+              {tracking.locationUpdatedAt ? (
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  Location updated{" "}
+                  {new Date(tracking.locationUpdatedAt).toLocaleTimeString("en-KE")}.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <p className="mt-3 font-display text-2xl font-semibold text-foreground">
             KES {Number(ride.total_fare).toFixed(2)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {ride.payment_method === "cash" ? "Cash on arrival" : "M-PESA"} · payment {paymentStatus}
+            {ride.payment_method === "cash" ? "Cash on arrival" : "M-PESA"} · payment{" "}
+            {paymentStatus}
           </p>
           {Number(ride.cancellation_fee ?? 0) > 0 && (
             <p className="mt-2 text-xs text-warning">
@@ -208,16 +276,21 @@ function RideDetail() {
         {/* The driver may be dropping someone off nearby before starting yours. */}
         {ride.queued_after_ride_id && !ride.status.startsWith("cancelled") ? (
           <section className="mt-4 rounded-xl border border-warning/40 bg-warning/10 p-4">
-            <h3 className="text-sm font-semibold text-foreground">Your driver is close by, finishing another trip</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              Your {ride.trip_kind === "delivery" ? "delivery driver" : "driver"} is close by,
+              finishing another trip
+            </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              They accepted your ride and will set off to your pickup point as soon as they drop off their current
-              passenger nearby. We'll tell you the moment they're on the way.
+              They accepted your {ride.trip_kind === "delivery" ? "delivery" : "ride"} and will set
+              off to your pickup point as soon as they drop off their current passenger nearby.
+              We'll tell you the moment they're on the way.
             </p>
           </section>
         ) : null}
 
         {/* Stops the customer arranged along the way. */}
-        {Array.isArray(quote?.stops) && (quote.stops as { address?: string | null }[]).length > 0 ? (
+        {Array.isArray(quote?.stops) &&
+        (quote.stops as { address?: string | null }[]).length > 0 ? (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold text-foreground">Stops along the way</h3>
             <ol className="mt-2 space-y-1.5">
@@ -232,8 +305,6 @@ function RideDetail() {
             </ol>
           </section>
         ) : null}
-
-
 
         {(driver || vehicle) && (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
@@ -250,7 +321,9 @@ function RideDetail() {
                   {(driver?.full_name ?? "D").charAt(0).toUpperCase()}
                 </span>
               )}
-              <p className="text-sm font-semibold text-foreground">{driver?.full_name ?? "Assigned driver"}</p>
+              <p className="text-sm font-semibold text-foreground">
+                {driver?.full_name ?? "Assigned driver"}
+              </p>
             </div>
 
             {vehicle && (
@@ -258,7 +331,9 @@ function RideDetail() {
                 <CarBadge
                   colour={vehicle.colour}
                   plate={vehicle.plate_number}
-                  detail={[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") || null}
+                  detail={
+                    [vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") || null
+                  }
                 />
               </div>
             )}
@@ -284,7 +359,6 @@ function RideDetail() {
           </div>
         ) : null}
 
-
         {ride.payment_method === "stk_push" && paymentStatus === "paid" && (
           <section className="mt-4 rounded-xl border border-success/40 bg-success/10 p-4">
             <h3 className="text-sm font-semibold text-foreground">Payment received</h3>
@@ -295,50 +369,53 @@ function RideDetail() {
           </section>
         )}
 
-        {ride.payment_method === "stk_push" && !["paid", "not_required"].includes(paymentStatus) && (
-          <section className="mt-4 rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">Twende Payments</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Pay KES {Number(ride.total_fare).toFixed(2)} with M-Pesa.
-            </p>
-            {awaitingPayment ? (
-              <div className="mt-3 rounded-md bg-secondary p-3">
-                <p className="text-sm font-medium text-foreground">
-                  {waitedTooLong
-                    ? "Your payment is still being confirmed. This page will automatically update once payment is received."
-                    : "Check your phone for the M-Pesa prompt."}
-                </p>
-                {!waitedTooLong && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Enter your M-Pesa PIN to complete the payment.
-                  </p>
-                )}
-              </div>
-            ) : null}
-            <button
-              onClick={() => paying.mutate()}
-              disabled={paying.isPending}
-              className="mt-3 w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              {paying.isPending
-                ? "Sending prompt…"
-                : awaitingPayment || paymentFailed
-                  ? "Send the prompt again"
-                  : "Pay with M-Pesa"}
-            </button>
-            {paymentFailed && paymentFailure && (
-              <p className="mt-2 text-sm text-destructive">{paymentFailure}</p>
-            )}
-            {paying.data && !awaitingPayment && (
-              <p className={`mt-2 text-sm ${paying.data.blocked ? "text-warning" : "text-muted-foreground"}`}>
-                {paying.data.message}
+        {ride.payment_method === "stk_push" &&
+          !["paid", "not_required"].includes(paymentStatus) && (
+            <section className="mt-4 rounded-xl border border-border bg-card p-4">
+              <h3 className="text-sm font-semibold text-foreground">Twende Payments</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pay KES {Number(ride.total_fare).toFixed(2)} with M-Pesa.
               </p>
-            )}
-            {paying.isError && (
-              <p className="mt-2 text-sm text-destructive">{(paying.error as Error).message}</p>
-            )}
-          </section>
-        )}
+              {awaitingPayment ? (
+                <div className="mt-3 rounded-md bg-secondary p-3">
+                  <p className="text-sm font-medium text-foreground">
+                    {waitedTooLong
+                      ? "Your payment is still being confirmed. This page will automatically update once payment is received."
+                      : "Check your phone for the M-Pesa prompt."}
+                  </p>
+                  {!waitedTooLong && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Enter your M-Pesa PIN to complete the payment.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+              <button
+                onClick={() => paying.mutate()}
+                disabled={paying.isPending}
+                className="mt-3 w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {paying.isPending
+                  ? "Sending prompt…"
+                  : awaitingPayment || paymentFailed
+                    ? "Send the prompt again"
+                    : "Pay with M-Pesa"}
+              </button>
+              {paymentFailed && paymentFailure && (
+                <p className="mt-2 text-sm text-destructive">{paymentFailure}</p>
+              )}
+              {paying.data && !awaitingPayment && (
+                <p
+                  className={`mt-2 text-sm ${paying.data.blocked ? "text-warning" : "text-muted-foreground"}`}
+                >
+                  {paying.data.message}
+                </p>
+              )}
+              {paying.isError && (
+                <p className="mt-2 text-sm text-destructive">{(paying.error as Error).message}</p>
+              )}
+            </section>
+          )}
 
         {cancellable && (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
@@ -346,7 +423,8 @@ function RideDetail() {
               <>
                 <h3 className="text-sm font-semibold text-foreground">Need to cancel?</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  You can cancel before the trip starts. A fee may apply after the free window on an assigned ride.
+                  You can cancel before the trip starts. A fee may apply after the free window on an
+                  assigned ride.
                 </p>
                 <button
                   onClick={() => setShowCancel(true)}
@@ -358,7 +436,10 @@ function RideDetail() {
             ) : (
               <>
                 <h3 className="text-sm font-semibold text-foreground">Why are you cancelling?</h3>
-                <label className="mt-3 block text-xs font-medium text-muted-foreground" htmlFor="cancel-reason">
+                <label
+                  className="mt-3 block text-xs font-medium text-muted-foreground"
+                  htmlFor="cancel-reason"
+                >
                   Reason for cancelling
                 </label>
                 <select
@@ -376,7 +457,11 @@ function RideDetail() {
                 <textarea
                   value={reasonNote}
                   onChange={(event) => setReasonNote(event.target.value)}
-                  placeholder={reasonCode === "Other" ? "Please tell us what happened" : "Anything else? (optional)"}
+                  placeholder={
+                    reasonCode === "Other"
+                      ? "Please tell us what happened"
+                      : "Anything else? (optional)"
+                  }
                   rows={2}
                   className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                 />
@@ -388,7 +473,10 @@ function RideDetail() {
                         reason: reasonNote.trim() || reasonCode,
                       })
                     }
-                    disabled={cancelling.isPending || (reasonCode === "Other" && reasonNote.trim().length < 3)}
+                    disabled={
+                      cancelling.isPending ||
+                      (reasonCode === "Other" && reasonNote.trim().length < 3)
+                    }
                     className="flex-1 rounded-md bg-destructive px-4 py-3 text-sm font-semibold text-destructive-foreground disabled:opacity-60"
                   >
                     {cancelling.isPending ? "Cancelling…" : "Confirm cancellation"}
@@ -402,7 +490,9 @@ function RideDetail() {
                   </button>
                 </div>
                 {cancelling.isError && (
-                  <p className="mt-2 text-sm text-destructive">{(cancelling.error as Error).message}</p>
+                  <p className="mt-2 text-sm text-destructive">
+                    {(cancelling.error as Error).message}
+                  </p>
                 )}
               </>
             )}
@@ -427,7 +517,9 @@ function RideDetail() {
                   key={value}
                   onClick={() => setScore(value)}
                   className={`h-10 flex-1 rounded-md text-sm font-semibold ${
-                    score >= value ? "bg-gold text-gold-foreground" : "bg-secondary text-secondary-foreground"
+                    score >= value
+                      ? "bg-gold text-gold-foreground"
+                      : "bg-secondary text-secondary-foreground"
                   }`}
                 >
                   {value}

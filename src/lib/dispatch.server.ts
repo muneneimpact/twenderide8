@@ -46,6 +46,7 @@ async function eligibleDrivers(
   vehicleClass: string,
   cashRide: boolean,
   pickup: { lat: number; lng: number },
+  fleetId?: string,
 ): Promise<EligibleDriver[]> {
   const { data: drivers } = await supabaseAdmin
     .from("drivers")
@@ -70,7 +71,8 @@ async function eligibleDrivers(
     if (!ride.driver_id) continue;
     busy.add(ride.driver_id);
     if (ride.queued_after_ride_id) continue;
-    if (ride.status === "trip_started") chainable.set(ride.driver_id, { rideId: ride.id, quoteId: ride.quote_id });
+    if (ride.status === "trip_started")
+      chainable.set(ride.driver_id, { rideId: ride.id, quoteId: ride.quote_id });
   }
   // A driver already carrying a queued ride must never be chained twice.
   for (const ride of liveRides ?? []) {
@@ -80,7 +82,10 @@ async function eligibleDrivers(
   // Where each chainable trip ends decides whether it is worth chaining.
   const quoteIds = [...chainable.values()].map((entry) => entry.quoteId);
   const { data: quotes } = quoteIds.length
-    ? await supabaseAdmin.from("route_quotes").select("id, dropoff_lat, dropoff_lng").in("id", quoteIds)
+    ? await supabaseAdmin
+        .from("route_quotes")
+        .select("id, dropoff_lat, dropoff_lng")
+        .in("id", quoteIds)
     : { data: [] };
   const quoteMap = new Map((quotes ?? []).map((q) => [q.id, q]));
 
@@ -98,16 +103,23 @@ async function eligibleDrivers(
 
   const vehicleIds = (drivers ?? []).map((d) => d.active_vehicle_id).filter(Boolean) as string[];
   const { data: vehicles } = vehicleIds.length
-    ? await supabaseAdmin.from("vehicles").select("id, vehicle_class, status").in("id", vehicleIds)
+    ? await supabaseAdmin
+        .from("vehicles")
+        .select("id, vehicle_class, status, fleet_id")
+        .in("id", vehicleIds)
     : { data: [] };
   const vehicleMap = new Map((vehicles ?? []).map((v) => [v.id, v]));
-  const rentedVehicleIds = new Set((await activeHireWindows(vehicleIds)).map((hire) => hire.vehicle_id));
+  const rentedVehicleIds = new Set(
+    (await activeHireWindows(vehicleIds)).map((hire) => hire.vehicle_id),
+  );
 
   const eligible: EligibleDriver[] = [];
   for (const driver of drivers ?? []) {
     if (cashRide && driver.cash_jobs_blocked) continue;
     const vehicle = driver.active_vehicle_id ? vehicleMap.get(driver.active_vehicle_id) : null;
-    if (!vehicle || vehicle.status !== "approved" || vehicle.vehicle_class !== vehicleClass) continue;
+    if (!vehicle || vehicle.status !== "approved" || vehicle.vehicle_class !== vehicleClass)
+      continue;
+    if (fleetId && vehicle.fleet_id !== fleetId) continue;
     if (rentedVehicleIds.has(vehicle.id)) continue;
 
     if (!busy.has(driver.id)) {
@@ -139,7 +151,6 @@ async function eligibleDrivers(
   }
   return eligible;
 }
-
 
 /**
  * Walks hex rings outward from the pickup hex, collecting drivers until we have
@@ -181,12 +192,12 @@ export async function dispatchRide(
   rideId: string,
   pickup: { lat: number; lng: number },
   vehicleClass: "go" | "plus" | "comfort" | "xl" | "boda" | "e_boda",
-  options: { radiusKm: number; offerTimeoutSeconds: number; cashRide: boolean },
+  options: { radiusKm: number; offerTimeoutSeconds: number; cashRide: boolean; fleetId?: string },
 ): Promise<DispatchResult> {
   const radiusKm = Math.min(options.radiusKm, MAX_DISPATCH_RADIUS_KM);
   // Self-heal before searching so an abandoned trip cannot hide a free driver.
   await closeAbandonedRides();
-  const drivers = await eligibleDrivers(vehicleClass, options.cashRide, pickup);
+  const drivers = await eligibleDrivers(vehicleClass, options.cashRide, pickup, options.fleetId);
   const nearby = searchHexRings(pickup, drivers, radiusKm).slice(0, MAX_ROAD_LOOKUPS);
   if (nearby.length === 0) return { offers: 0, candidates: [] };
 
@@ -250,10 +261,14 @@ export async function dispatchRide(
     await notify({
       userId: candidate.driver_id,
       templateCode: "ride_offer",
-      title: candidate.finishing_ride_id ? "Next ride after this trip" : "New ride request",
+      title: candidate.finishing_ride_id
+        ? "Next request after this trip"
+        : options.fleetId
+          ? "New delivery request"
+          : "New ride request",
       body: candidate.finishing_ride_id
-        ? `A customer needs a taxi near where your current trip ends (about ${Math.round(candidate.eta_minutes)} min away). Accept now and head there once you drop off.`
-        : `A customer needs a taxi ${candidate.distance_km.toFixed(1)} km away (about ${Math.round(candidate.eta_minutes)} min).`,
+        ? `A customer needs a ${options.fleetId ? "delivery" : "taxi"} near where your current trip ends (about ${Math.round(candidate.eta_minutes)} min away). Accept now and head there once you drop off.`
+        : `A customer needs a ${options.fleetId ? "delivery" : "taxi"} ${candidate.distance_km.toFixed(1)} km away (about ${Math.round(candidate.eta_minutes)} min).`,
       rideId,
       dedupeKey: `offer:${rideId}:${candidate.driver_id}`,
     });
@@ -269,8 +284,8 @@ export async function dispatchRide(
     await notify({
       userId: driver.driver_id,
       templateCode: "ride_open",
-      title: "New ride available",
-      body: `A customer nearby (about ${driver.straight_km.toFixed(1)} km) is looking for a taxi. Open the app to take it.`,
+      title: options.fleetId ? "New delivery available" : "New ride available",
+      body: `A customer nearby (about ${driver.straight_km.toFixed(1)} km) is looking for a ${options.fleetId ? "delivery" : "taxi"}. Open the app to take it.`,
       rideId,
       dedupeKey: `open:${rideId}:${driver.driver_id}`,
     });
@@ -331,7 +346,10 @@ export async function closeAbandonedRides(): Promise<number> {
   for (const ride of rides ?? []) {
     await supabaseAdmin
       .from("rides")
-      .update({ status: "cancelled_by_system", cancellation_reason: "Abandoned trip closed automatically" })
+      .update({
+        status: "cancelled_by_system",
+        cancellation_reason: "Abandoned trip closed automatically",
+      })
       .eq("id", ride.id);
     await supabaseAdmin
       .from("ride_status_events")

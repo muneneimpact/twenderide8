@@ -8,12 +8,13 @@ export const getMe = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const [{ data: profile }, { data: roles }, { data: driver }, { data: fleets }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", userId),
-      supabase.from("drivers").select("*").eq("id", userId).maybeSingle(),
-      supabase.from("fleets").select("*").eq("owner_id", userId),
-    ]);
+    const [{ data: profile }, { data: roles }, { data: driver }, { data: fleets }] =
+      await Promise.all([
+        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", userId),
+        supabase.from("drivers").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("fleets").select("*").eq("owner_id", userId),
+      ]);
     const roleList = (roles ?? []).map((r) => r.role);
     return {
       userId,
@@ -40,7 +41,10 @@ export const updateProfile = createServerFn({ method: "POST" })
     const patch: { full_name?: string; phone?: string } = {};
     if (data.full_name) patch.full_name = data.full_name;
     if (data.phone) patch.phone = normaliseKenyanPhone(data.phone);
-    const { error } = await context.supabase.from("profiles").update(patch).eq("id", context.userId);
+    const { error } = await context.supabase
+      .from("profiles")
+      .update(patch)
+      .eq("id", context.userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -65,8 +69,12 @@ export const applyAsDriver = createServerFn({ method: "POST" })
     const { audit } = await import("./notifications.server");
     const userId = context.userId;
 
-    await supabaseAdmin.from("drivers").upsert({ id: userId, status: "pending" }, { onConflict: "id" });
-    await supabaseAdmin.from("user_roles").upsert({ user_id: userId, role: "driver" }, { onConflict: "user_id,role" });
+    await supabaseAdmin
+      .from("drivers")
+      .upsert({ id: userId, status: "pending" }, { onConflict: "id" });
+    await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: userId, role: "driver" }, { onConflict: "user_id,role" });
 
     const { data: vehicle, error } = await supabaseAdmin
       .from("vehicles")
@@ -82,7 +90,10 @@ export const applyAsDriver = createServerFn({ method: "POST" })
       })
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === "23505") throw new Error("That number plate is already registered.");
+      throw new Error(error.message);
+    }
     await supabaseAdmin.from("drivers").update({ active_vehicle_id: vehicle.id }).eq("id", userId);
     // Authorise the owner to drive their own vehicle. It only takes effect once
     // operations approve the vehicle.
@@ -93,6 +104,59 @@ export const applyAsDriver = createServerFn({ method: "POST" })
     return { vehicle };
   });
 
+/** Existing drivers can add another vehicle without resetting their driver approval. */
+export const addVehicleForDriver = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        plate_number: z.string().min(4).max(16),
+        vehicle_class: z.enum(["boda", "e_boda", "go", "plus", "comfort", "xl"]),
+        make: z.string().max(40).optional(),
+        model: z.string().max(40).optional(),
+        colour: z.string().max(24).optional(),
+        year: z.number().int().min(1980).max(2100).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: driver } = await supabaseAdmin
+      .from("drivers")
+      .select("id")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!driver) throw new Error("Complete driver onboarding before adding another vehicle.");
+    const plate = formatKenyanPlate(data.plate_number);
+    const { data: duplicate } = await supabaseAdmin
+      .from("vehicles")
+      .select("id")
+      .eq("plate_number", plate)
+      .maybeSingle();
+    if (duplicate) throw new Error("That number plate is already registered.");
+    const { data: vehicle, error } = await supabaseAdmin
+      .from("vehicles")
+      .insert({
+        plate_number: plate,
+        vehicle_class: data.vehicle_class,
+        make: data.make ?? null,
+        model: data.model ?? null,
+        colour: data.colour ?? null,
+        year: data.year ?? null,
+        owner_driver_id: context.userId,
+        status: "pending",
+      })
+      .select()
+      .single();
+    if (error) {
+      if (error.code === "23505") throw new Error("That number plate is already registered.");
+      throw new Error(error.message);
+    }
+    await supabaseAdmin
+      .from("driver_vehicle_authorisations")
+      .insert({ vehicle_id: vehicle.id, driver_id: context.userId });
+    return { vehicle };
+  });
 
 export const listNotifications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -151,18 +215,16 @@ export const updateNotificationPreferences = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("notification_preferences")
-      .upsert(
-        {
-          user_id: context.userId,
-          ...(data.sms_enabled === undefined ? {} : { sms_enabled: data.sms_enabled }),
-          ...(data.email_enabled === undefined ? {} : { email_enabled: data.email_enabled }),
-          ...(data.push_enabled === undefined ? {} : { push_enabled: data.push_enabled }),
-          ...(data.push_permission === undefined ? {} : { push_permission: data.push_permission }),
-        },
-        { onConflict: "user_id" },
-      );
+    const { error } = await context.supabase.from("notification_preferences").upsert(
+      {
+        user_id: context.userId,
+        ...(data.sms_enabled === undefined ? {} : { sms_enabled: data.sms_enabled }),
+        ...(data.email_enabled === undefined ? {} : { email_enabled: data.email_enabled }),
+        ...(data.push_enabled === undefined ? {} : { push_enabled: data.push_enabled }),
+        ...(data.push_permission === undefined ? {} : { push_permission: data.push_permission }),
+      },
+      { onConflict: "user_id" },
+    );
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -173,7 +235,14 @@ export const reportIncident = createServerFn({ method: "POST" })
     z
       .object({
         rideId: z.string().uuid().optional().nullable(),
-        category: z.enum(["safety", "fare", "driver_conduct", "customer_conduct", "vehicle", "other"]),
+        category: z.enum([
+          "safety",
+          "fare",
+          "driver_conduct",
+          "customer_conduct",
+          "vehicle",
+          "other",
+        ]),
         description: z.string().min(10).max(2000),
       })
       .parse(input),
@@ -195,19 +264,26 @@ export const getDriverOnboarding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const [{ data: driver }, { data: vehicles }, { data: types }, { data: documents }, { data: profile }] =
-      await Promise.all([
-        supabase.from("drivers").select("*").eq("id", userId).maybeSingle(),
-        supabase.from("vehicles").select("*").eq("owner_driver_id", userId),
-        supabase.from("document_types").select("*").eq("active", true).order("label"),
-        supabase.from("documents").select("*").eq("subject_user_id", userId),
-        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-      ]);
+    const [
+      { data: driver },
+      { data: vehicles },
+      { data: types },
+      { data: documents },
+      { data: profile },
+    ] = await Promise.all([
+      supabase.from("drivers").select("*").eq("id", userId).maybeSingle(),
+      supabase.from("vehicles").select("*").eq("owner_driver_id", userId),
+      supabase.from("document_types").select("*").eq("active", true).order("label"),
+      supabase.from("documents").select("*").eq("subject_user_id", userId),
+      supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+    ]);
     return {
       driver,
       profile,
       vehicles: vehicles ?? [],
-      documentTypes: (types ?? []).filter((t) => t.applies_to === "driver" || t.applies_to === "vehicle"),
+      documentTypes: (types ?? []).filter(
+        (t) => t.applies_to === "driver" || t.applies_to === "vehicle",
+      ),
       documents: documents ?? [],
     };
   });
@@ -265,7 +341,10 @@ export const submitDocument = createServerFn({ method: "POST" })
           .is("revoked_at", null)
           .maybeSingle(),
       ]);
-      if (!owned && !authorised) throw new Error("You can only attach a vehicle document to a vehicle you own or are authorised to drive.");
+      if (!owned && !authorised)
+        throw new Error(
+          "You can only attach a vehicle document to a vehicle you own or are authorised to drive.",
+        );
     }
     const { error } = await context.supabase.from("documents").insert({
       document_type_id: data.documentTypeId,

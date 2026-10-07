@@ -26,6 +26,7 @@ import { Route as AuthenticatedAdminStaffRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminSupportRouteImport } from './routes/_authenticated/admin/support'
 import { Route as AuthenticatedAdminUnattendedRouteImport } from './routes/_authenticated/admin/unattended'
 import { Route as AuthenticatedAdminWhatsappRouteImport } from './routes/_authenticated/admin/whatsapp'
+import { Route as AuthenticatedDeliveryBusinessRouteImport } from './routes/_authenticated/delivery/business'
 import { Route as AuthenticatedDriverIndexRouteImport } from './routes/_authenticated/driver/index'
 import { Route as AuthenticatedDriverApplyRouteImport } from './routes/_authenticated/driver/apply'
 import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authenticated/driver/wallet'
@@ -125,6 +126,12 @@ const AuthenticatedAdminWhatsappRoute =
     path: '/admin/whatsapp',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedDeliveryBusinessRoute =
+  AuthenticatedDeliveryBusinessRouteImport.update({
+    id: '/delivery/business',
+    path: '/delivery/business',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDriverIndexRoute =
   AuthenticatedDriverIndexRouteImport.update({
     id: '/driver/',
@@ -195,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/unattended': typeof AuthenticatedAdminUnattendedRoute
   '/admin/whatsapp': typeof AuthenticatedAdminWhatsappRoute
+  '/delivery/business': typeof AuthenticatedDeliveryBusinessRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -222,6 +230,7 @@ export interface FileRoutesByTo {
   '/admin/support': typeof AuthenticatedAdminSupportRoute
   '/admin/unattended': typeof AuthenticatedAdminUnattendedRoute
   '/admin/whatsapp': typeof AuthenticatedAdminWhatsappRoute
+  '/delivery/business': typeof AuthenticatedDeliveryBusinessRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -251,6 +260,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/support': typeof AuthenticatedAdminSupportRoute
   '/_authenticated/admin/unattended': typeof AuthenticatedAdminUnattendedRoute
   '/_authenticated/admin/whatsapp': typeof AuthenticatedAdminWhatsappRoute
+  '/_authenticated/delivery/business': typeof AuthenticatedDeliveryBusinessRoute
   '/_authenticated/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/_authenticated/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | '/admin/support'
     | '/admin/unattended'
     | '/admin/whatsapp'
+    | '/delivery/business'
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
@@ -307,6 +318,7 @@ export interface FileRouteTypes {
     | '/admin/support'
     | '/admin/unattended'
     | '/admin/whatsapp'
+    | '/delivery/business'
     | '/driver/apply'
     | '/driver/wallet'
     | '/rides/$rideId'
@@ -335,6 +347,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/support'
     | '/_authenticated/admin/unattended'
     | '/_authenticated/admin/whatsapp'
+    | '/_authenticated/delivery/business'
     | '/_authenticated/driver/apply'
     | '/_authenticated/driver/wallet'
     | '/_authenticated/rides/$rideId'
@@ -480,6 +493,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminWhatsappRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/delivery/business': {
+      id: '/_authenticated/delivery/business'
+      path: '/delivery/business'
+      fullPath: '/delivery/business'
+      preLoaderRoute: typeof AuthenticatedDeliveryBusinessRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/driver/': {
       id: '/_authenticated/driver/'
       path: '/driver'
@@ -558,6 +578,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminSupportRoute: typeof AuthenticatedAdminSupportRoute
   AuthenticatedAdminUnattendedRoute: typeof AuthenticatedAdminUnattendedRoute
   AuthenticatedAdminWhatsappRoute: typeof AuthenticatedAdminWhatsappRoute
+  AuthenticatedDeliveryBusinessRoute: typeof AuthenticatedDeliveryBusinessRoute
   AuthenticatedDriverApplyRoute: typeof AuthenticatedDriverApplyRoute
   AuthenticatedDriverWalletRoute: typeof AuthenticatedDriverWalletRoute
   AuthenticatedRidesRideIdRoute: typeof AuthenticatedRidesRideIdRoute
@@ -578,6 +599,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminSupportRoute: AuthenticatedAdminSupportRoute,
   AuthenticatedAdminUnattendedRoute: AuthenticatedAdminUnattendedRoute,
   AuthenticatedAdminWhatsappRoute: AuthenticatedAdminWhatsappRoute,
+  AuthenticatedDeliveryBusinessRoute: AuthenticatedDeliveryBusinessRoute,
   AuthenticatedDriverApplyRoute: AuthenticatedDriverApplyRoute,
   AuthenticatedDriverWalletRoute: AuthenticatedDriverWalletRoute,
   AuthenticatedRidesRideIdRoute: AuthenticatedRidesRideIdRoute,

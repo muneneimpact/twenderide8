@@ -15,6 +15,7 @@ interface MapPanelProps {
   nearbyDrivers?: Array<MapPanelPoint & { eta_minutes?: number | null }>;
   /** Encoded road route, so the line follows the road instead of cutting across. */
   polyline?: string | null;
+  driverRoutePolyline?: string | null;
   placing?: "pickup" | "dropoff" | null;
   onPlace?: (point: MapPanelPoint) => void;
   className?: string;

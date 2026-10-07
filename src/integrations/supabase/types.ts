@@ -612,6 +612,65 @@ export type Database = {
           },
         ]
       }
+      fleet_delivery_rate_proposals: {
+        Row: {
+          base_fee: number
+          created_at: string
+          fleet_id: string
+          id: string
+          minimum_fee: number
+          per_km: number
+          per_minute: number
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string
+          submitted_by: string
+          updated_at: string
+        }
+        Insert: {
+          base_fee: number
+          created_at?: string
+          fleet_id: string
+          id?: string
+          minimum_fee: number
+          per_km: number
+          per_minute: number
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by: string
+          updated_at?: string
+        }
+        Update: {
+          base_fee?: number
+          created_at?: string
+          fleet_id?: string
+          id?: string
+          minimum_fee?: number
+          per_km?: number
+          per_minute?: number
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fleet_delivery_rate_proposals_fleet_id_fkey"
+            columns: ["fleet_id"]
+            isOneToOne: false
+            referencedRelation: "fleets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fleets: {
         Row: {
           business_name: string
@@ -619,6 +678,13 @@ export type Database = {
           contact_email: string | null
           contact_phone: string | null
           created_at: string
+          delivery_base_fee: number | null
+          delivery_business_name: string | null
+          delivery_enabled: boolean
+          delivery_minimum_fee: number | null
+          delivery_per_km: number | null
+          delivery_per_minute: number | null
+          delivery_rate_status: string
           driver_split_percent: number
           id: string
           owner_id: string
@@ -633,6 +699,13 @@ export type Database = {
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
+          delivery_base_fee?: number | null
+          delivery_business_name?: string | null
+          delivery_enabled?: boolean
+          delivery_minimum_fee?: number | null
+          delivery_per_km?: number | null
+          delivery_per_minute?: number | null
+          delivery_rate_status?: string
           driver_split_percent?: number
           id?: string
           owner_id: string
@@ -647,6 +720,13 @@ export type Database = {
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
+          delivery_base_fee?: number | null
+          delivery_business_name?: string | null
+          delivery_enabled?: boolean
+          delivery_minimum_fee?: number | null
+          delivery_per_km?: number | null
+          delivery_per_minute?: number | null
+          delivery_rate_status?: string
           driver_split_percent?: number
           id?: string
           owner_id?: string
@@ -1695,6 +1775,7 @@ export type Database = {
           started_at: string | null
           status: Database["public"]["Enums"]["ride_status"]
           total_fare: number
+          trip_kind: string
           updated_at: string
           vehicle_id: string | null
         }
@@ -1725,6 +1806,7 @@ export type Database = {
           started_at?: string | null
           status?: Database["public"]["Enums"]["ride_status"]
           total_fare: number
+          trip_kind?: string
           updated_at?: string
           vehicle_id?: string | null
         }
@@ -1755,6 +1837,7 @@ export type Database = {
           started_at?: string | null
           status?: Database["public"]["Enums"]["ride_status"]
           total_fare?: number
+          trip_kind?: string
           updated_at?: string
           vehicle_id?: string | null
         }
@@ -1816,6 +1899,8 @@ export type Database = {
           stops: Json
           total_fare: number
           unrounded_total: number
+          delivery_fleet_id: string | null
+          trip_kind: string
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
         }
         Insert: {
@@ -1844,6 +1929,8 @@ export type Database = {
           stops?: Json
           total_fare: number
           unrounded_total: number
+          delivery_fleet_id?: string | null
+          trip_kind?: string
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
         }
         Update: {
@@ -1872,6 +1959,8 @@ export type Database = {
           stops?: Json
           total_fare?: number
           unrounded_total?: number
+          delivery_fleet_id?: string | null
+          trip_kind?: string
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
         }
         Relationships: [
@@ -2096,6 +2185,10 @@ export type Database = {
           colour: string | null
           created_at: string
           fleet_id: string | null
+          hire_approval_status: string
+          hire_rejection_reason: string | null
+          hire_reviewed_at: string | null
+          hire_reviewed_by: string | null
           hire_available: boolean
           hire_daily_rate: number | null
           hire_description: string | null
@@ -2120,6 +2213,10 @@ export type Database = {
           colour?: string | null
           created_at?: string
           fleet_id?: string | null
+          hire_approval_status?: string
+          hire_rejection_reason?: string | null
+          hire_reviewed_at?: string | null
+          hire_reviewed_by?: string | null
           hire_available?: boolean
           hire_daily_rate?: number | null
           hire_description?: string | null
@@ -2144,6 +2241,10 @@ export type Database = {
           colour?: string | null
           created_at?: string
           fleet_id?: string | null
+          hire_approval_status?: string
+          hire_rejection_reason?: string | null
+          hire_reviewed_at?: string | null
+          hire_reviewed_by?: string | null
           hire_available?: boolean
           hire_daily_rate?: number | null
           hire_description?: string | null
@@ -2547,6 +2648,10 @@ export type Database = {
       owns_vehicle: {
         Args: { _user_id: string; _vehicle_id: string }
         Returns: boolean
+      }
+      review_delivery_rate_proposal: {
+        Args: { p_decision: string; p_note?: string | null; p_proposal_id: string; p_reviewer_id: string }
+        Returns: undefined
       }
       requires_phone_verification: { Args: never; Returns: boolean }
     }

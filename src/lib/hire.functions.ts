@@ -44,7 +44,8 @@ export function estimateHireTotal(input: {
   stops: number;
   dailyRate?: number | null;
 }) {
-  const base = input.dailyRate && input.dailyRate > 0 ? input.dailyRate : DAY_RATE[input.vehicleClass];
+  const base =
+    input.dailyRate && input.dailyRate > 0 ? input.dailyRate : DAY_RATE[input.vehicleClass];
   const perDay = base + (input.driveMode === "chauffeured" ? CHAUFFEUR_DAY_RATE : 0);
   const extraStops = Math.max(0, input.stops - 2) * STOP_ALLOWANCE;
   return Math.round(perDay * input.days + extraStops);
@@ -64,6 +65,8 @@ export interface HireVehicleRow {
   hire_notes: string | null;
   hire_description: string | null;
   hire_available: boolean;
+  hire_approval_status: string;
+  hire_rejection_reason: string | null;
   photo_url: string | null;
   photo_urls: string[] | null;
   hire_rules: string | null;
@@ -94,7 +97,7 @@ async function withPhotos(
 }
 
 const VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_daily_rate, hire_notes, hire_description, hire_available, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_daily_rate, hire_notes, hire_description, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
@@ -104,6 +107,7 @@ export const listHireVehicles = createServerFn({ method: "GET" })
       .from("vehicles")
       .select(VEHICLE_FIELDS)
       .eq("hire_available", true)
+      .eq("hire_approval_status", "approved")
       .eq("status", "approved")
       .limit(60);
     const list = await withPhotos((data ?? []) as unknown as HireVehicleRow[]);
@@ -117,14 +121,23 @@ export const listHireVehicles = createServerFn({ method: "GET" })
           .in("vehicle_id", ids)
           .in("status", ["submitted", "quoted", "confirmed"])
           .gte("start_at", new Date(Date.now() - 90 * 86_400_000).toISOString())
-      : { data: [] as Array<{ vehicle_id: string | null; start_at: string; end_at: string | null; days: number }> };
+      : {
+          data: [] as Array<{
+            vehicle_id: string | null;
+            start_at: string;
+            end_at: string | null;
+            days: number;
+          }>,
+        };
     return list.map((vehicle) => ({
       ...vehicle,
       bookings: (booked ?? [])
         .filter((row) => row.vehicle_id === vehicle.id)
         .map((row) => ({
           start: row.start_at,
-          end: row.end_at ?? new Date(new Date(row.start_at).getTime() + row.days * 86_400_000).toISOString(),
+          end:
+            row.end_at ??
+            new Date(new Date(row.start_at).getTime() + row.days * 86_400_000).toISOString(),
         }))
         .filter((range) => new Date(range.end).getTime() > Date.now()),
       day_rate:
@@ -158,21 +171,32 @@ export const listMyVehicles = createServerFn({ method: "GET" })
           .in("vehicle_id", vehicleIds)
           .in("status", ["submitted", "quoted", "confirmed"])
           .or(`end_at.gte.${now},end_at.is.null`)
-      : { data: [] as Array<{ vehicle_id: string | null; start_at: string; end_at: string | null; days: number; status: string }> };
+      : {
+          data: [] as Array<{
+            vehicle_id: string | null;
+            start_at: string;
+            end_at: string | null;
+            days: number;
+            status: string;
+          }>,
+        };
     return list.map((vehicle) => ({
       ...vehicle,
       hire_bookings: (bookings ?? [])
         .filter((booking) => booking.vehicle_id === vehicle.id)
         .map((booking) => ({
           start: booking.start_at,
-          end: booking.end_at ?? new Date(new Date(booking.start_at).getTime() + booking.days * 86_400_000).toISOString(),
+          end:
+            booking.end_at ??
+            new Date(
+              new Date(booking.start_at).getTime() + booking.days * 86_400_000,
+            ).toISOString(),
           status: booking.status,
         })),
     }));
   });
 
-
-/** Owners decide whether a car is available for hire, and at what day rate. */
+/** Owners save listing details; Ops approval is required before public hire. */
 export const updateVehicleHire = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -184,44 +208,99 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         dailyRate: z.number().min(0).max(1_000_000).nullable().optional(),
         seats: z.number().int().min(1).max(60).nullable().optional(),
         description: z.string().max(500).nullable().optional(),
-        photoPath: z.string().max(400).nullable().optional(),
         addPhotoPath: z.string().max(400).optional(),
+        addPhotoPaths: z.array(z.string().max(400)).max(12).optional(),
         removePhotoPath: z.string().max(400).optional(),
         rules: z.string().max(2000).nullable().optional(),
+        submitForHireReview: z.boolean().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    const { data: current } = await context.supabase
+      .from("vehicles")
+      .select(
+        "id, status, hire_available, hire_approval_status, hire_daily_rate, photo_url, photo_urls",
+      )
+      .eq("id", data.vehicleId)
+      .maybeSingle();
+    if (!current) throw new Error("Vehicle not found or you do not manage it.");
+
     const patch: Record<string, unknown> = {};
-    if (data.hireAvailable !== undefined) patch["hire_available"] = data.hireAvailable;
     if (data.hireMode !== undefined) patch["hire_mode"] = data.hireMode;
     if (data.dailyRate !== undefined) patch["hire_daily_rate"] = data.dailyRate;
     if (data.seats !== undefined) patch["seats"] = data.seats;
     if (data.description !== undefined) patch["hire_description"] = data.description;
-    if (data.photoPath !== undefined) patch["photo_url"] = data.photoPath;
     if (data.rules !== undefined) patch["hire_rules"] = data.rules;
-    if (data.addPhotoPath || data.removePhotoPath) {
-      const { data: current } = await context.supabase
-        .from("vehicles")
-        .select("photo_url, photo_urls")
-        .eq("id", data.vehicleId)
-        .maybeSingle();
-      let list = (current?.photo_urls ?? []) as string[];
-      if (data.addPhotoPath) list = [...list, data.addPhotoPath].slice(-12);
-      if (data.removePhotoPath) list = list.filter((path) => path !== data.removePhotoPath);
-      patch["photo_urls"] = list;
-      if (!current?.photo_url && data.addPhotoPath) patch["photo_url"] = data.addPhotoPath;
-      if (data.removePhotoPath && current?.photo_url === data.removePhotoPath) patch["photo_url"] = list[0] ?? null;
+
+    const photoAdds = [
+      ...(data.addPhotoPaths ?? []),
+      ...(data.addPhotoPath ? [data.addPhotoPath] : []),
+    ];
+    if (photoAdds.some((path) => !path.startsWith(`${data.vehicleId}/`))) {
+      throw new Error("Upload vehicle photos again from this vehicle's listing.");
+    }
+    if (photoAdds.length || data.removePhotoPath) {
+      let photos = [
+        ...new Set([
+          ...(current.photo_url ? [current.photo_url] : []),
+          ...((current.photo_urls ?? []) as string[]),
+        ]),
+      ];
+      photos = photos.filter((path) => path !== data.removePhotoPath);
+      photos = [...new Set([...photos, ...photoAdds])].slice(0, 12);
+      patch["photo_urls"] = photos;
+      patch["photo_url"] = photos[0] ?? null;
+    }
+
+    const listingChanged =
+      data.hireMode !== undefined ||
+      data.dailyRate !== undefined ||
+      data.seats !== undefined ||
+      data.description !== undefined ||
+      data.rules !== undefined ||
+      photoAdds.length > 0 ||
+      Boolean(data.removePhotoPath);
+    if (data.submitForHireReview) {
+      if (current.status !== "approved")
+        throw new Error("The vehicle must first be approved for driving.");
+      const rate = data.dailyRate !== undefined ? data.dailyRate : current.hire_daily_rate;
+      const photos = (patch["photo_urls"] as string[] | undefined) ?? [
+        ...new Set([
+          ...(current.photo_url ? [current.photo_url] : []),
+          ...((current.photo_urls ?? []) as string[]),
+        ]),
+      ];
+      if (!(Number(rate ?? 0) > 0))
+        throw new Error("Set a daily hire price before requesting approval.");
+      if (photos.length === 0)
+        throw new Error("Add at least one vehicle photo before requesting approval.");
+      patch["hire_approval_status"] = "pending";
+      patch["hire_available"] = false;
+      patch["hire_rejection_reason"] = null;
+    } else if (listingChanged && current.hire_approval_status === "approved") {
+      // The approved version is taken offline while materially edited details are reviewed.
+      patch["hire_approval_status"] = "pending";
+      patch["hire_available"] = false;
+      patch["hire_rejection_reason"] = null;
+    }
+
+    if (data.hireAvailable !== undefined) {
+      if (
+        data.hireAvailable &&
+        (current.status !== "approved" || current.hire_approval_status !== "approved")
+      ) {
+        throw new Error("Ops must approve this hire listing before it can be made available.");
+      }
+      patch["hire_available"] = data.hireAvailable;
     }
     if (Object.keys(patch).length === 0) return { ok: true };
-
-    // RLS keeps this to the vehicle's owner or its fleet owner.
     const { error } = await context.supabase
       .from("vehicles")
       .update(patch as never)
       .eq("id", data.vehicleId);
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: true, submittedForReview: Boolean(data.submitForHireReview) };
   });
 
 export const submitHireQuote = createServerFn({ method: "POST" })
@@ -258,7 +337,8 @@ export const submitHireQuote = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     for (const path of [data.idDocumentPath, data.licenseDocumentPath]) {
-      if (path && !path.startsWith(`${context.userId}/`)) throw new Error("Upload your documents again.");
+      if (path && !path.startsWith(`${context.userId}/`))
+        throw new Error("Upload your documents again.");
     }
     if (!data.idDocumentPath) throw new Error("Upload a photo of your ID.");
     if (data.driveMode === "self_drive" && !data.licenseDocumentPath) {
@@ -267,7 +347,8 @@ export const submitHireQuote = createServerFn({ method: "POST" })
     if (data.vehicleId && !data.rulesAccepted) throw new Error("Please accept the owner's rules.");
     const startAt = new Date(data.startAt);
     if (Number.isNaN(startAt.getTime())) throw new Error("Choose a valid start date and time.");
-    if (startAt.getTime() < Date.now() - 60_000) throw new Error("Choose a date and time in the future.");
+    if (startAt.getTime() < Date.now() - 60_000)
+      throw new Error("Choose a date and time in the future.");
 
     let dailyRate: number | null = null;
     let vehicleClass = data.vehicleClass;
@@ -327,7 +408,9 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       .single();
     if (error) {
       if (error.message.includes("already booked")) {
-        throw new Error("This vehicle is already booked for some of those dates. Please choose other dates.");
+        throw new Error(
+          "This vehicle is already booked for some of those dates. Please choose other dates.",
+        );
       }
       throw new Error(error.message);
     }
@@ -337,7 +420,10 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       await notify({
         userId: context.userId,
         templateCode: "hire_quote_submitted",
-        title: data.driveMode === "self_drive" ? "Self-drive request received" : "Quotation request received",
+        title:
+          data.driveMode === "self_drive"
+            ? "Self-drive request received"
+            : "Quotation request received",
         body: `Request ${row.reference}: KES ${estimate.toLocaleString("en-KE")} for ${data.days} day(s). The owner will confirm shortly.`,
         dedupeKey: `hire:${row.id}`,
         critical: true,
@@ -421,8 +507,11 @@ export const decideHireQuote = createServerFn({ method: "POST" })
 
     try {
       const { notify, audit } = await import("./notifications.server");
-      await audit(context.userId, "hire_quote_decided", "hire_quote", data.id, { status: data.status });
-      const price = row.quoted_total == null ? null : Number(row.quoted_total).toLocaleString("en-KE");
+      await audit(context.userId, "hire_quote_decided", "hire_quote", data.id, {
+        status: data.status,
+      });
+      const price =
+        row.quoted_total == null ? null : Number(row.quoted_total).toLocaleString("en-KE");
       await notify({
         userId: row.requester_id,
         templateCode: `hire_quote_${data.status}`,
@@ -481,7 +570,9 @@ export const listHireRequestsForProvider = createServerFn({ method: "GET" })
       }>),
     ].filter((vehicle, index, list) => list.findIndex((item) => item.id === vehicle.id) === index);
 
-    const classes = [...new Set(vehicles.map((vehicle) => vehicle.vehicle_class))] as VehicleClass[];
+    const classes = [
+      ...new Set(vehicles.map((vehicle) => vehicle.vehicle_class)),
+    ] as VehicleClass[];
     if (classes.length === 0) return { vehicles: [], requests: [] };
 
     const { data: requests } = await supabaseAdmin
@@ -512,7 +603,9 @@ export const listHireRequestsForProvider = createServerFn({ method: "GET" })
       vehicles,
       requests: (requests ?? []).map((request) => ({
         ...request,
-        id_document_link: request.id_document_path ? (docLinks.get(request.id_document_path) ?? null) : null,
+        id_document_link: request.id_document_path
+          ? (docLinks.get(request.id_document_path) ?? null)
+          : null,
         license_document_link: request.license_document_path
           ? (docLinks.get(request.license_document_path) ?? null)
           : null,
@@ -631,7 +724,10 @@ export const respondToHireOffer = createServerFn({ method: "POST" })
         .eq("quote_id", offer.quote_id)
         .eq("status", "offered");
       if (!count) {
-        await supabaseAdmin.from("hire_quotes").update({ status: "submitted" }).eq("id", offer.quote_id);
+        await supabaseAdmin
+          .from("hire_quotes")
+          .update({ status: "submitted" })
+          .eq("id", offer.quote_id);
       }
     } else {
       if (offer.vehicle_id) {

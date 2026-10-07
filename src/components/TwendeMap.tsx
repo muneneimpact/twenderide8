@@ -15,13 +15,13 @@ interface TwendeMapProps {
   nearbyDrivers?: Array<MapPoint & { eta_minutes?: number | null }>;
   /** Encoded road route between pickup and dropoff, when the router returned one. */
   polyline?: string | null;
+  /** Live road route from the driver to the next stop. */
+  driverRoutePolyline?: string | null;
   /** Which pin the user is currently placing; tapping the map moves it. */
   placing?: "pickup" | "dropoff" | null;
   onPlace?: (point: MapPoint) => void;
   className?: string;
 }
-
-
 
 const MERU: MapPoint = { lat: 0.0471, lng: 37.6497 };
 
@@ -42,6 +42,7 @@ export default function TwendeMap({
   driver,
   nearbyDrivers,
   polyline,
+  driverRoutePolyline,
   placing,
   onPlace,
   className,
@@ -139,6 +140,21 @@ export default function TwendeMap({
         road.forEach((point) => points.push(point));
       }
     }
+    if (driver && driverRoutePolyline) {
+      const approach = decodePolyline(driverRoutePolyline);
+      if (approach.length > 1) {
+        const line = new maps.Polyline({
+          path: approach,
+          map: instance,
+          strokeColor: "#0f4c81",
+          strokeOpacity: 0.85,
+          strokeWeight: 4,
+        });
+        overlays.current.push(line);
+        approach.forEach((point) => points.push(point));
+      }
+    }
+
     if (driver) {
       addMarker(driver, "#0f4c81", "Driver");
       if (driver.accuracy_m) {
@@ -186,7 +202,7 @@ export default function TwendeMap({
       points.forEach((point) => bounds.extend(point));
       instance.fitBounds(bounds, 48);
     }
-  }, [pickup, dropoff, driver, nearbyDrivers, polyline, ready]);
+  }, [pickup, dropoff, driver, nearbyDrivers, polyline, driverRoutePolyline, ready]);
 
   return (
     <div className={`relative ${className ?? "h-full w-full"}`}>

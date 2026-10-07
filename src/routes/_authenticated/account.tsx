@@ -425,6 +425,12 @@ function AccountPage() {
 
         <PushSettings />
 
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-display text-lg font-bold text-foreground">Register a delivery business</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Offer delivery services through your approved fleet and propose company-specific rates for Ops review.</p>
+          <Link to="/delivery/business" className="mt-3 block w-full rounded-full border border-input px-4 py-3 text-center text-sm font-bold text-foreground">Manage delivery company</Link>
+        </section>
+
         {/* Jijenge with Twende Meru */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Jijenge with Twende Meru</h2>

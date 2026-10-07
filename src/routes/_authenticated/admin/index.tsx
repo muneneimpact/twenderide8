@@ -16,7 +16,10 @@ export const Route = createFileRoute("/_authenticated/admin/")({
           "Twende Meru Rides operations: approve driver applications, vehicles and documents, monitor live rides and resolve incidents in Meru.",
       },
       { property: "og:title", content: "Twende Meru Rides operations board" },
-      { property: "og:description", content: "Approve drivers, watch live dispatch and resolve incidents." },
+      {
+        property: "og:description",
+        content: "Approve drivers, watch live dispatch and resolve incidents.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -39,13 +42,17 @@ function AdminBoard() {
   const cancelFn = useServerFn(opsCancelRide);
   const incidentFn = useServerFn(resolveIncident);
 
-  const board = useQuery({ queryKey: ["ops-board"], queryFn: () => fetchBoard({}), refetchInterval: 20000 });
+  const board = useQuery({
+    queryKey: ["ops-board"],
+    queryFn: () => fetchBoard({}),
+    refetchInterval: 20000,
+  });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["ops-board"] });
   const [note, setNote] = useState("");
 
   const review = useMutation({
     mutationFn: (vars: {
-      kind: "driver" | "vehicle" | "fleet" | "document";
+      kind: "driver" | "vehicle" | "fleet" | "document" | "hire_vehicle" | "delivery_rate";
       id: string;
       decision: "approved" | "rejected" | "restricted";
     }) => reviewFn({ data: { ...vars, ...(note.trim() ? { note: note.trim() } : {}) } }),
@@ -55,7 +62,8 @@ function AdminBoard() {
     },
   });
   const cancelRide = useMutation({
-    mutationFn: (rideId: string) => cancelFn({ data: { rideId, reason: note.trim() || "Cancelled by operations" } }),
+    mutationFn: (rideId: string) =>
+      cancelFn({ data: { rideId, reason: note.trim() || "Cancelled by operations" } }),
     onSuccess: invalidate,
   });
   const resolve = useMutation({
@@ -99,7 +107,9 @@ function AdminBoard() {
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-foreground/70">
                 {stat.label}
               </p>
-              <p className="mt-1 font-display text-lg font-semibold text-brand-foreground">{stat.value}</p>
+              <p className="mt-1 font-display text-lg font-semibold text-brand-foreground">
+                {stat.value}
+              </p>
             </section>
           ))}
         </div>
@@ -122,9 +132,13 @@ function AdminBoard() {
 
         {/* Driver applications */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">Driver applications ({b.pendingDrivers.length})</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            Driver applications ({b.pendingDrivers.length})
+          </h3>
           {b.pendingDrivers.length === 0 ? (
-            <p className="mt-2 text-xs text-muted-foreground">No driver applications awaiting review.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              No driver applications awaiting review.
+            </p>
           ) : (
             <ul className="mt-2 divide-y divide-border">
               {b.pendingDrivers.map((d) => (
@@ -145,7 +159,9 @@ function AdminBoard() {
 
         {/* Vehicles */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">Vehicles ({b.pendingVehicles.length})</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            Vehicles ({b.pendingVehicles.length})
+          </h3>
           {b.pendingVehicles.length === 0 ? (
             <p className="mt-2 text-xs text-muted-foreground">No vehicles awaiting review.</p>
           ) : (
@@ -156,7 +172,8 @@ function AdminBoard() {
                     {v.plate_number} · {v.vehicle_class}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {[v.colour, v.make, v.model, v.year].filter(Boolean).join(" ")} · {who(v.owner_driver_id)}
+                    {[v.colour, v.make, v.model, v.year].filter(Boolean).join(" ")} ·{" "}
+                    {who(v.owner_driver_id)}
                   </p>
                   <Decisions
                     disabled={review.isPending}
@@ -168,17 +185,108 @@ function AdminBoard() {
           )}
         </section>
 
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">
+            Delivery rate proposals awaiting review ({b.pendingDeliveryRates.length})
+          </h3>
+          {b.pendingDeliveryRates.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              No company rate proposals awaiting review.
+            </p>
+          ) : (
+            <ul className="mt-2 divide-y divide-border">
+              {b.pendingDeliveryRates.map((proposal) => (
+                <li key={proposal.id} className="py-3">
+                  <p className="text-sm font-semibold text-foreground">{proposal.business_name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Proposed: KES {Number(proposal.base_fee).toFixed(2)} base +{" "}
+                    {Number(proposal.per_km).toFixed(2)}/km +{" "}
+                    {Number(proposal.per_minute).toFixed(2)}/min; minimum KES{" "}
+                    {Number(proposal.minimum_fee).toFixed(2)}.
+                  </p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Submitted {new Date(proposal.submitted_at).toLocaleString("en-KE")}
+                  </p>
+                  <Decisions
+                    disabled={review.isPending}
+                    onDecide={(decision) =>
+                      review.mutate({ kind: "delivery_rate", id: proposal.id, decision })
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Hire listings have a separate safety and quality approval from vehicle registration. */}
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">
+            Hire listings awaiting review ({b.pendingHireVehicles.length})
+          </h3>
+          {b.pendingHireVehicles.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              No hire listings awaiting approval.
+            </p>
+          ) : (
+            <ul className="mt-2 divide-y divide-border">
+              {b.pendingHireVehicles.map((vehicle) => (
+                <li key={vehicle.id} className="py-3">
+                  <p className="text-sm font-medium text-foreground">
+                    {vehicle.plate_number} · KES {Number(vehicle.hire_daily_rate ?? 0).toFixed(2)} /
+                    day
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {[vehicle.make, vehicle.model, vehicle.colour].filter(Boolean).join(" ")} ·{" "}
+                    {vehicle.hire_mode} · owner {who(vehicle.owner_driver_id)}
+                  </p>
+                  {vehicle.hire_description ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{vehicle.hire_description}</p>
+                  ) : null}
+                  {vehicle.review_photo_links.length ? (
+                    <div className="mt-2 flex gap-2 overflow-x-auto">
+                      {vehicle.review_photo_links.map((src, index) => (
+                        <img
+                          key={`${vehicle.id}-${index}`}
+                          src={src}
+                          alt={`${vehicle.plate_number} hire listing photo ${index + 1}`}
+                          className="h-16 w-24 shrink-0 rounded-lg object-cover"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-xs text-warning-foreground">
+                      No photo could be loaded for review.
+                    </p>
+                  )}
+                  <Decisions
+                    disabled={review.isPending}
+                    onDecide={(decision) =>
+                      review.mutate({ kind: "hire_vehicle", id: vehicle.id, decision })
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {/* Documents */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">Documents ({b.pendingDocuments.length})</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            Documents ({b.pendingDocuments.length})
+          </h3>
           {b.pendingDocuments.length === 0 ? (
-            <p className="mt-2 text-xs text-muted-foreground">No documents awaiting verification.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              No documents awaiting verification.
+            </p>
           ) : (
             <ul className="mt-2 divide-y divide-border">
               {b.pendingDocuments.map((doc) => (
                 <li key={doc.id} className="py-3">
                   <p className="text-sm font-medium text-foreground">
-                    {b.documentTypes.find((t) => t.id === doc.document_type_id)?.label ?? "Document"}
+                    {b.documentTypes.find((t) => t.id === doc.document_type_id)?.label ??
+                      "Document"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {doc.reference ?? "no reference"} · {who(doc.subject_user_id)}
@@ -186,7 +294,9 @@ function AdminBoard() {
                   </p>
                   <Decisions
                     disabled={review.isPending}
-                    onDecide={(decision) => review.mutate({ kind: "document", id: doc.id, decision })}
+                    onDecide={(decision) =>
+                      review.mutate({ kind: "document", id: doc.id, decision })
+                    }
                   />
                 </li>
               ))}
@@ -198,7 +308,9 @@ function AdminBoard() {
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Fleets ({b.allFleets.length})</h3>
           {b.allFleets.length === 0 ? (
-            <p className="mt-2 text-xs text-muted-foreground">No fleet businesses registered yet.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              No fleet businesses registered yet.
+            </p>
           ) : (
             <ul className="mt-2 divide-y divide-border">
               {b.allFleets.map((fleet) => (
@@ -210,7 +322,9 @@ function AdminBoard() {
                   </p>
                   <Decisions
                     disabled={review.isPending}
-                    onDecide={(decision) => review.mutate({ kind: "fleet", id: fleet.id, decision })}
+                    onDecide={(decision) =>
+                      review.mutate({ kind: "fleet", id: fleet.id, decision })
+                    }
                   />
                 </li>
               ))}
@@ -220,7 +334,9 @@ function AdminBoard() {
 
         {/* Driver register */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">All drivers ({b.allDrivers.length})</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            All drivers ({b.allDrivers.length})
+          </h3>
           {b.allDrivers.length === 0 ? (
             <p className="mt-2 text-xs text-muted-foreground">No drivers registered yet.</p>
           ) : (
@@ -229,12 +345,14 @@ function AdminBoard() {
                 <li key={driver.id} className="py-3">
                   <p className="text-sm font-medium text-foreground">{who(driver.id)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {driver.status} · {driver.is_online ? "online" : "offline"} · {driver.completed_rides} trips ·
-                    rating {Number(driver.rating ?? 5).toFixed(1)}
+                    {driver.status} · {driver.is_online ? "online" : "offline"} ·{" "}
+                    {driver.completed_rides} trips · rating {Number(driver.rating ?? 5).toFixed(1)}
                   </p>
                   <Decisions
                     disabled={review.isPending}
-                    onDecide={(decision) => review.mutate({ kind: "driver", id: driver.id, decision })}
+                    onDecide={(decision) =>
+                      review.mutate({ kind: "driver", id: driver.id, decision })
+                    }
                   />
                 </li>
               ))}
@@ -244,7 +362,9 @@ function AdminBoard() {
 
         {/* Vehicle register */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">All vehicles ({b.allVehicles.length})</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            All vehicles ({b.allVehicles.length})
+          </h3>
           {b.allVehicles.length === 0 ? (
             <p className="mt-2 text-xs text-muted-foreground">No vehicles registered yet.</p>
           ) : (
@@ -255,11 +375,15 @@ function AdminBoard() {
                     {vehicle.plate_number} · {vehicle.vehicle_class}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {vehicle.status} · {[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "no details"}
+                    {vehicle.status} ·{" "}
+                    {[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
+                      "no details"}
                   </p>
                   <Decisions
                     disabled={review.isPending}
-                    onDecide={(decision) => review.mutate({ kind: "vehicle", id: vehicle.id, decision })}
+                    onDecide={(decision) =>
+                      review.mutate({ kind: "vehicle", id: vehicle.id, decision })
+                    }
                   />
                 </li>
               ))}
@@ -299,7 +423,9 @@ function AdminBoard() {
 
         {/* Incidents */}
         <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">Open incidents ({b.incidents.length})</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            Open incidents ({b.incidents.length})
+          </h3>
           {b.incidents.length === 0 ? (
             <p className="mt-2 text-xs text-muted-foreground">No open incidents.</p>
           ) : (

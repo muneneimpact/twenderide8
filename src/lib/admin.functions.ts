@@ -25,43 +25,97 @@ export const getOpsBoard = createServerFn({ method: "POST" })
     const { expireStaleDispatch } = await import("./dispatch.server");
     await expireStaleDispatch();
 
-    const [{ data: active }, { data: drivers }, { data: pendingDrivers }, { data: pendingVehicles }, { data: incidents }, { data: pendingDocuments }, { data: documentTypes }] =
-      await Promise.all([
-        supabaseAdmin
-          .from("rides")
-          .select("*")
-          .in("status", ["searching", "driver_assigned", "driver_arriving", "driver_arrived", "trip_started"])
-          .order("requested_at", { ascending: false }),
-        supabaseAdmin
-          .from("drivers")
-          .select("id, is_online, status, last_lat, last_lng, last_location_at, cash_jobs_blocked, active_vehicle_id, rating, completed_rides")
-          .eq("is_online", true),
-        supabaseAdmin.from("drivers").select("*").eq("status", "pending"),
-        supabaseAdmin.from("vehicles").select("*").eq("status", "pending"),
-        supabaseAdmin.from("incidents").select("*").neq("status", "resolved").order("created_at", { ascending: false }),
-        supabaseAdmin.from("documents").select("*").eq("status", "pending").order("created_at", { ascending: true }),
-        supabaseAdmin.from("document_types").select("id, code, label, applies_to").eq("active", true),
-      ]);
+    const [
+      { data: active },
+      { data: drivers },
+      { data: pendingDrivers },
+      { data: pendingVehicles },
+      { data: incidents },
+      { data: pendingDocuments },
+      { data: documentTypes },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("rides")
+        .select("*")
+        .in("status", [
+          "searching",
+          "driver_assigned",
+          "driver_arriving",
+          "driver_arrived",
+          "trip_started",
+        ])
+        .order("requested_at", { ascending: false }),
+      supabaseAdmin
+        .from("drivers")
+        .select(
+          "id, is_online, status, last_lat, last_lng, last_location_at, cash_jobs_blocked, active_vehicle_id, rating, completed_rides",
+        )
+        .eq("is_online", true),
+      supabaseAdmin.from("drivers").select("*").eq("status", "pending"),
+      supabaseAdmin.from("vehicles").select("*").eq("status", "pending"),
+      supabaseAdmin
+        .from("incidents")
+        .select("*")
+        .neq("status", "resolved")
+        .order("created_at", { ascending: false }),
+      supabaseAdmin
+        .from("documents")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at", { ascending: true }),
+      supabaseAdmin.from("document_types").select("id, code, label, applies_to").eq("active", true),
+    ]);
 
     // Full driver, vehicle and fleet registers so ops can manage, not just approve.
     const [{ data: allDrivers }, { data: allVehicles }, { data: allFleets }] = await Promise.all([
-      supabaseAdmin.from("drivers").select("*").order("created_at", { ascending: false }).limit(200),
-      supabaseAdmin.from("vehicles").select("*").order("created_at", { ascending: false }).limit(200),
+      supabaseAdmin
+        .from("drivers")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabaseAdmin
+        .from("vehicles")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200),
       supabaseAdmin.from("fleets").select("*").order("created_at", { ascending: false }).limit(100),
     ]);
 
     // Applicant identity for every pending item so ops reviews a person, not a UUID.
+    const [{ data: deliveryRateProposals }] = await Promise.all([
+      supabaseAdmin
+        .from("fleet_delivery_rate_proposals")
+        .select("*")
+        .eq("status", "pending")
+        .order("submitted_at", { ascending: true })
+        .limit(100),
+    ]);
+    const pendingDeliveryRates = (deliveryRateProposals ?? []).map((proposal) => ({
+      ...proposal,
+      business_name: (() => {
+        const fleet = (allFleets ?? []).find((row) => row.id === proposal.fleet_id);
+        return fleet?.delivery_business_name ?? fleet?.business_name ?? "Delivery business";
+      })(),
+    }));
+
     const applicantIds = [
       ...new Set([
         ...(pendingDrivers ?? []).map((d) => d.id),
-        ...(pendingVehicles ?? []).map((v) => v.owner_driver_id).filter((v): v is string => Boolean(v)),
-        ...(pendingDocuments ?? []).map((d) => d.subject_user_id).filter((v): v is string => Boolean(v)),
+        ...(pendingVehicles ?? [])
+          .map((v) => v.owner_driver_id)
+          .filter((v): v is string => Boolean(v)),
+        ...(pendingDocuments ?? [])
+          .map((d) => d.subject_user_id)
+          .filter((v): v is string => Boolean(v)),
         ...(allDrivers ?? []).map((d) => d.id),
         ...(allFleets ?? []).map((f) => f.owner_id),
       ]),
     ];
     const { data: applicants } = applicantIds.length
-      ? await supabaseAdmin.from("profiles").select("id, full_name, email, phone").in("id", applicantIds)
+      ? await supabaseAdmin
+          .from("profiles")
+          .select("id, full_name, email, phone")
+          .in("id", applicantIds)
       : { data: [] };
 
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
@@ -71,8 +125,38 @@ export const getOpsBoard = createServerFn({ method: "POST" })
       .gte("requested_at", since);
 
     const rows = recent ?? [];
+    const pendingHireRows = (allVehicles ?? []).filter(
+      (vehicle) => vehicle.hire_approval_status === "pending",
+    );
+    const hirePhotoPaths = [
+      ...new Set(
+        pendingHireRows
+          .flatMap((vehicle) => [vehicle.photo_url, ...(vehicle.photo_urls ?? [])])
+          .filter((path): path is string => Boolean(path)),
+      ),
+    ];
+    const { data: signedHirePhotos } = hirePhotoPaths.length
+      ? await supabaseAdmin.storage.from("vehicle-photos").createSignedUrls(hirePhotoPaths, 1800)
+      : { data: [] };
+    const hirePhotoMap = new Map(
+      (signedHirePhotos ?? []).map((photo) => [photo.path, photo.signedUrl]),
+    );
+    const pendingHireVehicles = pendingHireRows.map((vehicle) => ({
+      ...vehicle,
+      review_photo_links: [
+        ...new Set(
+          [vehicle.photo_url, ...(vehicle.photo_urls ?? [])].filter((path): path is string =>
+            Boolean(path),
+          ),
+        ),
+      ]
+        .map((path) => hirePhotoMap.get(path))
+        .filter((url): url is string => Boolean(url)),
+    }));
     return {
       activeRides: active ?? [],
+      pendingHireVehicles,
+      pendingDeliveryRates,
       onlineDrivers: drivers ?? [],
       pendingDrivers: pendingDrivers ?? [],
       pendingVehicles: pendingVehicles ?? [],
@@ -104,7 +188,7 @@ export const reviewApproval = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
-        kind: z.enum(["driver", "vehicle", "fleet", "document"]),
+        kind: z.enum(["driver", "vehicle", "fleet", "document", "hire_vehicle", "delivery_rate"]),
         id: z.string().uuid(),
         decision: z.enum(["approved", "rejected", "restricted", "pending"]),
         note: z.string().max(400).optional(),
@@ -117,61 +201,110 @@ export const reviewApproval = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { notify, audit } = await import("./notifications.server");
 
-    const table = { driver: "drivers", vehicle: "vehicles", fleet: "fleets", document: "documents" }[data.kind] as
-      | "drivers"
-      | "vehicles"
-      | "fleets"
-      | "documents";
-
-    if (table === "documents") {
+    if (data.kind === "delivery_rate") {
+      if (data.decision !== "approved" && data.decision !== "rejected") {
+        throw new Error("Delivery rate proposals can only be approved or rejected.");
+      }
+      const { error } = await supabaseAdmin.rpc("review_delivery_rate_proposal", {
+        p_proposal_id: data.id,
+        p_decision: data.decision === "approved" ? "approved" : "rejected",
+        p_reviewer_id: context.userId,
+        p_note: data.note ?? null,
+      });
+      if (error) throw new Error(error.message);
+    } else if (data.kind === "hire_vehicle") {
+      const decision =
+        data.decision === "approved"
+          ? "approved"
+          : data.decision === "pending"
+            ? "pending"
+            : "rejected";
       const { error } = await supabaseAdmin
-        .from("documents")
+        .from("vehicles")
         .update({
-          status: data.decision,
-          rejection_reason: data.decision === "rejected" ? (data.note ?? "Not accepted") : null,
-          reviewed_by: context.userId,
-          reviewed_at: new Date().toISOString(),
+          hire_approval_status: decision,
+          hire_available: decision === "approved",
+          hire_reviewed_by: context.userId,
+          hire_reviewed_at: new Date().toISOString(),
+          hire_rejection_reason: decision === "rejected" ? (data.note ?? "Not accepted") : null,
         })
         .eq("id", data.id);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await supabaseAdmin.from(table).update({ status: data.decision }).eq("id", data.id);
-      if (error) throw new Error(error.message);
-      if (data.decision !== "approved" && table === "drivers") {
-        await supabaseAdmin.from("drivers").update({ is_online: false }).eq("id", data.id);
-      }
-      if (table === "vehicles") {
-        const { data: vehicle } = await supabaseAdmin
-          .from("vehicles")
-          .select("owner_driver_id")
-          .eq("id", data.id)
-          .maybeSingle();
-        if (vehicle?.owner_driver_id) {
-          if (data.decision === "approved") {
-            // Approval is what authorises the owning driver to operate the car.
-            const { data: existing } = await supabaseAdmin
-              .from("driver_vehicle_authorisations")
-              .select("id")
-              .eq("vehicle_id", data.id)
-              .eq("driver_id", vehicle.owner_driver_id)
-              .is("revoked_at", null)
-              .maybeSingle();
-            if (!existing) {
+      const table = {
+        driver: "drivers",
+        vehicle: "vehicles",
+        fleet: "fleets",
+        document: "documents",
+      }[data.kind] as "drivers" | "vehicles" | "fleets" | "documents";
+
+      if (table === "documents") {
+        const { error } = await supabaseAdmin
+          .from("documents")
+          .update({
+            status: data.decision,
+            rejection_reason: data.decision === "rejected" ? (data.note ?? "Not accepted") : null,
+            reviewed_by: context.userId,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq("id", data.id);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabaseAdmin
+          .from(table)
+          .update({ status: data.decision })
+          .eq("id", data.id);
+        if (error) throw new Error(error.message);
+        if (data.decision !== "approved" && table === "drivers") {
+          await supabaseAdmin.from("drivers").update({ is_online: false }).eq("id", data.id);
+        }
+        if (table === "vehicles") {
+          const { data: vehicle } = await supabaseAdmin
+            .from("vehicles")
+            .select("owner_driver_id")
+            .eq("id", data.id)
+            .maybeSingle();
+          if (vehicle?.owner_driver_id) {
+            if (data.decision === "approved") {
+              // Approval is what authorises the owning driver to operate the car.
+              const { data: existing } = await supabaseAdmin
+                .from("driver_vehicle_authorisations")
+                .select("id")
+                .eq("vehicle_id", data.id)
+                .eq("driver_id", vehicle.owner_driver_id)
+                .is("revoked_at", null)
+                .maybeSingle();
+              if (!existing) {
+                await supabaseAdmin.from("driver_vehicle_authorisations").insert({
+                  vehicle_id: data.id,
+                  driver_id: vehicle.owner_driver_id,
+                  granted_by: context.userId,
+                });
+              }
+            } else {
               await supabaseAdmin
                 .from("driver_vehicle_authorisations")
-                .insert({ vehicle_id: data.id, driver_id: vehicle.owner_driver_id, granted_by: context.userId });
+                .update({ revoked_at: new Date().toISOString() })
+                .eq("vehicle_id", data.id)
+                .is("revoked_at", null);
             }
-          } else {
-            await supabaseAdmin
-              .from("driver_vehicle_authorisations")
-              .update({ revoked_at: new Date().toISOString() })
-              .eq("vehicle_id", data.id)
-              .is("revoked_at", null);
           }
         }
       }
     }
-
+    if (data.kind === "fleet" && data.decision === "approved") {
+      const { data: fleet } = await supabaseAdmin
+        .from("fleets")
+        .select("owner_id")
+        .eq("id", data.id)
+        .maybeSingle();
+      if (fleet?.owner_id) {
+        const { error } = await supabaseAdmin
+          .from("user_roles")
+          .upsert({ user_id: fleet.owner_id, role: "fleet_owner" }, { onConflict: "user_id,role" });
+        if (error) throw new Error(error.message);
+      }
+    }
 
     if (data.kind === "driver") {
       await notify({
@@ -185,7 +318,9 @@ export const reviewApproval = createServerFn({ method: "POST" })
         critical: true,
       });
     }
-    await audit(context.userId, `${data.kind}_${data.decision}`, data.kind, data.id, { note: data.note ?? null });
+    await audit(context.userId, `${data.kind}_${data.decision}`, data.kind, data.id, {
+      note: data.note ?? null,
+    });
     return { ok: true };
   });
 
@@ -246,18 +381,31 @@ export const getFinanceBoard = createServerFn({ method: "POST" })
     await requireRole(context.userId, FINANCE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const [{ data: wallets }, { data: withdrawals }, { data: refunds }, { data: entries }, { data: intents }] =
-      await Promise.all([
-        supabaseAdmin.from("wallets").select("*").order("cached_balance"),
-        supabaseAdmin.from("withdrawals").select("*").order("created_at", { ascending: false }).limit(50),
-        supabaseAdmin.from("refunds").select("*").order("created_at", { ascending: false }).limit(50),
-        supabaseAdmin.from("wallet_ledger").select("*").order("created_at", { ascending: false }).limit(100),
-        supabaseAdmin
-          .from("payment_intents")
-          .select("id, status, amount, mode, provider, created_at, ride_id")
-          .order("created_at", { ascending: false })
-          .limit(50),
-      ]);
+    const [
+      { data: wallets },
+      { data: withdrawals },
+      { data: refunds },
+      { data: entries },
+      { data: intents },
+    ] = await Promise.all([
+      supabaseAdmin.from("wallets").select("*").order("cached_balance"),
+      supabaseAdmin
+        .from("withdrawals")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabaseAdmin.from("refunds").select("*").order("created_at", { ascending: false }).limit(50),
+      supabaseAdmin
+        .from("wallet_ledger")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabaseAdmin
+        .from("payment_intents")
+        .select("id, status, amount, mode, provider, created_at, ride_id")
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ]);
 
     const ledger = entries ?? [];
     return {
@@ -333,7 +481,11 @@ export const reviewWithdrawal = createServerFn({ method: "POST" })
 
     const { error } = await supabaseAdmin
       .from("withdrawals")
-      .update({ status: data.decision, review_note: data.note ?? null, reviewed_by: context.userId })
+      .update({
+        status: data.decision,
+        review_note: data.note ?? null,
+        reviewed_by: context.userId,
+      })
       .eq("id", withdrawal.id);
     if (error) throw new Error(error.message);
     await audit(context.userId, `withdrawal_${data.decision}`, "withdrawal", withdrawal.id, {});
@@ -366,7 +518,9 @@ export const adjustWallet = createServerFn({ method: "POST" })
       source: "finance",
       reason: data.reason,
     });
-    await audit(context.userId, "wallet_adjusted", "wallet", data.walletId, { amount: data.amount });
+    await audit(context.userId, "wallet_adjusted", "wallet", data.walletId, {
+      amount: data.amount,
+    });
     return result;
   });
 
@@ -379,14 +533,23 @@ export const getPricingWorkspace = createServerFn({ method: "POST" })
     await requireRole(context.userId, SUPER);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const [{ data: configs }, { data: policies }, { data: bands }, { data: modifiers }, { data: settings }] =
-      await Promise.all([
-        supabaseAdmin.from("fare_configs").select("*").order("vehicle_class").order("version", { ascending: false }),
-        supabaseAdmin.from("distance_policies").select("*").order("version", { ascending: false }),
-        supabaseAdmin.from("distance_bands").select("*").order("sort_order"),
-        supabaseAdmin.from("pricing_modifiers").select("*").order("code"),
-        supabaseAdmin.from("system_settings").select("*").order("key"),
-      ]);
+    const [
+      { data: configs },
+      { data: policies },
+      { data: bands },
+      { data: modifiers },
+      { data: settings },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("fare_configs")
+        .select("*")
+        .order("vehicle_class")
+        .order("version", { ascending: false }),
+      supabaseAdmin.from("distance_policies").select("*").order("version", { ascending: false }),
+      supabaseAdmin.from("distance_bands").select("*").order("sort_order"),
+      supabaseAdmin.from("pricing_modifiers").select("*").order("code"),
+      supabaseAdmin.from("system_settings").select("*").order("key"),
+    ]);
     return {
       configs: configs ?? [],
       policies: policies ?? [],
@@ -426,9 +589,15 @@ export const previewDistancePolicy = createServerFn({ method: "POST" })
     };
     const issues = validateDistancePolicy(policy);
     const pricing = await loadPricingContext(data.vehicleClass);
-    const rows = issues.length > 0
-      ? []
-      : previewTable(pricing.config, policy, pricing.modifiers, [1, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120]);
+    const rows =
+      issues.length > 0
+        ? []
+        : previewTable(
+            pricing.config,
+            policy,
+            pricing.modifiers,
+            [1, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120],
+          );
     return { issues, rows };
   });
 
@@ -458,7 +627,10 @@ export const saveDistancePolicy = createServerFn({ method: "POST" })
       name: data.name,
       version: 0,
       max_total_reduction_percent: data.maxTotalReductionPercent,
-      bands: data.bands.map((b) => ({ ...b, customer_explanation: b.customer_explanation ?? null })),
+      bands: data.bands.map((b) => ({
+        ...b,
+        customer_explanation: b.customer_explanation ?? null,
+      })),
     });
     if (issues.length > 0) {
       return { saved: false, issues, policyId: null };
@@ -500,7 +672,9 @@ export const saveDistancePolicy = createServerFn({ method: "POST" })
       })),
     );
     if (bandError) throw new Error(bandError.message);
-    await audit(context.userId, "distance_policy_drafted", "distance_policy", policy.id, { version });
+    await audit(context.userId, "distance_policy_drafted", "distance_policy", policy.id, {
+      version,
+    });
     return { saved: true, issues, policyId: policy.id };
   });
 
@@ -636,9 +810,15 @@ export const saveFareConfig = createServerFn({ method: "POST" })
         .eq("state", "published")
         .neq("id", created.id);
     }
-    await audit(context.userId, data.publish ? "fare_config_published" : "fare_config_drafted", "fare_config", created.id, {
-      version,
-    });
+    await audit(
+      context.userId,
+      data.publish ? "fare_config_published" : "fare_config_drafted",
+      "fare_config",
+      created.id,
+      {
+        version,
+      },
+    );
     return { config: created };
   });
 
@@ -677,7 +857,9 @@ export const setModifier = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { audit } = await import("./notifications.server");
     const { id, ...rest } = data;
-    const patch = Object.fromEntries(Object.entries(rest).filter(([, value]) => value !== undefined));
+    const patch = Object.fromEntries(
+      Object.entries(rest).filter(([, value]) => value !== undefined),
+    );
     if (Object.keys(patch).length === 0) return { ok: true };
     const { error } = await supabaseAdmin
       .from("pricing_modifiers")
@@ -698,14 +880,19 @@ export const setSystemSetting = createServerFn({ method: "POST" })
     await requireRole(context.userId, SUPER);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { audit } = await import("./notifications.server");
-    const { error } = await supabaseAdmin
-      .from("system_settings")
-      .upsert(
-        { key: data.key, value: data.value as never, updated_by: context.userId, updated_at: new Date().toISOString() },
-        { onConflict: "key" },
-      );
+    const { error } = await supabaseAdmin.from("system_settings").upsert(
+      {
+        key: data.key,
+        value: data.value as never,
+        updated_by: context.userId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
     if (error) throw new Error(error.message);
-    await audit(context.userId, "system_setting_updated", "system_setting", data.key, { value: data.value });
+    await audit(context.userId, "system_setting_updated", "system_setting", data.key, {
+      value: data.value,
+    });
     return { ok: true };
   });
 
@@ -734,7 +921,14 @@ export const setUserRole = createServerFn({ method: "POST" })
     z
       .object({
         email: z.string().email(),
-        role: z.enum(["customer", "driver", "fleet_owner", "ops_admin", "finance_admin", "super_admin"]),
+        role: z.enum([
+          "customer",
+          "driver",
+          "fleet_owner",
+          "ops_admin",
+          "finance_admin",
+          "super_admin",
+        ]),
         grant: z.boolean(),
       })
       .parse(input),
@@ -758,7 +952,10 @@ export const setUserRole = createServerFn({ method: "POST" })
     if (data.grant) {
       const { error } = await supabaseAdmin
         .from("user_roles")
-        .upsert({ user_id: profile.id, role: data.role, granted_by: context.userId }, { onConflict: "user_id,role" });
+        .upsert(
+          { user_id: profile.id, role: data.role, granted_by: context.userId },
+          { onConflict: "user_id,role" },
+        );
       if (error) throw new Error(error.message);
     } else {
       const { error } = await supabaseAdmin
@@ -778,7 +975,12 @@ export const setUserRole = createServerFn({ method: "POST" })
 
 const promoInput = z.object({
   id: z.string().uuid().optional(),
-  code: z.string().trim().min(2).max(40).transform((v) => v.toUpperCase()),
+  code: z
+    .string()
+    .trim()
+    .min(2)
+    .max(40)
+    .transform((v) => v.toUpperCase()),
   name: z.string().trim().min(2).max(120),
   description: z.string().max(500).optional().nullable(),
   discount_percent: z.number().min(0).max(100),
@@ -846,10 +1048,16 @@ export const savePromotion = createServerFn({ method: "POST" })
       promotionId = (created as unknown as { id: string }).id;
     }
 
-    await audit(context.userId, input.id ? "promotion_updated" : "promotion_created", "promotion", promotionId!, {
-      code: input.code,
-      max_discount_percent: input.max_discount_percent,
-    });
+    await audit(
+      context.userId,
+      input.id ? "promotion_updated" : "promotion_created",
+      "promotion",
+      promotionId!,
+      {
+        code: input.code,
+        max_discount_percent: input.max_discount_percent,
+      },
+    );
     return { id: promotionId };
   });
 
@@ -866,7 +1074,12 @@ export const togglePromotion = createServerFn({ method: "POST" })
       .update({ active: data.active })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
-    await audit(context.userId, data.active ? "promotion_activated" : "promotion_deactivated", "promotion", data.id);
+    await audit(
+      context.userId,
+      data.active ? "promotion_activated" : "promotion_deactivated",
+      "promotion",
+      data.id,
+    );
     return { ok: true };
   });
 
@@ -905,7 +1118,11 @@ export const validatePromoCode = createServerFn({ method: "POST" })
       .limit(1);
     const promo = rows?.[0];
     if (!promo) {
-      return { valid: false as const, state: "invalid" as const, message: "That code is not recognised." };
+      return {
+        valid: false as const,
+        state: "invalid" as const,
+        message: "That code is not recognised.",
+      };
     }
 
     const state = promoState(promo);
@@ -949,11 +1166,18 @@ export const getFleetBoard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: fleets } = await supabaseAdmin.from("fleets").select("*").eq("owner_id", context.userId);
+    const { data: fleets } = await supabaseAdmin
+      .from("fleets")
+      .select("*")
+      .eq("owner_id", context.userId);
     const fleetIds = (fleets ?? []).map((f) => f.id);
-    if (fleetIds.length === 0) return { fleets: [], vehicles: [], drivers: [], wallet: null, entries: [], rides: [] };
+    if (fleetIds.length === 0)
+      return { fleets: [], vehicles: [], drivers: [], wallet: null, entries: [], rides: [] };
 
-    const { data: vehicles } = await supabaseAdmin.from("vehicles").select("*").in("fleet_id", fleetIds);
+    const { data: vehicles } = await supabaseAdmin
+      .from("vehicles")
+      .select("*")
+      .in("fleet_id", fleetIds);
     const driverIds = (vehicles ?? []).map((v) => v.active_driver_id).filter(Boolean) as string[];
     const { data: drivers } = driverIds.length
       ? await supabaseAdmin.from("profiles").select("id, full_name, phone").in("id", driverIds)
