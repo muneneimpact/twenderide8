@@ -209,7 +209,7 @@ export const reviewApproval = createServerFn({ method: "POST" })
         p_proposal_id: data.id,
         p_decision: data.decision === "approved" ? "approved" : "rejected",
         p_reviewer_id: context.userId,
-        p_note: data.note ?? null,
+        p_note: data.note ?? undefined,
       });
       if (error) throw new Error(error.message);
     } else if (data.kind === "hire_vehicle") {
