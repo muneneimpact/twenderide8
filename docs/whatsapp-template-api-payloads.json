@@ -1,0 +1,284 @@
+[
+  {
+    "name": "verification_code",
+    "language": "en_GB",
+    "category": "authentication",
+    "message_send_ttl_seconds": 300,
+    "components": [
+      { "type": "body", "add_security_recommendation": true },
+      { "type": "footer", "code_expiration_minutes": 5 },
+      {
+        "type": "buttons",
+        "buttons": [{ "type": "otp", "otp_type": "copy_code", "text": "Copy code" }]
+      }
+    ]
+  },
+  {
+    "name": "no_driver_available",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "No driver was available nearby for ride {{ride_reference}}. No payment was requested.",
+      "example": { "body_text_named_params": [{ "param_name": "ride_reference", "example": "TMR-2841" }] }
+    }]
+  },
+  {
+    "name": "driver_assigned",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "A driver accepted ride {{ride_reference}}. Pickup status: {{pickup_status}}. Open Twende Meru Rides for live updates.",
+      "example": { "body_text_named_params": [
+        { "param_name": "ride_reference", "example": "TMR-2841" },
+        { "param_name": "pickup_status", "example": "Heading to pickup" }
+      ] }
+    }]
+  },
+  {
+    "name": "ride_accepted_driver",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Ride {{ride_reference}} is assigned to you. Open Twende Meru Rides for pickup details and your next step.",
+      "example": { "body_text_named_params": [{ "param_name": "ride_reference", "example": "TMR-2841" }] }
+    }]
+  },
+  {
+    "name": "ride_offer",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "A ride request is available near your current location. Estimated time to pickup: {{eta_minutes}} minutes. Open Twende Meru Rides to review it.",
+      "example": { "body_text_named_params": [{ "param_name": "eta_minutes", "example": "8" }] }
+    }]
+  },
+  {
+    "name": "ride_open",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "A ride request is available about {{distance_km}} km away. Open Twende Meru Rides to review it.",
+      "example": { "body_text_named_params": [{ "param_name": "distance_km", "example": "2.4" }] }
+    }]
+  },
+  {
+    "name": "driver_approaching",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Your driver for ride {{ride_reference}} is on the way to the pickup point.",
+      "example": { "body_text_named_params": [{ "param_name": "ride_reference", "example": "TMR-2841" }] }
+    }]
+  },
+  {
+    "name": "driver_arrived",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Your driver has arrived at the pickup point for ride {{ride_reference}}.",
+      "example": { "body_text_named_params": [{ "param_name": "ride_reference", "example": "TMR-2841" }] }
+    }]
+  },
+  {
+    "name": "ride_cancelled_by_customer",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "The customer cancelled ride {{ride_reference}}. This ride request is no longer active.",
+      "example": { "body_text_named_params": [{ "param_name": "ride_reference", "example": "TMR-2841" }] }
+    }]
+  },
+  {
+    "name": "ride_cancelled_by_driver",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "The driver cancelled ride {{ride_reference}}. You can request another taxi at no charge.",
+      "example": { "body_text_named_params": [{ "param_name": "ride_reference", "example": "TMR-2841" }] }
+    }]
+  },
+  {
+    "name": "trip_completed",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Ride {{ride_reference}} is complete. Total fare: KES {{total_fare}}.",
+      "example": { "body_text_named_params": [
+        { "param_name": "ride_reference", "example": "TMR-2841" },
+        { "param_name": "total_fare", "example": "1,250.00" }
+      ] }
+    }]
+  },
+  {
+    "name": "payment_confirmed",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Payment received for ride {{ride_reference}}: KES {{amount}}. M-PESA receipt: {{mpesa_receipt}}.",
+      "example": { "body_text_named_params": [
+        { "param_name": "ride_reference", "example": "TMR-2841" },
+        { "param_name": "amount", "example": "1,250.00" },
+        { "param_name": "mpesa_receipt", "example": "QWE7R9T2" }
+      ] }
+    }]
+  },
+  {
+    "name": "dues_settled",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "A payment of KES {{amount}} has been applied to your platform dues. Receipt: {{receipt_reference}}.",
+      "example": { "body_text_named_params": [
+        { "param_name": "amount", "example": "850.00" },
+        { "param_name": "receipt_reference", "example": "QWE7R9T2" }
+      ] }
+    }]
+  },
+  {
+    "name": "trip_receipt",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Trip {{ride_reference}} is complete. Date and time: {{date_time}}. Pickup: {{pickup}}. Destination: {{destination}}. Total: KES {{fare}} ({{payment_method}}).",
+      "example": { "body_text_named_params": [
+        { "param_name": "ride_reference", "example": "TMR-2841" },
+        { "param_name": "date_time", "example": "8 October 2026, 10:15 EAT" },
+        { "param_name": "pickup", "example": "Meru Town" },
+        { "param_name": "destination", "example": "Nanyuki Road" },
+        { "param_name": "fare", "example": "1,250.00" },
+        { "param_name": "payment_method", "example": "M-PESA" }
+      ] }
+    }]
+  },
+  {
+    "name": "hire_request_submitted",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Hire request {{request_reference}} was received. Estimate: KES {{estimated_total}} for {{duration_days}} day(s). The owner will confirm shortly.",
+      "example": { "body_text_named_params": [
+        { "param_name": "request_reference", "example": "HIRE-1052" },
+        { "param_name": "estimated_total", "example": "12,000" },
+        { "param_name": "duration_days", "example": "2" }
+      ] }
+    }]
+  },
+  {
+    "name": "hire_quote_update",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Your hire request {{request_reference}} has a new status: {{status}}. Quote amount: KES {{quoted_amount}}. Open Twende Meru Rides to review the details.",
+      "example": { "body_text_named_params": [
+        { "param_name": "request_reference", "example": "HIRE-1052" },
+        { "param_name": "status", "example": "Quoted" },
+        { "param_name": "quoted_amount", "example": "25,000" }
+      ] }
+    }]
+  },
+  {
+    "name": "hire_quote_unavailable",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Your hire request {{request_reference}} could not be fulfilled. Open Twende Meru Rides to review the request or contact support.",
+      "example": { "body_text_named_params": [{ "param_name": "request_reference", "example": "HIRE-1052" }] }
+    }]
+  },
+  {
+    "name": "hire_offer_received",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "An owner offered KES {{offer_amount}} for hire request {{request_reference}}. Open Twende Meru Rides to accept or decline.",
+      "example": { "body_text_named_params": [
+        { "param_name": "offer_amount", "example": "18,000" },
+        { "param_name": "request_reference", "example": "HIRE-1052" }
+      ] }
+    }]
+  },
+  {
+    "name": "hire_offer_accepted",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Your offer for hire request {{request_reference}} was accepted at KES {{offer_amount}}.",
+      "example": { "body_text_named_params": [
+        { "param_name": "request_reference", "example": "HIRE-1052" },
+        { "param_name": "offer_amount", "example": "18,000" }
+      ] }
+    }]
+  },
+  {
+    "name": "hire_offer_declined",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Your offer for hire request {{request_reference}} was declined. The request may be available to other owners.",
+      "example": { "body_text_named_params": [{ "param_name": "request_reference", "example": "HIRE-1052" }] }
+    }]
+  },
+  {
+    "name": "driver_application_update",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Your Twende Meru Rides driver application status is {{status}}. Open the app to review the next steps.",
+      "example": { "body_text_named_params": [{ "param_name": "status", "example": "Approved" }] }
+    }]
+  },
+  {
+    "name": "trip_milestone_thanks",
+    "language": "en_GB",
+    "category": "marketing",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Asante {{first_name}}! You have completed {{trip_count}} trips with Twende Meru Rides. Thank you for riding with us. Karibu tena.",
+      "example": { "body_text_named_params": [
+        { "param_name": "first_name", "example": "Amina" },
+        { "param_name": "trip_count", "example": "20" }
+      ] }
+    }]
+  }
+]
