@@ -20,12 +20,8 @@ export async function sendHirePaymentReminderTemplate(input: {
     return { status: "template_not_approved" as const };
   }
 
-  const apiVersion = process.env["WHATSAPP_GRAPH_API_VERSION"] ?? "v26.0";
-  const token = process.env["WHATSAPP_ACCESS_TOKEN"];
-  const phoneNumberId = process.env["WHATSAPP_PHONE_NUMBER_ID"];
-  if (!token || !phoneNumberId || !/^v\d+\.\d+$/.test(apiVersion)) {
-    return { status: "not_configured" as const };
-  }
+  const { whatsappGatewayConfigured, whatsappGatewaySend } = await import("./whatsapp-gateway.server");
+  if (!whatsappGatewayConfigured()) return { status: "not_configured" as const };
 
   const [{ data: preference }, { data: profile }] = await Promise.all([
     supabaseAdmin
@@ -124,54 +120,32 @@ export async function sendHirePaymentReminderTemplate(input: {
     messageId = message.id;
   }
 
-  let response: Response;
-  let payload: Record<string, unknown> = {};
+  let providerId: string;
   try {
-    response = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: phone,
-        type: "template",
-        template: {
-          name: process.env["WHATSAPP_HIRE_PAYMENT_TEMPLATE_NAME"] ?? "hire_payment_reminder",
-          language: { code: "en_GB" },
-          components: [
-            {
-              type: "body",
-              parameters: [
-                { type: "text", parameter_name: "request_reference", text: input.reference },
-                { type: "text", parameter_name: "amount_due", text: input.amount },
-                { type: "text", parameter_name: "due_date", text: input.dueDate },
-              ],
-            },
-          ],
-        },
-      }),
-      signal: AbortSignal.timeout(15_000),
+    providerId = await whatsappGatewaySend({
+      recipient_type: "individual",
+      to: phone.replace(/\D/g, ""),
+      type: "template",
+      template: {
+        name: process.env["WHATSAPP_HIRE_PAYMENT_TEMPLATE_NAME"] ?? "hire_payment_reminder",
+        language: { code: "en_GB" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", parameter_name: "request_reference", text: input.reference },
+              { type: "text", parameter_name: "amount_due", text: input.amount },
+              { type: "text", parameter_name: "due_date", text: input.dueDate },
+            ],
+          },
+        ],
+      },
     });
-    payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Network error contacting WhatsApp.";
     await supabaseAdmin
       .from("whatsapp_messages")
       .update({ status: "failed", error_message: detail.slice(0, 500) })
-      .eq("id", messageId);
-    return { status: "failed" as const, detail };
-  }
-
-  const metaError = payload["error"] as { message?: unknown } | undefined;
-  const messages = payload["messages"] as Array<{ id?: string }> | undefined;
-  const providerId = messages?.[0]?.id;
-  if (!response.ok || !providerId) {
-    const detail = String(
-      metaError?.message ?? `WhatsApp API returned HTTP ${response.status}.`,
-    ).slice(0, 500);
-    await supabaseAdmin
-      .from("whatsapp_messages")
-      .update({ status: "failed", error_message: detail })
       .eq("id", messageId);
     return { status: "failed" as const, detail };
   }

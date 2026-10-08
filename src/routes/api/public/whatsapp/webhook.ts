@@ -3,31 +3,25 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/api/public/whatsapp/webhook")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
-        const verifyToken = process.env["WHATSAPP_VERIFY_TOKEN"];
-        if (!verifyToken)
-          return new Response("WhatsApp webhook is not configured", { status: 503 });
-        const url = new URL(request.url);
-        const mode = url.searchParams.get("hub.mode");
-        const token = url.searchParams.get("hub.verify_token");
-        const challenge = url.searchParams.get("hub.challenge");
-        if (mode === "subscribe" && token === verifyToken && challenge) {
-          return new Response(challenge, {
-            status: 200,
-            headers: { "content-type": "text/plain" },
-          });
-        }
-        return new Response("Forbidden", { status: 403 });
-      },
       POST: async ({ request }) => {
-        const appSecret = process.env["WHATSAPP_APP_SECRET"];
-        if (!appSecret) return new Response("WhatsApp webhook is not configured", { status: 503 });
-        const rawBody = await request.text();
-        if (rawBody.length > 2_000_000) return new Response("Payload too large", { status: 413 });
-        const providedSignature = request.headers.get("x-hub-signature-256") ?? "";
-        if (!(await verifySignature(rawBody, providedSignature, appSecret))) {
+        const secret = process.env["WHATSAPP_API_KEY"];
+        if (!secret) return new Response("WhatsApp webhook is not configured", { status: 503 });
+        let rawBody: string;
+        try {
+          const { verifyWebhookRequest } = await import("@lovable.dev/webhooks-js");
+          const verified = await verifyWebhookRequest({
+            req: request,
+            secret,
+            maxBodyBytes: 4 * 1024 * 1024,
+            parser: (text: string) => text,
+          });
+          rawBody = verified.payload as unknown as string;
+        } catch {
           return new Response("Invalid signature", { status: 401 });
         }
+        const deliveryId = request.headers.get("x-lovable-delivery") ?? "";
+        const eventName = request.headers.get("x-lovable-event") ?? "";
+        if (!deliveryId || !eventName) return new Response("Missing delivery headers", { status: 400 });
 
         let payload: MetaWebhookPayload;
         try {
@@ -35,6 +29,18 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
         } catch {
           return new Response("Invalid JSON", { status: 400 });
         }
+
+        const { supabaseAdmin: inboxDb } = await import("@/integrations/supabase/client.server");
+        const { data: inboxRow, error: inboxError } = await inboxDb
+          .from("whatsapp_webhook_events")
+          .upsert(
+            { delivery_id: deliveryId, event: eventName, payload: payload as never },
+            { onConflict: "delivery_id", ignoreDuplicates: false },
+          )
+          .select("id, processed_at, attempts")
+          .single();
+        if (inboxError) return Response.json({ received: false }, { status: 500 });
+        if (inboxRow.processed_at) return Response.json({ received: true, duplicate: true });
 
         try {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -176,35 +182,25 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
           }
         } catch (error) {
           console.error("WhatsApp webhook persistence failed", error);
+          await inboxDb
+            .from("whatsapp_webhook_events")
+            .update({
+              attempts: inboxRow.attempts + 1,
+              processing_error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+            })
+            .eq("id", inboxRow.id);
           return Response.json({ received: false }, { status: 500 });
         }
 
+        await inboxDb
+          .from("whatsapp_webhook_events")
+          .update({ processed_at: new Date().toISOString(), processing_error: null, attempts: inboxRow.attempts + 1 })
+          .eq("id", inboxRow.id);
         return Response.json({ received: true });
       },
     },
   },
 });
-
-async function verifySignature(rawBody: string, signature: string, secret: string) {
-  if (!/^sha256=[0-9a-f]{64}$/i.test(signature)) return false;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const digest = new Uint8Array(
-    await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody)),
-  );
-  const expected = `sha256=${Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-  if (signature.length !== expected.length) return false;
-  let difference = 0;
-  for (let index = 0; index < expected.length; index += 1) {
-    difference |= expected.charCodeAt(index) ^ signature.toLowerCase().charCodeAt(index);
-  }
-  return difference === 0;
-}
 
 type MetaMessage = {
   from?: string;
