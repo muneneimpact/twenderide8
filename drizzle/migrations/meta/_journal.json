@@ -8,6 +8,20 @@
       "when": 1791163167125,
       "tag": "0000_hire_gallery_docs_availability",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791412111613,
+      "tag": "0001_whatsapp_inbox_and_hire_lockout",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791412132080,
+      "tag": "0002_delivery_businesses_hire_approval_unique_plates",
+      "breakpoints": true
     }
   ]
 }
