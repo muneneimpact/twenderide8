@@ -1206,8 +1206,8 @@ export const reviewHirePayoutRequest = createServerFn({ method: "POST" })
       p_request_id: data.id,
       p_decision: data.decision,
       p_reviewer_id: context.userId,
-      p_note: data.note?.trim() || null,
-      p_payout_reference: data.payoutReference?.trim() || null,
+      p_note: data.note?.trim() || undefined,
+      p_payout_reference: data.payoutReference?.trim() || undefined,
     });
     if (error) throw new Error(error.message);
     const payload = result as {
