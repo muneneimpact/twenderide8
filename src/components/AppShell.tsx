@@ -1,10 +1,9 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMe, type AppRole } from "@/hooks/useMe";
 import { PhoneVerifyGate } from "@/components/PhoneVerifyBanner";
-
 
 type Tab = { to: string; label: string };
 
@@ -57,6 +56,13 @@ export function AppShell({
   const queryClient = useQueryClient();
   const { roles } = useMe();
   const visibleTabs = tabs ?? tabsForRoles(roles);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const dockRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const activeTab = dockRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    activeTab?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  }, [pathname]);
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -69,7 +75,9 @@ export function AppShell({
     <div className="flex min-h-screen flex-col bg-background">
       <header className="glass-bar sticky top-0 z-40 flex items-center justify-between border-b border-border/60 px-4 py-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{eyebrow}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            {eyebrow}
+          </p>
           <h1 className="font-display text-base font-semibold text-foreground">{title}</h1>
         </div>
         <button
@@ -84,26 +92,32 @@ export function AppShell({
         <PhoneVerifyGate>{children}</PhoneVerifyGate>
       </div>
 
-
       {!hideNav && (
-      <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <div className="mx-auto flex max-w-md gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-1.5 shadow-[0_10px_36px_-10px_rgba(0,0,0,0.45)]">
-          {visibleTabs.map((tab) => (
-            <Link
-              key={tab.to}
-              to={tab.to}
-              className="flex-1 whitespace-nowrap rounded-full px-3 py-2.5 text-center text-sm font-medium text-muted-foreground transition-colors"
-              activeProps={{
-                className:
-                  "flex-1 whitespace-nowrap rounded-full px-3 py-2.5 text-center text-sm font-semibold bg-primary text-primary-foreground shadow-[0_2px_12px_-4px_rgba(0,0,0,0.35)]",
-              }}
-              activeOptions={{ exact: true }}
-            >
-              {tab.label}
-            </Link>
-          ))}
-        </div>
-      </nav>
+        <nav
+          aria-label="Primary navigation"
+          className="fixed inset-x-0 bottom-0 z-40 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-3"
+        >
+          <div
+            ref={dockRef}
+            className="mx-auto flex w-full max-w-4xl snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain rounded-2xl border border-border bg-card/95 p-1.5 shadow-[0_10px_36px_-10px_rgba(0,0,0,0.45)] backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {visibleTabs.map((tab) => (
+              <Link
+                key={tab.to}
+                to={tab.to}
+                className="flex min-h-11 min-w-[76px] shrink-0 snap-center items-center justify-center whitespace-nowrap rounded-full px-3 py-2.5 text-center text-xs font-medium text-muted-foreground transition-colors sm:text-sm md:flex-1"
+                activeProps={{
+                  "aria-current": "page",
+                  className:
+                    "flex min-h-11 min-w-[76px] shrink-0 snap-center items-center justify-center whitespace-nowrap rounded-full bg-primary px-3 py-2.5 text-center text-xs font-semibold text-primary-foreground shadow-[0_2px_12px_-4px_rgba(0,0,0,0.35)] sm:text-sm md:flex-1",
+                }}
+                activeOptions={{ exact: true }}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </div>
+        </nav>
       )}
     </div>
   );

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { MessageCircle, RefreshCw, Send, ShieldAlert } from "lucide-react";
+import { ArrowLeft, MessageCircle, RefreshCw, Send, ShieldAlert } from "lucide-react";
 import { AppShell, adminTabs } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import {
@@ -33,6 +33,7 @@ function WhatsAppInbox() {
   const threadFn = useServerFn(getWhatsAppThread);
   const sendFn = useServerFn(sendWhatsAppReply);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<"list" | "thread">("list");
   const [reply, setReply] = useState("");
   const [search, setSearch] = useState("");
 
@@ -54,7 +55,10 @@ function WhatsAppInbox() {
 
   useEffect(() => {
     if (!selectedId && visible.length > 0) setSelectedId(visible[0]!.id);
-    if (selectedId && !conversations.some((item) => item.id === selectedId)) setSelectedId(null);
+    if (selectedId && !conversations.some((item) => item.id === selectedId)) {
+      setSelectedId(null);
+      setMobileView("list");
+    }
   }, [selectedId, visible, conversations]);
 
   const thread = useQuery({
@@ -83,8 +87,10 @@ function WhatsAppInbox() {
 
   return (
     <AppShell title="WhatsApp inbox" eyebrow="Twende Ops" tabs={adminTabs}>
-      <div className="mx-auto grid max-w-6xl gap-4 px-4 py-5 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.6fr)]">
-        <section className="surface-card overflow-hidden p-3">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-3 px-3 py-3 sm:px-4 sm:py-5 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.6fr)]">
+        <section
+          className={`${mobileView === "thread" ? "hidden" : "flex"} surface-card h-[calc(100dvh-14rem)] min-h-[360px] flex-col overflow-hidden p-3 lg:flex lg:h-[min(72vh,840px)]`}
+        >
           <div className="flex items-center justify-between gap-2 px-1">
             <div>
               <h2 className="font-display text-lg font-bold text-foreground">Conversations</h2>
@@ -106,13 +112,16 @@ function WhatsAppInbox() {
             placeholder="Search name or phone"
             className="input-base mt-3"
           />
-          <div className="mt-3 max-h-[68vh] space-y-1 overflow-y-auto">
+          <div className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain">
             {visible.map((conversation) => (
               <ConversationRow
                 key={conversation.id}
                 conversation={conversation}
                 selected={conversation.id === selectedId}
-                onClick={() => setSelectedId(conversation.id)}
+                onClick={() => {
+                  setSelectedId(conversation.id);
+                  setMobileView("thread");
+                }}
               />
             ))}
             {!inbox.isPending && visible.length === 0 ? (
@@ -129,7 +138,9 @@ function WhatsAppInbox() {
           </div>
         </section>
 
-        <section className="surface-card flex min-h-[65vh] flex-col overflow-hidden">
+        <section
+          className={`${mobileView === "list" ? "hidden" : "flex"} surface-card h-[calc(100dvh-14rem)] min-h-[360px] flex-col overflow-hidden lg:flex lg:h-[min(72vh,840px)]`}
+        >
           {inbox.data && (!inbox.data.sendConfigured || !inbox.data.webhookConfigured) ? (
             <div className="border-b border-warning/30 bg-warning/10 px-4 py-3">
               <div className="flex gap-2 text-warning-foreground">
@@ -153,114 +164,158 @@ function WhatsAppInbox() {
             </div>
           ) : null}
 
-          {activeConversation && threadData ? (
-            <>
-              <header className="border-b border-border px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="truncate font-display text-lg font-bold text-foreground">
-                      {activeConversation.customer_name || "WhatsApp customer"}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                      {activeConversation.customer_phone}
-                    </p>
+          {activeConversation ? (
+            threadData ? (
+              <>
+                <header className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
+                  <div className="flex items-start gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMobileView("list")}
+                      aria-label="Back to conversations"
+                      className="-ml-1 grid h-10 w-10 shrink-0 place-items-center rounded-full text-foreground hover:bg-secondary lg:hidden"
+                    >
+                      <ArrowLeft className="h-5 w-5" />
+                    </button>
+                    <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="truncate font-display text-lg font-bold text-foreground">
+                          {activeConversation.customer_name || "WhatsApp customer"}
+                        </h2>
+                        <p className="text-xs text-muted-foreground">
+                          {activeConversation.customer_phone}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                          windowOpen
+                            ? "bg-success/15 text-success"
+                            : "bg-secondary text-muted-foreground"
+                        }`}
+                      >
+                        {windowOpen ? (
+                          <>
+                            <span className="hidden sm:inline">24h reply window open</span>
+                            <span className="sm:hidden">24h open</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="hidden sm:inline">Template required</span>
+                            <span className="sm:hidden">Template</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                      windowOpen
-                        ? "bg-success/15 text-success"
-                        : "bg-secondary text-muted-foreground"
-                    }`}
-                  >
-                    {windowOpen ? "24h reply window open" : "Template required"}
-                  </span>
-                </div>
-                {activeConversation.last_inbound_at ? (
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    Last customer message{" "}
-                    {new Date(activeConversation.last_inbound_at).toLocaleString("en-KE")}
-                  </p>
-                ) : null}
-              </header>
+                  {activeConversation.last_inbound_at ? (
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      Last customer message{" "}
+                      {new Date(activeConversation.last_inbound_at).toLocaleString("en-KE")}
+                    </p>
+                  ) : null}
+                </header>
 
-              <div className="flex-1 space-y-2 overflow-y-auto bg-background/40 px-3 py-4 sm:px-5">
-                {threadData.messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${
-                      message.direction === "inbound"
-                        ? "bg-secondary text-secondary-foreground"
-                        : "ml-auto bg-primary text-primary-foreground"
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap break-words">{message.body}</p>
-                    {message.message_type !== "text" ? (
-                      <p className="mt-1 text-[10px] opacity-70">
-                        {message.message_type} · attachment reference saved
+                <div
+                  role="log"
+                  aria-label="Conversation messages"
+                  aria-live="polite"
+                  className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain bg-background/40 px-3 py-4 sm:px-5"
+                >
+                  {threadData.messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${
+                        message.direction === "inbound"
+                          ? "bg-secondary text-secondary-foreground"
+                          : "ml-auto bg-primary text-primary-foreground"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                      {message.message_type !== "text" ? (
+                        <p className="mt-1 text-[10px] opacity-70">
+                          {message.message_type} · attachment reference saved
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-right text-[10px] opacity-70">
+                        {message.direction === "inbound" ? "Customer" : "Twende"} ·{" "}
+                        {formatTime(message.created_at)}
+                        {message.direction === "outbound" ? ` · ${message.status}` : ""}
                       </p>
-                    ) : null}
-                    <p className="mt-1 text-right text-[10px] opacity-70">
-                      {message.direction === "inbound" ? "Customer" : "Twende"} ·{" "}
-                      {formatTime(message.created_at)}
-                      {message.direction === "outbound" ? ` · ${message.status}` : ""}
+                      {message.error_message ? (
+                        <p className="mt-1 text-[10px] text-destructive">{message.error_message}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                  {threadData.messages.length === 0 ? (
+                    <p className="py-10 text-center text-xs text-muted-foreground">
+                      No saved messages in this conversation.
                     </p>
-                    {message.error_message ? (
-                      <p className="mt-1 text-[10px] text-destructive">{message.error_message}</p>
-                    ) : null}
-                  </div>
-                ))}
-                {threadData.messages.length === 0 ? (
-                  <p className="py-10 text-center text-xs text-muted-foreground">
-                    No saved messages in this conversation.
-                  </p>
-                ) : null}
-              </div>
-
-              <form
-                className="border-t border-border p-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (canSend) send.mutate();
-                }}
-              >
-                {!windowOpen ? (
-                  <p className="mb-2 rounded-xl bg-secondary px-3 py-2 text-xs text-muted-foreground">
-                    The last customer message was over 24 hours ago. WhatsApp requires an approved
-                    template to restart the conversation; free-form replies are disabled.
-                  </p>
-                ) : null}
-                <div className="flex items-end gap-2">
-                  <textarea
-                    value={reply}
-                    onChange={(event) => setReply(event.target.value.slice(0, 4096))}
-                    disabled={!inbox.data?.sendConfigured || !windowOpen}
-                    maxLength={4096}
-                    rows={2}
-                    placeholder={
-                      windowOpen
-                        ? "Write a reply…"
-                        : "Reply window closed — approved template required"
-                    }
-                    className="input-base min-h-12 flex-1 resize-y disabled:opacity-60"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!canSend}
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-                  >
-                    <Send className="h-4 w-4" />
-                    <span className="hidden sm:inline">{send.isPending ? "Sending…" : "Send"}</span>
-                  </button>
+                  ) : null}
                 </div>
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  Replies and provider delivery statuses are saved in this thread. Media messages
-                  save type and provider reference; media files are not downloaded.
+
+                <form
+                  className="shrink-0 border-t border-border bg-card p-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (canSend) send.mutate();
+                  }}
+                >
+                  {!windowOpen ? (
+                    <p className="mb-2 rounded-xl bg-secondary px-3 py-2 text-xs text-muted-foreground">
+                      The last customer message was over 24 hours ago. WhatsApp requires an approved
+                      template to restart the conversation; free-form replies are disabled.
+                    </p>
+                  ) : null}
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      value={reply}
+                      onChange={(event) => setReply(event.target.value.slice(0, 4096))}
+                      disabled={!inbox.data?.sendConfigured || !windowOpen}
+                      maxLength={4096}
+                      rows={2}
+                      placeholder={
+                        windowOpen
+                          ? "Write a reply…"
+                          : "Reply window closed — approved template required"
+                      }
+                      className="input-base min-h-12 max-h-32 flex-1 resize-y disabled:opacity-60"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!canSend}
+                      className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                    >
+                      <Send className="h-4 w-4" />
+                      <span className="hidden sm:inline">
+                        {send.isPending ? "Sending…" : "Send"}
+                      </span>
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Replies and provider delivery statuses are saved in this thread. Media messages
+                    save type and provider reference; media files are not downloaded.
+                  </p>
+                  {send.isError ? (
+                    <p className="mt-1 text-xs text-destructive">{(send.error as Error).message}</p>
+                  ) : null}
+                </form>
+              </>
+            ) : (
+              <div className="flex flex-1 items-start gap-2 p-3 sm:p-4">
+                <button
+                  type="button"
+                  onClick={() => setMobileView("list")}
+                  aria-label="Back to conversations"
+                  className="-ml-1 grid h-10 w-10 shrink-0 place-items-center rounded-full text-foreground hover:bg-secondary lg:hidden"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <p className="pt-2 text-sm text-muted-foreground">
+                  Opening chat with{" "}
+                  {activeConversation.customer_name || activeConversation.customer_phone}…
                 </p>
-                {send.isError ? (
-                  <p className="mt-1 text-xs text-destructive">{(send.error as Error).message}</p>
-                ) : null}
-              </form>
-            </>
+              </div>
+            )
           ) : (
             <div className="grid flex-1 place-items-center p-8 text-center">
               <div>
