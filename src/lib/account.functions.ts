@@ -231,21 +231,27 @@ export const markNotificationsRead = createServerFn({ method: "POST" })
 export const getNotificationPreferences = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data } = await context.supabase
-      .from("notification_preferences")
-      .select("*")
-      .eq("user_id", context.userId)
-      .maybeSingle();
-    return (
-      data ?? {
-        user_id: context.userId,
-        sms_enabled: true,
-        email_enabled: true,
-        push_enabled: false,
-        push_permission: "default",
-        updated_at: new Date().toISOString(),
-      }
-    );
+    const [{ data }, { data: profile }] = await Promise.all([
+      context.supabase
+        .from("notification_preferences")
+        .select("*")
+        .eq("user_id", context.userId)
+        .maybeSingle(),
+      context.supabase.from("profiles").select("phone").eq("id", context.userId).maybeSingle(),
+    ]);
+    return data
+      ? { ...data, phone: profile?.phone ?? null }
+      : {
+          user_id: context.userId,
+          sms_enabled: true,
+          email_enabled: true,
+          whatsapp_enabled: false,
+          whatsapp_opted_in_at: null,
+          push_enabled: false,
+          push_permission: "default",
+          updated_at: new Date().toISOString(),
+          phone: profile?.phone ?? null,
+        };
   });
 
 export const updateNotificationPreferences = createServerFn({ method: "POST" })
@@ -255,17 +261,34 @@ export const updateNotificationPreferences = createServerFn({ method: "POST" })
       .object({
         sms_enabled: z.boolean().optional(),
         email_enabled: z.boolean().optional(),
+        whatsapp_enabled: z.boolean().optional(),
         push_enabled: z.boolean().optional(),
         push_permission: z.enum(["default", "granted", "denied"]).optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    if (data.whatsapp_enabled === true) {
+      const { data: profile } = await context.supabase
+        .from("profiles")
+        .select("phone")
+        .eq("id", context.userId)
+        .maybeSingle();
+      if (!profile?.phone)
+        throw new Error("Add a mobile number to your profile before opting in to WhatsApp.");
+    }
     const { error } = await context.supabase.from("notification_preferences").upsert(
       {
         user_id: context.userId,
         ...(data.sms_enabled === undefined ? {} : { sms_enabled: data.sms_enabled }),
         ...(data.email_enabled === undefined ? {} : { email_enabled: data.email_enabled }),
+        ...(data.whatsapp_enabled === undefined
+          ? {}
+          : {
+              whatsapp_enabled: data.whatsapp_enabled,
+              whatsapp_opted_in_at: data.whatsapp_enabled ? new Date().toISOString() : null,
+              whatsapp_opt_in_source: data.whatsapp_enabled ? "account_settings" : null,
+            }),
         ...(data.push_enabled === undefined ? {} : { push_enabled: data.push_enabled }),
         ...(data.push_permission === undefined ? {} : { push_permission: data.push_permission }),
       },

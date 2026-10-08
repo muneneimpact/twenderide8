@@ -8,14 +8,14 @@
 
 ## Executive summary
 
-- The app currently has **no WhatsApp sender, WhatsApp Business API configuration, WhatsApp consent/preference field, or WhatsApp delivery log**. Existing channels are in-app, web push/FCM, TextSMS Kenya, and Resend email.
+- The app has an admin WhatsApp inbox/webhook, explicit opt-in preferences, and a Cloud API sender for hire reminders. The sender is **gated off** until the reminder template is approved and enabled in server configuration. Existing channels also include in-app, web push/FCM, TextSMS Kenya, and Resend email.
 - `notify()` persists every called event to the in-app notification outbox, attempts web push (subject to push settings/tokens), and sends SMS only when the call marks the event `critical` and SMS is enabled. Direct OTP and milestone SMS calls bypass that helper and its preference check.
-- The code contains **20 active utility-message scenarios**, **one authentication template** for both OTP paths, and **one milestone relationship message** drafted as marketing because Meta may classify relationship-building content as marketing. That is **22 draft template requests** in `whatsapp-template-api-payloads.json`.
-- The template drafts are deliberately separate from implementation. Do not send a WhatsApp message until the recipient has opted in, a verified WhatsApp-capable number is available, the template is approved, and the provider/channel integration is implemented and tested.
+- The review pack contains **21 utility-message drafts**, **one authentication template** for both OTP paths, and **one milestone relationship message** drafted as marketing because Meta may classify relationship-building content as marketing: **23 draft template requests** in `whatsapp-template-api-payloads.json`.
+- The drafts are not submitted to Meta. The hire reminder sender requires the recipient’s explicit service-message opt-in, the profile number, provider configuration, and an approved template code before it can send.
 
 ## Scope and method
 
-Reviewed notification delivery and callsites in `src/lib/notifications.server.ts`, `comms.server.ts`, `push.server.ts`, `email-templates.server.ts`, `otp.functions.ts`, `phone-auth.functions.ts`, `milestones.server.ts`, `rides.functions.ts`, `driver.functions.ts`, `dispatch.server.ts`, `payments.server.ts`, `hire.functions.ts`, `admin.functions.ts`, `account.functions.ts`, `push.functions.ts`, `sms-admin.functions.ts`, payment callback/reconciliation routes, Supabase migrations, and generated database types. Searched for notification, template, push, SMS, email, WhatsApp, trigger, cron, webhook, and delivery callsites. Environment values were not inspected or included.
+Reviewed notification delivery and callsites in `src/lib/notifications.server.ts`, `src/lib/hire-payments.server.ts`, `src/lib/whatsapp-utility.server.ts`, `comms.server.ts`, `push.server.ts`, `email-templates.server.ts`, `otp.functions.ts`, `phone-auth.functions.ts`, `milestones.server.ts`, `rides.functions.ts`, `driver.functions.ts`, `dispatch.server.ts`, `payments.server.ts`, `hire.functions.ts`, `admin.functions.ts`, `account.functions.ts`, `push.functions.ts`, `sms-admin.functions.ts`, payment callback/reconciliation routes, Supabase migrations, and generated database types. Searched for notification, template, push, SMS, email, WhatsApp, trigger, cron, webhook, and delivery callsites. Environment values were not inspected or included.
 
 ## Active event/trigger inventory and proposed template mapping
 
@@ -34,6 +34,7 @@ Reviewed notification delivery and callsites in `src/lib/notifications.server.ts
 | Driver/platform dues settle (`payments.server.ts`) | Driver/actor; in-app/push, not critical SMS | `dues_settled` | `dues_settled` | Utility; payment-specific confirmation. |
 | Customer submits a hire request (`hire.functions.ts`) | Requester; critical in-app/push/SMS | `hire_quote_submitted` | `hire_request_submitted` | Utility; request-specific estimate and duration. |
 | Ops updates hire quote status (`hire.functions.ts`) | Requester; critical in-app/push/SMS | `hire_quote_submitted`, `hire_quote_quoted`, `hire_quote_confirmed`, `hire_quote_declined` | `hire_quote_update`, `hire_quote_unavailable` | Utility; `submitted`/`quoted`/`confirmed` map to status update; `declined` maps to unavailable. Arbitrary admin notes are intentionally excluded from a fixed template. |
+| Vehicle owner/authorized driver requests a hire installment (`hire.functions.ts`) | Customer; M-Pesa prompt and selected, preference-gated SMS/email/WhatsApp | `hire_payment_reminder` | `hire_payment_reminder` | Utility; booking reference, amount, and requested date only. WhatsApp stays blocked until Meta approval and the code is enabled in `WHATSAPP_APPROVED_TEMPLATE_CODES`. |
 | Owner/provider submits a hire offer (`hire.functions.ts`) | Requester; critical in-app/push/SMS | `hire_offer_received` | `hire_offer_received` | Utility; offer and request reference are specific. |
 | Requester accepts or declines an offer (`hire.functions.ts`) | Offer-making owner/provider; critical in-app/push/SMS | `hire_offer_accepted`, `hire_offer_declined` | `hire_offer_accepted`, `hire_offer_declined` | Utility; two outcomes need distinct wording. |
 | Admin reviews a driver (`admin.functions.ts`) | Driver; critical in-app/push/SMS | `driver_review` | `driver_application_update` | Utility; status is dynamic. Review notes are left in-app rather than placed in a freeform template parameter. |
@@ -49,8 +50,8 @@ Reviewed notification delivery and callsites in `src/lib/notifications.server.ts
 
 ## Audit findings and recommended implementation gates
 
-1. **No WhatsApp capability exists yet (blocking).** There is no WhatsApp provider adapter, sender configuration, template-name registry, webhook/status handling, or `whatsapp` channel in the communication log. A connector/config scan found no enabled WhatsApp messaging provider. The JSON below is a draft request set, not proof of submission or approval.
-2. **Consent and preferences need a product/data change before sending.** `notification_preferences` currently has only SMS, email, and push flags; it has no WhatsApp opt-in timestamp/source/scope or WhatsApp preference. Meta requires opt-in before messaging, clear business identity, and compliant local-law permissions. Add a consent capture and auditable opt-out path; do not infer consent from a saved phone number or SMS permission.
+1. **Meta approval is still blocking hire reminders.** The sender is implemented but deliberately disabled unless `WHATSAPP_APPROVED_TEMPLATE_CODES` includes `hire_payment_reminder`; the draft has not been created or submitted in WhatsApp Manager. The implementation logs outbound messages in the admin inbox and handles Cloud API success/error responses.
+2. **Consent is explicit and service-only.** `notification_preferences` records `whatsapp_enabled`, `whatsapp_opted_in_at`, and `whatsapp_opt_in_source`; the account switch states the Twende Meru Rides service-message scope and excludes marketing. The sender checks the opt-in and uses the profile number. Do not infer consent from SMS permission or a saved phone number.
 3. **Verify WhatsApp number ownership.** OTP flows currently verify a mobile number through SMS; no WhatsApp-number verification state is modeled. Meta recommends confirming the number before delivering authentication codes there. Choose and explain the OTP channel to the user.
 4. **Possible duplicate trip receipts.** `driver.functions.ts` sends a trip receipt at completion with `trip-receipt:${ride.id}`; `payments.server.ts` also sends one on payment confirmation with `payment-receipt:${tx.id}`. These distinct idempotency keys can permit two receipts for one ride. Select a canonical receipt event (or deliberately distinguish trip summary from payment receipt) before mirroring either to WhatsApp.
 5. **Cancellation event code conflates two opposite audiences.** Customer-cancelled-to-driver and driver-cancelled-to-customer both use `ride_cancelled`. Give them distinct event identifiers before template dispatch to avoid choosing the wrong copy.
@@ -60,7 +61,7 @@ Reviewed notification delivery and callsites in `src/lib/notifications.server.ts
 
 ## Template draft files
 
-- [`whatsapp-template-api-payloads.json`](./whatsapp-template-api-payloads.json) — 22 template request payloads, with names, `en_GB`, category, exact body text, named parameters and realistic examples; OTP uses Meta's authentication component format. These are **not submitted**.
+- [`whatsapp-template-api-payloads.json`](./whatsapp-template-api-payloads.json) — 23 template request payloads, with names, `en_GB`, category, exact body text, named parameters and realistic examples; OTP uses Meta's authentication component format. These are **not submitted**.
 - Review each message, intended audience, category, variable/value mapping, and whether WhatsApp is an appropriate channel before approving.
 
 ## Meta review and sending checklist
@@ -69,7 +70,7 @@ Reviewed notification delivery and callsites in `src/lib/notifications.server.ts
 - Obtain an affirmative, recorded opt-in that identifies the business and message scope; honor opt-outs. Keep service updates and marketing/relationship messages distinguishable.
 - Submit each draft to WhatsApp Manager/Cloud API only after content approval. Meta automatically reviews templates and may reject or recategorize them; status must be `APPROVED` before sending.
 - Keep the auth message in Meta's special authentication category with its fixed OTP body, security recommendation, five-minute expiry footer, and copy-code button. Do not put marketing copy or a URL in it.
-- Before enabling sends, wire a provider adapter, stable template-code-to-name mapping, variables, idempotency, permission checks, delivery-status webhooks/logs, retry handling, and an environment gate. Test on an opted-in test number first.
+- Before enabling sends, submit the reviewed draft to Meta, configure `WHATSAPP_APPROVED_TEMPLATE_CODES=hire_payment_reminder` and the Cloud API secrets in the app environment, then test on an opted-in test number. The implementation uses named variables, message idempotency, inbox logging, permission checks, and an environment gate. The existing Meta webhook at `src/routes/api/public/whatsapp/webhook.ts` also updates sent, delivered, read, and failed statuses.
 - Utility templates are non-promotional and tied to a specific request/account/transaction. The milestone message is separated as marketing because Meta can classify customer-relationship messages as marketing. Meta's final category decision controls.
 
 ## Official references
@@ -77,6 +78,7 @@ Reviewed notification delivery and callsites in `src/lib/notifications.server.ts
 - [Meta — Template fundamentals](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview) (updated 21 May 2026): categories, name format, languages, named parameters, and approval status.
 - [Meta — Template categorization](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/template-categorization) (updated 15 September 2026): utility must be non-promotional and tied to a user action/request or be critical; mixed/relationship content can be marketing.
 - [Meta — Utility templates](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/utility-templates/utility-templates) (updated 17 June 2026): supported components and API shape.
+- [Meta — Send messages](https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages) (updated 21 May 2026): `POST /{PHONE_NUMBER_ID}/messages`; accepted API response is not proof of delivery, so status webhooks are used.
 - [Meta — Authentication templates](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/authentication-templates/authentication-templates) (updated 17 June 2026): OTP preset text and authentication guidance.
 - [Meta — Copy-code authentication templates](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/authentication-templates/copy-code-button-authentication-templates) (updated 24 June 2026): copy-code API components and expiry constraints.
 - [Meta — Supported template languages](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/supported-languages) (updated 21 May 2026): `en_GB` is supported.

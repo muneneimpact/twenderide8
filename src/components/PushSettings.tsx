@@ -1,10 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import {
-  getNotificationPreferences,
-  updateNotificationPreferences,
-} from "@/lib/account.functions";
+import { getNotificationPreferences, updateNotificationPreferences } from "@/lib/account.functions";
 import { sendTestPush } from "@/lib/push.functions";
 import { disablePush, enablePush, PUSH_STATUS_COPY, type PushStatus } from "@/lib/push";
 
@@ -17,7 +14,9 @@ export function PushSettings() {
 
   const prefs = useQuery({ queryKey: ["notification-prefs"], queryFn: () => prefsFn() });
   const [message, setMessage] = useState<string | null>(null);
-  const [permission, setPermission] = useState<NotificationPermission | "unavailable">("unavailable");
+  const [permission, setPermission] = useState<NotificationPermission | "unavailable">(
+    "unavailable",
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -26,8 +25,12 @@ export function PushSettings() {
   }, []);
 
   const save = useMutation({
-    mutationFn: (patch: { sms_enabled?: boolean; email_enabled?: boolean; push_enabled?: boolean }) =>
-      saveFn({ data: patch }),
+    mutationFn: (patch: {
+      sms_enabled?: boolean;
+      email_enabled?: boolean;
+      whatsapp_enabled?: boolean;
+      push_enabled?: boolean;
+    }) => saveFn({ data: patch }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification-prefs"] }),
   });
 
@@ -40,13 +43,18 @@ export function PushSettings() {
       }
       const outcome = await enablePush();
       if (outcome.status !== "registered") {
-        await saveFn({ data: { push_permission: outcome.status === "denied" ? "denied" : "default" } });
+        await saveFn({
+          data: { push_permission: outcome.status === "denied" ? "denied" : "default" },
+        });
       }
       return outcome.status as PushStatus;
     },
     onSuccess: (result) => {
-      setMessage(result === "off" ? "Push notifications are off on this device." : PUSH_STATUS_COPY[result]);
-      if (typeof window !== "undefined" && "Notification" in window) setPermission(Notification.permission);
+      setMessage(
+        result === "off" ? "Push notifications are off on this device." : PUSH_STATUS_COPY[result],
+      );
+      if (typeof window !== "undefined" && "Notification" in window)
+        setPermission(Notification.permission);
       queryClient.invalidateQueries({ queryKey: ["notification-prefs"] });
     },
     onError: (error) => setMessage((error as Error).message),
@@ -94,6 +102,13 @@ export function PushSettings() {
           checked={prefs.data?.email_enabled !== false}
           onChange={(next) => save.mutate({ email_enabled: next })}
           busy={save.isPending}
+        />
+        <Row
+          label="Twende Meru Rides WhatsApp service consent"
+          hint={`I agree Twende Meru Rides may send hire payment reminders and important account updates to my profile number. No marketing. ${prefs.data?.phone ? `Number: ${prefs.data.phone}.` : "Add a mobile number to your profile first."}`}
+          checked={prefs.data?.whatsapp_enabled === true}
+          onChange={(next) => save.mutate({ whatsapp_enabled: next })}
+          busy={save.isPending || !prefs.data?.phone}
         />
       </div>
 

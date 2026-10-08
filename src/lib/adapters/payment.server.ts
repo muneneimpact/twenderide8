@@ -12,6 +12,7 @@ export interface StkPushRequest {
   amount: number;
   msisdn: string;
   idempotencyKey: string;
+  purpose?: "ride" | "hire" | "dues";
 }
 
 export interface StkPushResult {
@@ -40,12 +41,16 @@ const twendePaymentsProvider: PaymentProvider = {
   },
   async initiateStkPush(request) {
     const { initiateStk } = await import("./palpluss.server");
-    const isDues = request.rideReference === "platform-dues";
+    const isDues = request.purpose === "dues" || request.rideReference === "platform-dues";
+    const isHire =
+      request.purpose === "hire" ||
+      request.rideReference.startsWith("HQ-") ||
+      request.rideReference.startsWith("HIRE-");
     const result = await initiateStk({
       amount: request.amount,
       phone: request.msisdn,
       accountReference: isDues ? "TWENDE-DUES" : request.rideReference,
-      transactionDesc: isDues ? "Twende dues" : "Twende ride",
+      transactionDesc: isDues ? "Twende dues" : isHire ? "Twende hire" : "Twende ride",
     });
 
     return {

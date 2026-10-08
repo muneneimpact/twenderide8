@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import {
   estimateHireTotal,
   listHireVehicles,
   listMyHireQuotes,
+  payHireBooking,
   respondToHireOffer,
   submitHireQuote,
 } from "@/lib/hire.functions";
@@ -114,8 +115,13 @@ function HirePage() {
   const listFn = useServerFn(listMyHireQuotes);
   const vehiclesFn = useServerFn(listHireVehicles);
   const respondFn = useServerFn(respondToHireOffer);
+  const payFn = useServerFn(payHireBooking);
 
-  const quotes = useQuery({ queryKey: ["hire-quotes"], queryFn: () => listFn() });
+  const quotes = useQuery({
+    queryKey: ["hire-quotes"],
+    queryFn: () => listFn(),
+    refetchInterval: 15_000,
+  });
   const vehicles = useQuery({ queryKey: ["hire-vehicles"], queryFn: () => vehiclesFn() });
 
   const [tab, setTab] = useState<"self_drive" | "chauffeured">("self_drive");
@@ -135,6 +141,7 @@ function HirePage() {
   const [hirerType, setHirerType] = useState<"individual" | "company">("individual");
   const [renterName, setRenterName] = useState("");
   const [renterIdNumber, setRenterIdNumber] = useState("");
+  const [paymentPhone, setPaymentPhone] = useState("");
   const [organisation, setOrganisation] = useState("");
   const [vehicleClass, setVehicleClass] = useState<(typeof CLASSES)[number]["value"]>("go");
   const [startAt, setStartAt] = useState("");
@@ -148,6 +155,22 @@ function HirePage() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("phone")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      if (live && profile?.phone) setPaymentPhone(profile.phone);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const passengers = Math.min(60, Math.max(1, Number(peopleText) || 1));
   const start = startAt ? new Date(startAt) : null;
@@ -267,6 +290,7 @@ function HirePage() {
           hirerType,
           renterName: renterName.trim() || undefined,
           renterIdNumber: renterIdNumber.trim() || undefined,
+          contactPhone: paymentPhone.trim() || undefined,
           idDocumentPath: idPath ?? undefined,
           licenseDocumentPath: licensePath ?? undefined,
           rulesAccepted,
@@ -274,7 +298,11 @@ function HirePage() {
       }),
     onSuccess: (row) => {
       setMessage(
-        `Request ${row.reference} sent. Estimate KES ${Number(row.estimated_total).toLocaleString("en-KE")} — the owner will confirm.`,
+        row.payment
+          ? row.payment.accepted
+            ? `Request ${row.reference} saved. Approve the M-Pesa prompt for KES ${Number(row.payment.amount).toLocaleString("en-KE")}; the owner sees it after the required payment clears.`
+            : `Request ${row.reference} saved, but payment did not start: ${row.payment.message}. Retry from Your requests.`
+          : `Request ${row.reference} sent. Estimate KES ${Number(row.estimated_total).toLocaleString("en-KE")} — a provider will respond.`,
       );
       setStops([]);
       setNotes("");
@@ -290,11 +318,27 @@ function HirePage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hire-quotes"] }),
   });
 
+  const pay = useMutation({
+    mutationFn: (vars: { quoteId: string; amount?: number }) =>
+      payFn({ data: { ...vars, phone: paymentPhone.trim() || undefined } }),
+    onSuccess: (result) => {
+      setMessage(
+        result.accepted
+          ? "M-Pesa prompt sent. Approve it on your phone; the booking updates after payment clears."
+          : result.message,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["hire-quotes"] });
+      void queryClient.invalidateQueries({ queryKey: ["hire-vehicles"] });
+    },
+    onError: (error) => setMessage((error as Error).message),
+  });
+
   const missing: string[] = [];
   if (tab === "self_drive" && !vehicleId) missing.push("choose a vehicle");
   if (!scheduleValid) missing.push("choose a future pickup and return time within 90 days");
   if (!pickup) missing.push("set where the car is brought");
   if (!renterName.trim()) missing.push("enter your name");
+  if (chosen && !paymentPhone.trim()) missing.push("enter your M-Pesa phone number");
   if (!idPath) missing.push("upload your ID");
   if (tab === "self_drive" && !licensePath) missing.push("upload your driving licence");
   if (chosen && !rulesAccepted) missing.push("accept the owner's rules");
@@ -511,7 +555,14 @@ function HirePage() {
                 </p>
                 {estimatedTotal !== null ? (
                   <p className="mt-1 font-display text-base font-bold text-foreground">
-                    Estimated total: KES {estimatedTotal.toLocaleString("en-KE")}
+                    Total: KES {estimatedTotal.toLocaleString("en-KE")}
+                  </p>
+                ) : null}
+                {chosen && estimatedTotal !== null ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {chosen.hire_payment_policy === "daily_flexible"
+                      ? `Pay at least KES ${Math.ceil(estimatedTotal / Math.max(1, days)).toLocaleString("en-KE")} for day one; later days can be paid daily.`
+                      : `Pay KES ${estimatedTotal.toLocaleString("en-KE")} in full before the owner sees the booking.`}
                   </p>
                 ) : null}
               </div>
@@ -594,6 +645,18 @@ function HirePage() {
                   />
                 </Field>
               </div>
+
+              {chosen ? (
+                <Field label="M-Pesa phone number">
+                  <input
+                    value={paymentPhone}
+                    onChange={(e) => setPaymentPhone(e.target.value)}
+                    inputMode="tel"
+                    placeholder="0712 345 678"
+                    className="input-base"
+                  />
+                </Field>
+              ) : null}
 
               {hirerType === "company" ? (
                 <Field label="Company or organisation">
@@ -756,7 +819,7 @@ function HirePage() {
                 {submit.isPending
                   ? "Sending…"
                   : tab === "self_drive"
-                    ? "Book this car"
+                    ? "Continue and pay by M-Pesa"
                     : "Request a quotation"}
               </button>
               {missing.length && !submit.isPending ? (
@@ -799,6 +862,70 @@ function HirePage() {
                   {q.admin_notes ? (
                     <p className="mt-1 text-xs text-muted-foreground">{q.admin_notes}</p>
                   ) : null}
+                  {q.vehicle_id && q.payment_policy !== "legacy"
+                    ? (() => {
+                        const total = Number(q.quoted_total ?? q.estimated_total);
+                        const paid = Number(q.payment_paid_total ?? 0);
+                        const remaining = Math.max(0, total - paid);
+                        const installment = Math.min(
+                          remaining,
+                          Number(
+                            q.payment_minimum_amount ?? Math.ceil(total / Math.max(1, q.days)),
+                          ),
+                        );
+                        return (
+                          <div className="mt-2 rounded-xl border border-border p-3">
+                            <p className="text-xs font-semibold text-foreground">
+                              Payment: {String(q.payment_status).replaceAll("_", " ")}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Paid KES {paid.toLocaleString("en-KE")} of KES{" "}
+                              {total.toLocaleString("en-KE")} · balance KES{" "}
+                              {remaining.toLocaleString("en-KE")}
+                            </p>
+                            {q.payment_status === "pending" ? (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Approve the pending M-Pesa prompt. The owner sees your booking after
+                                the required payment clears.
+                              </p>
+                            ) : null}
+                            {remaining > 0 &&
+                            q.payment_status !== "pending" &&
+                            q.status !== "declined" ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <button
+                                  onClick={() =>
+                                    pay.mutate({
+                                      quoteId: q.id,
+                                      amount: q.payment_policy === "full" ? remaining : installment,
+                                    })
+                                  }
+                                  disabled={pay.isPending}
+                                  className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                                >
+                                  {pay.isPending
+                                    ? "Starting…"
+                                    : q.payment_status === "failed" ||
+                                        q.payment_status === "timed_out"
+                                      ? `Retry KES ${installment.toLocaleString("en-KE")}`
+                                      : `Pay next installment KES ${installment.toLocaleString("en-KE")}`}
+                                </button>
+                                {q.payment_policy === "daily_flexible" &&
+                                remaining > installment ? (
+                                  <button
+                                    onClick={() => pay.mutate({ quoteId: q.id, amount: remaining })}
+                                    disabled={pay.isPending}
+                                    className="rounded-full border border-input px-3 py-2 text-xs font-semibold text-foreground disabled:opacity-60"
+                                  >
+                                    Pay full balance KES {remaining.toLocaleString("en-KE")}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()
+                    : null}
                   {(q.offers ?? [])
                     .filter((o) => o.status === "offered")
                     .map((o) => (

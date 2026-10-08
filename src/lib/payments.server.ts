@@ -68,6 +68,23 @@ async function findIntent(tx: TwendeTransaction) {
   if (byReference) return byReference;
 
   if (tx.externalReference) {
+    const { data: hireQuote } = await supabaseAdmin
+      .from("hire_quotes")
+      .select("id")
+      .eq("reference", tx.externalReference)
+      .maybeSingle();
+    if (hireQuote) {
+      const { data: hireIntents } = await supabaseAdmin
+        .from("payment_intents")
+        .select("*")
+        .eq("hire_quote_id", hireQuote.id)
+        .order("created_at", { ascending: false })
+        .limit(2);
+      // A reference-only match is safe only before retries exist. Once there are
+      // multiple attempts, require the gateway's provider transaction ID.
+      if (hireIntents?.length === 1) return hireIntents[0];
+      if (hireIntents && hireIntents.length > 1) return null;
+    }
     const { data: ride } = await supabaseAdmin
       .from("rides")
       .select("id")
@@ -96,19 +113,26 @@ export async function applyGatewayTransaction(tx: TwendeTransaction): Promise<Ap
   if (!status) return { matched: false, status: "ignored", detail: "Transaction still in flight." };
 
   const intent = await findIntent(tx);
-
   if (!intent) {
     const dues = await applyPlatformDues(tx, status);
     if (dues) return dues;
     return { matched: false, status: "ignored", detail: "No matching payment on file." };
   }
 
-  // Already terminal with the same outcome: nothing left to do.
-  if (intent.status === status && status === "paid") {
-    return { matched: true, status, rideId: intent.ride_id, detail: "Already confirmed." };
+  if (intent.status === "paid") {
+    if (intent.hire_quote_id) {
+      const { settleHirePayment } = await import("./hire-payments.server");
+      await settleHirePayment(intent.id, tx.mpesaReceipt ?? null);
+    }
+    return {
+      matched: true,
+      status: "paid",
+      ...(intent.ride_id ? { rideId: intent.ride_id } : {}),
+      detail: "Already confirmed; ignoring a later non-paid status.",
+    };
   }
 
-  await supabaseAdmin
+  const { data: appliedIntent, error: applyError } = await supabaseAdmin
     .from("payment_intents")
     .update({
       status,
@@ -122,12 +146,66 @@ export async function applyGatewayTransaction(tx: TwendeTransaction): Promise<Ap
       } as never,
       failure_reason: status === "paid" ? null : (tx.resultDesc ?? "Payment was not completed."),
     })
-    .eq("id", intent.id);
+    .eq("id", intent.id)
+    .neq("status", "paid")
+    .select("id")
+    .maybeSingle();
+  if (applyError) throw new Error(`Could not update payment status: ${applyError.message}`);
 
+  if (!appliedIntent) {
+    const { data: current } = await supabaseAdmin
+      .from("payment_intents")
+      .select("status")
+      .eq("id", intent.id)
+      .maybeSingle();
+    if (current?.status === "paid") {
+      if (intent.hire_quote_id) {
+        const { settleHirePayment } = await import("./hire-payments.server");
+        await settleHirePayment(intent.id, tx.mpesaReceipt ?? null);
+      } else if (intent.ride_id) {
+        await onPaymentConfirmed(intent.ride_id, tx);
+      }
+      return {
+        matched: true,
+        status: "paid",
+        ...(intent.ride_id ? { rideId: intent.ride_id } : {}),
+        detail: "Already confirmed; ignored a later status.",
+      };
+    }
+  }
+
+  if (intent.hire_quote_id) {
+    if (status === "paid") {
+      const { settleHirePayment } = await import("./hire-payments.server");
+      await settleHirePayment(intent.id, tx.mpesaReceipt ?? null);
+    } else if (status === "failed" || status === "cancelled" || status === "timed_out") {
+      const { markHirePaymentFailure } = await import("./hire-payments.server");
+      await markHirePaymentFailure(intent.id, status);
+    }
+    return {
+      matched: true,
+      status,
+      detail:
+        status === "paid" ? "Hire payment confirmed." : (tx.resultDesc ?? "Hire payment failed."),
+    };
+  }
+
+  if (!intent.ride_id) {
+    return {
+      matched: true,
+      status,
+      detail: status === "paid" ? "Payment confirmed." : (tx.resultDesc ?? "Payment failed."),
+    };
+  }
   await supabaseAdmin.from("rides").update({ payment_status: status }).eq("id", intent.ride_id);
 
   if (status !== "paid") {
-    return { matched: true, status, rideId: intent.ride_id, detail: tx.resultDesc ?? "Payment failed." };
+    return {
+      matched: true,
+      status,
+      rideId: intent.ride_id,
+      detail: tx.resultDesc ?? "Payment failed.",
+    };
   }
 
   await onPaymentConfirmed(intent.ride_id, tx);
@@ -273,8 +351,20 @@ export async function reconcilePendingPayments(limit = 25) {
     .order("created_at", { ascending: true })
     .limit(limit);
 
+  const { data: ambiguousTimeouts } = await supabaseAdmin
+    .from("payment_intents")
+    .select("id, provider_reference, created_at")
+    .eq("status", "timed_out")
+    .eq(
+      "failure_reason",
+      "No confirmation was received in time; gateway status is still being checked.",
+    )
+    .not("provider_reference", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  const intentsToCheck = [...(pending ?? []), ...(ambiguousTimeouts ?? [])];
   let updated = 0;
-  for (const intent of pending ?? []) {
+  for (const intent of intentsToCheck) {
     if (!intent.provider_reference) continue;
     const tx = await getTransaction(intent.provider_reference);
     if (!tx) continue;
@@ -292,11 +382,20 @@ export async function reconcilePendingPayments(limit = 25) {
 
   // Anything still unconfirmed after an hour is timed out so nobody waits forever.
   const stale = new Date(Date.now() - 3600_000).toISOString();
-  await supabaseAdmin
+  const { data: timedOut } = await supabaseAdmin
     .from("payment_intents")
-    .update({ status: "timed_out", failure_reason: "No confirmation was received in time." })
+    .update({ status: "timed_out", failure_reason: "No confirmation was received in time; gateway status is still being checked." })
     .in("status", ["pending", "initiating", "awaiting_confirmation", "processing"])
-    .lt("created_at", stale);
+    .lt("created_at", stale)
+    .select("id, hire_quote_id");
+  if (timedOut?.length) {
+    const { markHirePaymentFailure } = await import("./hire-payments.server");
+    await Promise.all(
+      timedOut
+        .filter((intent) => intent.hire_quote_id)
+        .map((intent) => markHirePaymentFailure(intent.id, "timed_out")),
+    );
+  }
 
-  return { checked: pending?.length ?? 0, updated };
+  return { checked: intentsToCheck.length, updated };
 }

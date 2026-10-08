@@ -88,12 +88,29 @@ export interface ReceiptData {
 
 export type EmailTemplate =
   | { code: "welcome"; data: { name: string } }
-  | { code: "ride_confirmed"; data: { name: string; reference: string; pickup: string; dropoff: string; fare: string; when: string } }
+  | {
+      code: "ride_confirmed";
+      data: {
+        name: string;
+        reference: string;
+        pickup: string;
+        dropoff: string;
+        fare: string;
+        when: string;
+      };
+    }
   | { code: "payment_receipt"; data: ReceiptData }
   | { code: "trip_receipt"; data: ReceiptData }
-  | { code: "ride_cancelled"; data: { name: string; reference: string; reason: string; fee?: string | null } }
+  | {
+      code: "ride_cancelled";
+      data: { name: string; reference: string; reason: string; fee?: string | null };
+    }
   | { code: "support_reply"; data: { name: string; reference?: string | null; message: string } }
   | { code: "driver_onboarding"; data: { name: string; status: string; note?: string | null } }
+  | {
+      code: "hire_payment_reminder";
+      data: { name: string; reference: string; amount: string; dueDate: string };
+    }
   | { code: "phone_verification"; data: { code: string; phone: string; minutes: number } }
   | { code: "milestone_thanks"; data: { name: string; trips: number } };
 
@@ -106,7 +123,9 @@ export function renderEmail(template: EmailTemplate): RenderedEmail {
         html: shell(
           "Welcome",
           heading(`Karibu, ${d.name}`) +
-            para("Your Twende Meru Rides account is ready. Set your pickup, tell us where to, and we will match you with a nearby driver in Meru.") +
+            para(
+              "Your Twende Meru Rides account is ready. Set your pickup, tell us where to, and we will match you with a nearby driver in Meru.",
+            ) +
             para("Verify your phone number in the app so we can send you ride alerts by SMS."),
         ),
         text: `Karibu ${d.name}.\n\nYour Twende Meru Rides account is ready. Verify your phone number in the app so we can send you ride alerts by SMS.\n\nSupport: ${SUPPORT}`,
@@ -160,7 +179,11 @@ export function renderEmail(template: EmailTemplate): RenderedEmail {
         html: shell(
           isPayment ? "Payment receipt" : "Trip receipt",
           heading(isPayment ? "Payment received" : "Thanks for riding with us") +
-            para(isPayment ? "Here is your M-PESA payment receipt." : "Here is the summary of your completed trip.") +
+            para(
+              isPayment
+                ? "Here is your M-PESA payment receipt."
+                : "Here is the summary of your completed trip.",
+            ) +
             rows(pairs) +
             para(`Questions about this trip? Write to ${SUPPORT} quoting ${d.reference}.`),
         ),
@@ -210,6 +233,30 @@ export function renderEmail(template: EmailTemplate): RenderedEmail {
         text: `Your driver application status is now: ${d.status}.${d.note ? `\n\n${d.note}` : ""}\n\nSupport: ${SUPPORT}`,
       };
     }
+    case "hire_payment_reminder": {
+      const d = template.data;
+      return {
+        subject: `Hire payment reminder - ${d.reference}`,
+        html: shell(
+          "Hire payment reminder",
+          heading("Hire payment requested") +
+            para(
+              `Hi ${d.name}, the vehicle owner has requested a payment for hire booking ${d.reference}.`,
+            ) +
+            rows([
+              ["Amount requested", d.amount],
+              ["Requested on", d.dueDate],
+            ]) +
+            para(
+              "Open Twende Meru Rides to review and pay by M-Pesa. If you have already paid, you can ignore this reminder.",
+            ),
+        ),
+        text: `Hire payment requested for ${d.reference}.\n\n${textRows([
+          ["Amount requested", d.amount],
+          ["Requested on", d.dueDate],
+        ])}\n\nOpen Twende Meru Rides to review and pay by M-Pesa. If you have already paid, you can ignore this reminder.\n\nSupport: ${SUPPORT}`,
+      };
+    }
     case "phone_verification": {
       const d = template.data;
       return {
@@ -217,9 +264,13 @@ export function renderEmail(template: EmailTemplate): RenderedEmail {
         html: shell(
           "Verify your phone number",
           heading("Verify your phone number") +
-            para(`Enter this code in the app to confirm ${d.phone}. It expires in ${d.minutes} minutes.`) +
+            para(
+              `Enter this code in the app to confirm ${d.phone}. It expires in ${d.minutes} minutes.`,
+            ) +
             `<div style="margin:16px 0;padding:16px;text-align:center;background:#f0fdf4;border-radius:12px;font-size:30px;letter-spacing:8px;font-weight:700;color:${ACCENT};">${escapeHtml(d.code)}</div>` +
-            para("If you did not request this code, ignore this email and do not share it with anyone."),
+            para(
+              "If you did not request this code, ignore this email and do not share it with anyone.",
+            ),
         ),
         text: `Your Twende Meru Rides verification code is ${d.code}. It expires in ${d.minutes} minutes. Do not share this code.\n\nSupport: ${SUPPORT}`,
       };
@@ -231,7 +282,9 @@ export function renderEmail(template: EmailTemplate): RenderedEmail {
         html: shell(
           "Thank you for riding with us",
           heading(`Asante sana, ${d.name}`) +
-            para(`You have now completed ${d.trips} trips with Twende Meru Rides. Thank you for trusting us with your journeys around Meru.`) +
+            para(
+              `You have now completed ${d.trips} trips with Twende Meru Rides. Thank you for trusting us with your journeys around Meru.`,
+            ) +
             para("Our drivers appreciate every trip you book. Karibu tena."),
         ),
         text: `Asante sana ${d.name}. You have completed ${d.trips} trips with Twende Meru Rides. Thank you for riding with us.\n\nSupport: ${SUPPORT}`,
@@ -239,4 +292,3 @@ export function renderEmail(template: EmailTemplate): RenderedEmail {
     }
   }
 }
-

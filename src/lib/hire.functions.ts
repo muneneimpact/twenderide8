@@ -17,6 +17,7 @@ import { z } from "zod";
 
 const VEHICLE_CLASSES = ["go", "plus", "comfort", "xl", "boda", "e_boda"] as const;
 type VehicleClass = (typeof VEHICLE_CLASSES)[number];
+type HirePaymentPolicy = "full" | "daily_flexible";
 
 const stopSchema = z.object({
   label: z.string().min(2).max(160),
@@ -61,6 +62,7 @@ export interface HireVehicleRow {
   seats: number | null;
   vehicle_class: VehicleClass;
   hire_mode: string | null;
+  hire_payment_policy: HirePaymentPolicy;
   hire_daily_rate: number | null;
   hire_notes: string | null;
   hire_description: string | null;
@@ -87,8 +89,18 @@ async function withPhotos(
   const paths = [...new Set(rows.flatMap(allFor))];
   if (paths.length === 0) return rows.map((row) => ({ ...row, photo_link: null, photo_links: [] }));
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin.storage.from("vehicle-photos").createSignedUrls(paths, 3600);
-  const links = new Map((data ?? []).map((item) => [item.path, item.signedUrl]));
+  const signedResults = await Promise.all(
+    Array.from({ length: Math.ceil(paths.length / 100) }, (_, index) =>
+      supabaseAdmin.storage
+        .from("vehicle-photos")
+        .createSignedUrls(paths.slice(index * 100, (index + 1) * 100), 3600),
+    ),
+  );
+  const links = new Map(
+    signedResults.flatMap(({ data }) =>
+      (data ?? []).map((item) => [item.path, item.signedUrl] as const),
+    ),
+  );
   return rows.map((row) => {
     const photoLinks = allFor(row)
       .map((path) => links.get(path))
@@ -98,42 +110,62 @@ async function withPhotos(
 }
 
 const VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_daily_rate, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_daily_rate, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data } = await context.supabase
-      .from("vehicles")
-      .select(VEHICLE_FIELDS)
-      .eq("hire_available", true)
-      .eq("hire_approval_status", "approved")
-      .eq("status", "approved")
-      .limit(60);
-    const list = await withPhotos((data ?? []) as unknown as HireVehicleRow[]);
+    const pageSize = 500;
+    const rows: HireVehicleRow[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await context.supabase
+        .from("vehicles")
+        .select(VEHICLE_FIELDS)
+        .eq("hire_available", true)
+        .eq("hire_approval_status", "approved")
+        .eq("status", "approved")
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error(`Could not load available hire vehicles: ${error.message}`);
+      rows.push(...((data ?? []) as unknown as HireVehicleRow[]));
+      if ((data ?? []).length < pageSize) break;
+    }
+    const list = await withPhotos(rows);
     // Booked dates only (no customer details), so people can pick free days.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ids = list.map((vehicle) => vehicle.id);
-    const { data: booked } = ids.length
-      ? await supabaseAdmin
-          .from("hire_quotes")
-          .select("vehicle_id, start_at, end_at, days")
-          .in("vehicle_id", ids)
-          .in("status", ["submitted", "quoted", "confirmed"])
-          .gte("start_at", new Date(Date.now() - 90 * 86_400_000).toISOString())
-      : {
-          data: [] as Array<{
-            vehicle_id: string | null;
-            start_at: string;
-            end_at: string | null;
-            days: number;
-          }>,
-        };
+    const booked: Array<{
+      vehicle_id: string | null;
+      start_at: string;
+      end_at: string | null;
+      days: number;
+      payment_status: string;
+      payment_hold_expires_at: string | null;
+    }> = [];
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const { data, error } = await supabaseAdmin
+        .from("hire_quotes")
+        .select("vehicle_id, start_at, end_at, days, payment_status, payment_hold_expires_at")
+        .in("vehicle_id", ids.slice(offset, offset + 100))
+        .in("status", ["submitted", "quoted", "confirmed"])
+        .gte("start_at", new Date(Date.now() - 90 * 86_400_000).toISOString());
+      if (error) throw new Error(`Could not load hire availability: ${error.message}`);
+      booked.push(...(data ?? []));
+    }
     return list.map((vehicle) => ({
       ...vehicle,
-      bookings: (booked ?? [])
-        .filter((row) => row.vehicle_id === vehicle.id)
+      bookings: booked
+        .filter(
+          (row) =>
+            row.vehicle_id === vehicle.id &&
+            (["legacy", "partial", "paid"].includes(row.payment_status) ||
+              (row.payment_status === "pending" &&
+                Boolean(
+                  row.payment_hold_expires_at &&
+                  new Date(row.payment_hold_expires_at).getTime() > Date.now(),
+                ))),
+        )
         .map((row) => ({
           start: row.start_at,
           end:
@@ -170,7 +202,9 @@ export const listMyVehicles = createServerFn({ method: "GET" })
     const { data: bookings } = vehicleIds.length
       ? await supabaseAdmin
           .from("hire_quotes")
-          .select("vehicle_id, start_at, end_at, days, status")
+          .select(
+            "vehicle_id, start_at, end_at, days, status, payment_status, payment_hold_expires_at",
+          )
           .in("vehicle_id", vehicleIds)
           .in("status", ["submitted", "quoted", "confirmed"])
           .or(`end_at.gte.${now},end_at.is.null`)
@@ -181,12 +215,23 @@ export const listMyVehicles = createServerFn({ method: "GET" })
             end_at: string | null;
             days: number;
             status: string;
+            payment_status: string;
+            payment_hold_expires_at: string | null;
           }>,
         };
     return list.map((vehicle) => ({
       ...vehicle,
       hire_bookings: (bookings ?? [])
-        .filter((booking) => booking.vehicle_id === vehicle.id)
+        .filter(
+          (booking) =>
+            booking.vehicle_id === vehicle.id &&
+            (["legacy", "partial", "paid"].includes(booking.payment_status) ||
+              (booking.payment_status === "pending" &&
+                Boolean(
+                  booking.payment_hold_expires_at &&
+                  new Date(booking.payment_hold_expires_at).getTime() > Date.now(),
+                ))),
+        )
         .map((booking) => ({
           start: booking.start_at,
           end:
@@ -208,6 +253,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         vehicleId: z.string().uuid(),
         hireAvailable: z.boolean().optional(),
         hireMode: z.enum(["self_drive", "chauffeured", "both"]).optional(),
+        paymentPolicy: z.enum(["full", "daily_flexible"]).optional(),
         dailyRate: z.number().min(0).max(1_000_000).nullable().optional(),
         seats: z.number().int().min(1).max(60).nullable().optional(),
         description: z.string().max(500).nullable().optional(),
@@ -231,7 +277,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
     const { data: current, error: loadError } = await supabaseAdmin
       .from("vehicles")
       .select(
-        "id, owner_driver_id, fleet_id, status, hire_available, hire_approval_status, hire_daily_rate, photo_url, photo_urls",
+        "id, owner_driver_id, fleet_id, status, hire_available, hire_approval_status, hire_daily_rate, hire_payment_policy, photo_url, photo_urls",
       )
       .eq("id", data.vehicleId)
       .maybeSingle();
@@ -244,6 +290,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
 
     const patch: Record<string, unknown> = {};
     if (data.hireMode !== undefined) patch["hire_mode"] = data.hireMode;
+    if (data.paymentPolicy !== undefined) patch["hire_payment_policy"] = data.paymentPolicy;
     if (data.dailyRate !== undefined) patch["hire_daily_rate"] = data.dailyRate;
     if (data.seats !== undefined) patch["seats"] = data.seats;
     if (data.description !== undefined) patch["hire_description"] = data.description;
@@ -337,7 +384,6 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         startAt: z.string().min(10).max(40),
         endAt: z.string().min(10).max(40),
         passengers: z.number().int().min(1).max(60).default(1),
-        /** Where the car should be delivered to start the drive. */
         pickupLabel: z.string().min(2).max(200),
         pickupLat: z.number().min(-90).max(90).nullable().optional(),
         pickupLng: z.number().min(-180).max(180).nullable().optional(),
@@ -354,6 +400,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { normaliseKenyanPhone } = await import("./phone");
     for (const path of [data.idDocumentPath, data.licenseDocumentPath]) {
       if (path && !path.startsWith(`${context.userId}/`))
         throw new Error("Upload your documents again.");
@@ -368,17 +415,21 @@ export const submitHireQuote = createServerFn({ method: "POST" })
     if (startAt.getTime() < Date.now() - 60_000)
       throw new Error("Choose a date and time in the future.");
     const endAt = new Date(data.endAt);
-    if (Number.isNaN(endAt.getTime()) || endAt.getTime() <= startAt.getTime())
+    if (Number.isNaN(endAt.getTime()) || endAt.getTime() <= startAt.getTime()) {
       throw new Error("Return time must be after pickup time.");
+    }
     const days = Math.ceil((endAt.getTime() - startAt.getTime()) / 86_400_000);
     if (days < 1 || days > 90) throw new Error("Hire duration must be between 1 and 90 days.");
 
     let dailyRate: number | null = null;
     let vehicleClass = data.vehicleClass;
+    let paymentPolicy: HirePaymentPolicy | "legacy" = "legacy";
     if (data.vehicleId) {
       const { data: vehicle } = await supabaseAdmin
         .from("vehicles")
-        .select("id, vehicle_class, hire_daily_rate, hire_available, hire_approval_status, status")
+        .select(
+          "id, vehicle_class, hire_daily_rate, hire_payment_policy, hire_available, hire_approval_status, status",
+        )
         .eq("id", data.vehicleId)
         .maybeSingle();
       if (
@@ -391,6 +442,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       }
       dailyRate = vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate);
       vehicleClass = vehicle.vehicle_class as VehicleClass;
+      paymentPolicy = vehicle.hire_payment_policy === "daily_flexible" ? "daily_flexible" : "full";
       const { assertVehicleHasNoLiveRide } = await import("./vehicle-hire-lock.server");
       await assertVehicleHasNoLiveRide(data.vehicleId, startAt);
     }
@@ -402,6 +454,22 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       stops: data.stops.length,
       dailyRate,
     });
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", context.userId)
+      .maybeSingle();
+    let paymentPhone: string | null = null;
+    if (data.vehicleId) {
+      const rawPhone = data.contactPhone ?? profile?.phone ?? "";
+      if (!rawPhone) throw new Error("Enter an M-Pesa phone number to pay for this booking.");
+      paymentPhone = normaliseKenyanPhone(rawPhone);
+    }
+    const minimum = paymentPolicy === "daily_flexible" ? Math.ceil(estimate / days) : estimate;
+    const commissionPercent = data.vehicleId
+      ? await (await import("./hire-payments.server")).getHireCommissionPercent()
+      : null;
+    const holdUntil = data.vehicleId ? new Date(Date.now() + 60 * 60_000).toISOString() : null;
 
     const { data: row, error } = await supabaseAdmin
       .from("hire_quotes")
@@ -410,9 +478,9 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         kind: data.kind,
         vehicle_id: data.vehicleId ?? null,
         organisation: data.organisation ?? null,
-        contact_name: data.contactName ?? null,
-        contact_phone: data.contactPhone ?? null,
-        contact_email: data.contactEmail ? data.contactEmail : null,
+        contact_name: data.contactName ?? data.renterName ?? null,
+        contact_phone: paymentPhone ?? data.contactPhone ?? profile?.phone ?? null,
+        contact_email: data.contactEmail || null,
         vehicle_class: vehicleClass,
         drive_mode: data.driveMode,
         start_at: startAt.toISOString(),
@@ -431,8 +499,16 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         id_document_path: data.idDocumentPath ?? null,
         license_document_path: data.licenseDocumentPath ?? null,
         rules_accepted_at: data.rulesAccepted ? new Date().toISOString() : null,
+        payment_policy: paymentPolicy,
+        payment_status: data.vehicleId ? "pending" : "legacy",
+        payment_paid_total: 0,
+        payment_minimum_amount: data.vehicleId ? minimum : null,
+        payment_hold_expires_at: holdUntil,
+        commission_percent_snapshot: commissionPercent,
       } as never)
-      .select("id, reference, estimated_total, status")
+      .select(
+        "id, reference, estimated_total, status, payment_policy, payment_status, payment_minimum_amount",
+      )
       .single();
     if (error) {
       if (error.message.includes("already booked")) {
@@ -443,24 +519,47 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
 
+    let payment: Awaited<
+      ReturnType<typeof import("./hire-payments.server").startHirePayment>
+    > | null = null;
+    if (data.vehicleId && paymentPhone) {
+      try {
+        const payments = await import("./hire-payments.server");
+        payment = await payments.startHirePayment({
+          quoteId: row.id,
+          actorId: context.userId,
+          amount: minimum,
+          phone: paymentPhone,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "The M-Pesa prompt could not be started.";
+        await supabaseAdmin
+          .from("hire_quotes")
+          .update({ payment_status: "failed", payment_hold_expires_at: null })
+          .eq("id", row.id);
+        payment = { accepted: false, status: "failed", message, amount: minimum, intentId: "" };
+      }
+    }
+
     try {
       const { notify } = await import("./notifications.server");
       await notify({
         userId: context.userId,
-        templateCode: "hire_quote_submitted",
-        title:
-          data.driveMode === "self_drive"
-            ? "Self-drive request received"
-            : "Quotation request received",
-        body: `Request ${row.reference}: KES ${estimate.toLocaleString("en-KE")} for ${days} day(s). The owner will confirm shortly.`,
+        templateCode: data.vehicleId ? "hire_payment_started" : "hire_quote_submitted",
+        title: data.vehicleId ? "Complete your hire payment" : "Quotation request received",
+        body: data.vehicleId
+          ? payment?.accepted
+            ? `Request ${row.reference}: approve the M-Pesa prompt for KES ${minimum.toLocaleString("en-KE")}. The owner will see the booking after the required payment clears.`
+            : `Request ${row.reference} was saved, but the M-Pesa prompt did not start. ${payment?.message ?? "Retry payment from Your requests."}`
+          : `Request ${row.reference}: KES ${estimate.toLocaleString("en-KE")} for ${days} day(s). A provider will respond shortly.`,
         dedupeKey: `hire:${row.id}`,
-        critical: true,
+        critical: Boolean(data.vehicleId),
       });
     } catch (notifyError) {
       console.error("hire quote notification failed", notifyError);
     }
-
-    return row;
+    return { ...row, payment };
   });
 
 export const listMyHireQuotes = createServerFn({ method: "GET" })
@@ -489,6 +588,195 @@ export const listMyHireQuotes = createServerFn({ method: "GET" })
   });
 
 /** Ops queue: every request, newest first. */
+export const payHireBooking = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        quoteId: z.string().uuid(),
+        amount: z.number().positive().optional(),
+        phone: z.string().max(20).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: quote } = await supabaseAdmin
+      .from("hire_quotes")
+      .select(
+        "id, requester_id, contact_phone, estimated_total, quoted_total, days, payment_policy, payment_status, payment_paid_total, payment_minimum_amount",
+      )
+      .eq("id", data.quoteId)
+      .maybeSingle();
+    if (!quote || quote.requester_id !== context.userId)
+      throw new Error("That hire booking is not yours.");
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const total = Number(quote.quoted_total ?? quote.estimated_total);
+    const paid = Number(quote.payment_paid_total ?? 0);
+    const minimum = Number(
+      quote.payment_minimum_amount ?? Math.ceil(total / Math.max(1, quote.days)),
+    );
+    const amount =
+      data.amount ??
+      (quote.payment_policy === "full"
+        ? total - paid
+        : Math.min(total - paid, Math.max(1, minimum)));
+    const phone = data.phone ?? quote.contact_phone ?? profile?.phone ?? "";
+    const { startHirePayment } = await import("./hire-payments.server");
+    return startHirePayment({ quoteId: quote.id, actorId: context.userId, amount, phone });
+  });
+
+export const requestHirePaymentReminder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        quoteId: z.string().uuid(),
+        amount: z.number().positive().optional(),
+        channels: z
+          .array(z.enum(["sms", "email", "whatsapp"]))
+          .min(1)
+          .max(3)
+          .default(["sms", "email", "whatsapp"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: quote } = await supabaseAdmin
+      .from("hire_quotes")
+      .select(
+        "id, reference, requester_id, vehicle_id, estimated_total, quoted_total, days, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, payment_hold_expires_at, status, contact_phone, contact_email",
+      )
+      .eq("id", data.quoteId)
+      .maybeSingle();
+    if (!quote?.vehicle_id || quote.payment_policy === "legacy" || quote.status !== "confirmed") {
+      throw new Error("Only paid, confirmed car-hire bookings can be sent a payment reminder.");
+    }
+    if (!["partial"].includes(quote.payment_status))
+      throw new Error("This hire booking has no outstanding installment.");
+    const { data: vehicle } = await supabaseAdmin
+      .from("vehicles")
+      .select("id, owner_driver_id, fleet_id")
+      .eq("id", quote.vehicle_id)
+      .maybeSingle();
+    if (!vehicle) throw new Error("Hire vehicle no longer exists.");
+    const owns = vehicle.owner_driver_id === context.userId;
+    const { data: mayDrive } = await supabaseAdmin.rpc("may_drive_vehicle", {
+      _user_id: context.userId,
+      _vehicle_id: vehicle.id,
+    });
+    let ownsFleet = false;
+    if (!owns && vehicle.fleet_id) {
+      const { data: fleetOwned } = await supabaseAdmin.rpc("owns_fleet", {
+        _user_id: context.userId,
+        _fleet_id: vehicle.fleet_id,
+      });
+      ownsFleet = Boolean(fleetOwned);
+    }
+    if (!owns && !ownsFleet && !mayDrive)
+      throw new Error("You cannot request payment for this vehicle.");
+    const total = Number(quote.quoted_total ?? quote.estimated_total);
+    const paid = Number(quote.payment_paid_total ?? 0);
+    const oneDay = Number(
+      quote.payment_minimum_amount ?? Math.ceil(total / Math.max(1, quote.days)),
+    );
+    if (data.amount !== undefined && data.amount > total - paid) {
+      throw new Error("Requested payment cannot exceed the remaining hire balance.");
+    }
+    const amount = Math.min(total - paid, Math.round(data.amount ?? oneDay));
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", quote.requester_id)
+      .maybeSingle();
+    const phone = quote.contact_phone ?? profile?.phone ?? "";
+    if (!phone) throw new Error("The customer has no M-Pesa phone number on file.");
+    const { startHirePayment, sendHirePaymentReminder } = await import("./hire-payments.server");
+    const payment = await startHirePayment({
+      quoteId: quote.id,
+      actorId: context.userId,
+      amount,
+      phone,
+    });
+    if (!payment.accepted) return { ...payment, channels: {} };
+    const reminders = await sendHirePaymentReminder({
+      quote: quote as never,
+      actorId: context.userId,
+      amount,
+      intentId: payment.intentId,
+      channels: data.channels,
+    });
+    const { audit } = await import("./notifications.server");
+    await audit(context.userId, "hire_payment_reminder_requested", "hire_quote", quote.id, {
+      amount,
+      intent_id: payment.intentId,
+      channels: reminders.channels,
+    });
+    return { ...payment, ...reminders };
+  });
+
+export const getHireCommissionAdmin = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole, OPS } = await import("./authz.server");
+    await requireRole(context.userId, OPS);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: setting }, { data: balances }] = await Promise.all([
+      supabaseAdmin
+        .from("system_settings")
+        .select("value")
+        .eq("key", "hire_commission_percent")
+        .maybeSingle(),
+      supabaseAdmin
+        .from("hire_owner_balances")
+        .select("gross_paid_total, platform_fee_total, owner_balance")
+        .limit(5000),
+    ]);
+    const value = Number(setting?.value ?? 7);
+    return {
+      commissionPercent: Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 7,
+      grossPaidTotal: (balances ?? []).reduce((sum, row) => sum + Number(row.gross_paid_total), 0),
+      platformFeeTotal: (balances ?? []).reduce(
+        (sum, row) => sum + Number(row.platform_fee_total),
+        0,
+      ),
+      ownerBalanceTotal: (balances ?? []).reduce((sum, row) => sum + Number(row.owner_balance), 0),
+    };
+  });
+
+export const updateHireCommissionPercent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ percent: z.number().min(0).max(100) }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { requireRole, OPS } = await import("./authz.server");
+    await requireRole(context.userId, OPS);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("system_settings").upsert(
+      {
+        key: "hire_commission_percent",
+        value: data.percent as never,
+        description:
+          "Platform commission percentage applied to each new hire payment. Existing bookings retain their snapshot.",
+      },
+      { onConflict: "key" },
+    );
+    if (error) throw new Error(error.message);
+    const { audit } = await import("./notifications.server");
+    await audit(
+      context.userId,
+      "hire_commission_updated",
+      "system_setting",
+      "hire_commission_percent",
+      { percent: data.percent },
+    );
+    return { ok: true, percent: data.percent };
+  });
+
 export const listHireQuotes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -519,6 +807,16 @@ export const decideHireQuote = createServerFn({ method: "POST" })
     const { requireRole, OPS } = await import("./authz.server");
     await requireRole(context.userId, OPS);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: current } = await supabaseAdmin
+      .from("hire_quotes")
+      .select("vehicle_id, payment_policy")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (current?.vehicle_id && current.payment_policy !== "legacy") {
+      throw new Error(
+        "Listed-car bookings use the published price and verified payment flow; they cannot be repriced here.",
+      );
+    }
     const { data: row, error } = await supabaseAdmin
       .from("hire_quotes")
       .update({
@@ -570,7 +868,6 @@ export const listHireRequestsForProvider = createServerFn({ method: "GET" })
       .select("id")
       .eq("owner_id", context.userId);
     const fleetIds = (fleets ?? []).map((fleet) => fleet.id);
-
     const { data: owned } = await supabaseAdmin
       .from("vehicles")
       .select("id, plate_number, vehicle_class, hire_daily_rate, status")
@@ -584,7 +881,6 @@ export const listHireRequestsForProvider = createServerFn({ method: "GET" })
       .select("vehicle_id, vehicles(id, plate_number, vehicle_class, hire_daily_rate, status)")
       .eq("driver_id", context.userId)
       .is("revoked_at", null);
-
     const vehicles = [
       ...(owned ?? []),
       ...((authorised ?? [])
@@ -597,28 +893,57 @@ export const listHireRequestsForProvider = createServerFn({ method: "GET" })
         status: string;
       }>),
     ].filter((vehicle, index, list) => list.findIndex((item) => item.id === vehicle.id) === index);
-
     const classes = [
       ...new Set(vehicles.map((vehicle) => vehicle.vehicle_class)),
     ] as VehicleClass[];
-    if (classes.length === 0) return { vehicles: [], requests: [] };
+    const { data: ownerBalance } = await supabaseAdmin
+      .from("hire_owner_balances")
+      .select("gross_paid_total, platform_fee_total, owner_balance")
+      .eq("owner_user_id", context.userId)
+      .maybeSingle();
+    if (classes.length === 0) return { vehicles: [], requests: [], owner_balance: ownerBalance };
 
-    const { data: requests } = await supabaseAdmin
+    const { data: allRequests } = await supabaseAdmin
       .from("hire_quotes")
       .select("*")
-      .in("status", ["submitted", "quoted"])
+      .in("status", ["submitted", "quoted", "confirmed"])
       .in("vehicle_class", classes)
       .order("start_at", { ascending: true })
-      .limit(50);
-
-    const ids = (requests ?? []).map((request) => request.id);
-    const { data: offers } = ids.length
-      ? await supabaseAdmin.from("hire_offers").select("*").in("quote_id", ids)
-      : { data: [] as never[] };
-
-    // Owners of the requested car may check the renter's ID and licence.
+      .limit(100);
     const ownIds = new Set(vehicles.map((vehicle) => vehicle.id));
-    const docPaths = (requests ?? [])
+    const requests = (allRequests ?? []).filter((request) => {
+      if (!request.vehicle_id) return ["submitted", "quoted"].includes(request.status);
+      if (!ownIds.has(request.vehicle_id)) return false;
+      if (request.payment_policy === "legacy")
+        return ["submitted", "quoted", "confirmed"].includes(request.status);
+      return request.status === "confirmed" && ["partial", "paid"].includes(request.payment_status);
+    });
+    const ids = requests.map((request) => request.id);
+    const [{ data: offers }, { data: settlements }] = await Promise.all([
+      ids.length
+        ? supabaseAdmin.from("hire_offers").select("*").in("quote_id", ids)
+        : Promise.resolve({ data: [] as never[] }),
+      ids.length
+        ? supabaseAdmin
+            .from("hire_payment_settlements")
+            .select("hire_quote_id, gross_amount, platform_fee_amount, owner_net_amount")
+            .in("hire_quote_id", ids)
+        : Promise.resolve({ data: [] as never[] }),
+    ]);
+    const settlementTotals = new Map<string, { gross: number; fee: number; net: number }>();
+    for (const settlement of settlements ?? []) {
+      const current = settlementTotals.get(settlement.hire_quote_id) ?? {
+        gross: 0,
+        fee: 0,
+        net: 0,
+      };
+      current.gross += Number(settlement.gross_amount);
+      current.fee += Number(settlement.platform_fee_amount);
+      current.net += Number(settlement.owner_net_amount);
+      settlementTotals.set(settlement.hire_quote_id, current);
+    }
+
+    const docPaths = requests
       .filter((request) => request.vehicle_id && ownIds.has(request.vehicle_id))
       .flatMap((request) => [request.id_document_path, request.license_document_path])
       .filter((value): value is string => Boolean(value));
@@ -626,10 +951,14 @@ export const listHireRequestsForProvider = createServerFn({ method: "GET" })
       ? await supabaseAdmin.storage.from("hire-documents").createSignedUrls(docPaths, 1800)
       : { data: [] as Array<{ path: string | null; signedUrl: string }> };
     const docLinks = new Map((signed ?? []).map((item) => [item.path, item.signedUrl]));
-
     return {
       vehicles,
-      requests: (requests ?? []).map((request) => ({
+      owner_balance: ownerBalance ?? {
+        gross_paid_total: 0,
+        platform_fee_total: 0,
+        owner_balance: 0,
+      },
+      requests: requests.map((request) => ({
         ...request,
         id_document_link: request.id_document_path
           ? (docLinks.get(request.id_document_path) ?? null)
@@ -641,6 +970,7 @@ export const listHireRequestsForProvider = createServerFn({ method: "GET" })
         my_offer: (offers ?? []).find(
           (offer) => offer.quote_id === request.id && offer.responder_id === context.userId,
         ),
+        settlement_totals: settlementTotals.get(request.id) ?? { gross: 0, fee: 0, net: 0 },
       })),
     };
   });
@@ -684,11 +1014,14 @@ export const makeHireOffer = createServerFn({ method: "POST" })
 
     const { data: quote } = await supabaseAdmin
       .from("hire_quotes")
-      .select("id, reference, requester_id, status")
+      .select("id, reference, requester_id, status, vehicle_id, payment_policy")
       .eq("id", data.quoteId)
       .maybeSingle();
     if (!quote || !["submitted", "quoted"].includes(quote.status)) {
       throw new Error("This request is already closed.");
+    }
+    if (quote.vehicle_id && quote.payment_policy !== "legacy") {
+      throw new Error("Listed-car bookings are pay-first and cannot receive competing offers.");
     }
 
     const { error } = await supabaseAdmin.from("hire_offers").upsert(

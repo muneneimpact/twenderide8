@@ -280,5 +280,20 @@
         { "param_name": "trip_count", "example": "20" }
       ] }
     }]
+  },
+  {
+    "name": "hire_payment_reminder",
+    "language": "en_GB",
+    "category": "utility",
+    "parameter_format": "named",
+    "components": [{
+      "type": "body",
+      "text": "Payment reminder for hire {{request_reference}}: {{amount_due}} is requested by {{due_date}}. Open Twende Meru Rides to pay by M-Pesa.",
+      "example": { "body_text_named_params": [
+        { "param_name": "request_reference", "example": "HQ-1052" },
+        { "param_name": "amount_due", "example": "KES 6,000" },
+        { "param_name": "due_date", "example": "8 October 2026" }
+      ] }
+    }]
   }
 ]

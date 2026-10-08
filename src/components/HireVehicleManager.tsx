@@ -10,6 +10,7 @@ type Draft = {
   dailyRate: string;
   seats: string;
   hireMode: HireMode;
+  paymentPolicy: "full" | "daily_flexible";
   description: string;
   features: string;
   rules: string;
@@ -54,6 +55,7 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
         dailyRate: String(vehicle.hire_daily_rate ?? ""),
         seats: String(vehicle.seats ?? ""),
         hireMode: (vehicle.hire_mode ?? "self_drive") as HireMode,
+        paymentPolicy: vehicle.hire_payment_policy === "daily_flexible" ? "daily_flexible" : "full",
         description: vehicle.hire_description ?? "",
         features: vehicle.hire_features ?? "",
         rules: vehicle.hire_rules ?? "",
@@ -83,6 +85,7 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
           dailyRate: draft.dailyRate === "" ? null : Number(draft.dailyRate),
           seats: draft.seats === "" ? null : Number(draft.seats),
           hireMode: draft.hireMode,
+          paymentPolicy: draft.paymentPolicy,
           description: draft.description.trim() || null,
           features: draft.features.trim() || null,
           rules: draft.rules.trim() || null,
@@ -118,6 +121,8 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
           dailyRate: String(vehicle.hire_daily_rate ?? ""),
           seats: String(vehicle.seats ?? ""),
           hireMode: (vehicle.hire_mode ?? "self_drive") as HireMode,
+          paymentPolicy:
+            vehicle.hire_payment_policy === "daily_flexible" ? "daily_flexible" : "full",
           description: vehicle.hire_description ?? "",
           features: vehicle.hire_features ?? "",
           rules: vehicle.hire_rules ?? "",
@@ -175,6 +180,8 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
             dailyRate: String(vehicle.hire_daily_rate ?? ""),
             seats: String(vehicle.seats ?? ""),
             hireMode: (vehicle.hire_mode ?? "self_drive") as HireMode,
+            paymentPolicy:
+              vehicle.hire_payment_policy === "daily_flexible" ? "daily_flexible" : "full",
             description: vehicle.hire_description ?? "",
             features: vehicle.hire_features ?? "",
             rules: vehicle.hire_rules ?? "",
@@ -257,7 +264,7 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
                 />
               </label>
 
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <label className="block">
                   <span className="text-[11px] text-muted-foreground">Daily price (KES)</span>
                   <input
@@ -286,6 +293,17 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
                     <option value="self_drive">Customer drives</option>
                     <option value="chauffeured">With a driver</option>
                     <option value="both">Either</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-[11px] text-muted-foreground">Payment terms</span>
+                  <select
+                    value={draft.paymentPolicy}
+                    onChange={(event) => updateDraft(vehicle, "paymentPolicy", event.target.value)}
+                    className="input-base"
+                  >
+                    <option value="full">Full hire amount before booking is shown</option>
+                    <option value="daily_flexible">First day upfront, then daily payments</option>
                   </select>
                 </label>
               </div>
