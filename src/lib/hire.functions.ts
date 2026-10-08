@@ -74,8 +74,8 @@ export interface HireVehicleRow {
   photo_urls: string[] | null;
   hire_rules: string | null;
   status: string;
-  owner_driver_id: string | null;
-  fleet_id: string | null;
+  owner_driver_id?: string | null;
+  fleet_id?: string | null;
 }
 
 /** Photos live in a private bucket, so customers get short-lived links. */
@@ -111,17 +111,20 @@ async function withPhotos(
 
 const VEHICLE_FIELDS =
   "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_daily_rate, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
+const PUBLIC_HIRE_VEHICLE_FIELDS =
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_daily_rate, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const pageSize = 500;
     const rows: HireVehicleRow[] = [];
     for (let from = 0; ; from += pageSize) {
-      const { data, error } = await context.supabase
+      const { data, error } = await supabaseAdmin
         .from("vehicles")
-        .select(VEHICLE_FIELDS)
+        .select(PUBLIC_HIRE_VEHICLE_FIELDS)
         .eq("hire_available", true)
         .eq("hire_approval_status", "approved")
         .eq("status", "approved")
@@ -133,7 +136,6 @@ export const listHireVehicles = createServerFn({ method: "GET" })
     }
     const list = await withPhotos(rows);
     // Booked dates only (no customer details), so people can pick free days.
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ids = list.map((vehicle) => vehicle.id);
     const booked: Array<{
       vehicle_id: string | null;

@@ -189,6 +189,8 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
           const photos = pendingPhotos[vehicle.id] ?? [];
           const reviewing = vehicle.hire_approval_status === "pending";
           const listingApproved = vehicle.hire_approval_status === "approved";
+          const listingLive =
+            listingApproved && vehicle.hire_available && vehicle.status === "approved";
           const canRequestReview =
             vehicle.status === "approved" &&
             Number(draft.dailyRate) > 0 &&
@@ -203,6 +205,11 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
                   {vehicle.plate_number} · {vehicle.vehicle_class} · vehicle {vehicle.status} · hire{" "}
                   {vehicle.hire_approval_status.replaceAll("_", " ")}
                 </p>
+                {listingLive ? (
+                  <p className="mt-1 text-[11px] font-semibold text-success">
+                    Live on the customer Hire page.
+                  </p>
+                ) : null}
                 {vehicle.hire_rejection_reason ? (
                   <p className="mt-1 text-xs text-destructive">
                     Ops note: {vehicle.hire_rejection_reason}

@@ -664,9 +664,6 @@ function DriverHome() {
           )}
         </section>
 
-        <HireRequestsBoard />
-        <HireVehicleManager />
-        <HirePortfolioFinance />
       </div>
     </AppShell>
   );

@@ -29,6 +29,7 @@ import { Route as AuthenticatedAdminWhatsappRouteImport } from './routes/_authen
 import { Route as AuthenticatedDeliveryBusinessRouteImport } from './routes/_authenticated/delivery/business'
 import { Route as AuthenticatedDriverIndexRouteImport } from './routes/_authenticated/driver/index'
 import { Route as AuthenticatedDriverApplyRouteImport } from './routes/_authenticated/driver/apply'
+import { Route as AuthenticatedDriverHireRouteImport } from './routes/_authenticated/driver/hire'
 import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authenticated/driver/wallet'
 import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authenticated/rides/index'
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
@@ -144,6 +145,11 @@ const AuthenticatedDriverApplyRoute =
     path: '/driver/apply',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedDriverHireRoute = AuthenticatedDriverHireRouteImport.update({
+  id: '/driver/hire',
+  path: '/driver/hire',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDriverWalletRoute =
   AuthenticatedDriverWalletRouteImport.update({
     id: '/driver/wallet',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/admin/whatsapp': typeof AuthenticatedAdminWhatsappRoute
   '/delivery/business': typeof AuthenticatedDeliveryBusinessRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
+  '/driver/hire': typeof AuthenticatedDriverHireRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
@@ -232,6 +239,7 @@ export interface FileRoutesByTo {
   '/admin/whatsapp': typeof AuthenticatedAdminWhatsappRoute
   '/delivery/business': typeof AuthenticatedDeliveryBusinessRoute
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
+  '/driver/hire': typeof AuthenticatedDriverHireRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
@@ -262,6 +270,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/whatsapp': typeof AuthenticatedAdminWhatsappRoute
   '/_authenticated/delivery/business': typeof AuthenticatedDeliveryBusinessRoute
   '/_authenticated/driver/apply': typeof AuthenticatedDriverApplyRoute
+  '/_authenticated/driver/hire': typeof AuthenticatedDriverHireRoute
   '/_authenticated/driver/wallet': typeof AuthenticatedDriverWalletRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
@@ -292,6 +301,7 @@ export interface FileRouteTypes {
     | '/admin/whatsapp'
     | '/delivery/business'
     | '/driver/apply'
+    | '/driver/hire'
     | '/driver/wallet'
     | '/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/admin/whatsapp'
     | '/delivery/business'
     | '/driver/apply'
+    | '/driver/hire'
     | '/driver/wallet'
     | '/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
@@ -349,6 +360,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/whatsapp'
     | '/_authenticated/delivery/business'
     | '/_authenticated/driver/apply'
+    | '/_authenticated/driver/hire'
     | '/_authenticated/driver/wallet'
     | '/_authenticated/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
@@ -514,6 +526,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDriverApplyRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/driver/hire': {
+      id: '/_authenticated/driver/hire'
+      path: '/driver/hire'
+      fullPath: '/driver/hire'
+      preLoaderRoute: typeof AuthenticatedDriverHireRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/driver/wallet': {
       id: '/_authenticated/driver/wallet'
       path: '/driver/wallet'
@@ -580,6 +599,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminWhatsappRoute: typeof AuthenticatedAdminWhatsappRoute
   AuthenticatedDeliveryBusinessRoute: typeof AuthenticatedDeliveryBusinessRoute
   AuthenticatedDriverApplyRoute: typeof AuthenticatedDriverApplyRoute
+  AuthenticatedDriverHireRoute: typeof AuthenticatedDriverHireRoute
   AuthenticatedDriverWalletRoute: typeof AuthenticatedDriverWalletRoute
   AuthenticatedRidesRideIdRoute: typeof AuthenticatedRidesRideIdRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -601,6 +621,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminWhatsappRoute: AuthenticatedAdminWhatsappRoute,
   AuthenticatedDeliveryBusinessRoute: AuthenticatedDeliveryBusinessRoute,
   AuthenticatedDriverApplyRoute: AuthenticatedDriverApplyRoute,
+  AuthenticatedDriverHireRoute: AuthenticatedDriverHireRoute,
   AuthenticatedDriverWalletRoute: AuthenticatedDriverWalletRoute,
   AuthenticatedRidesRideIdRoute: AuthenticatedRidesRideIdRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
