@@ -43,6 +43,13 @@
       "when": 1791449512695,
       "tag": "0005_hire_wallet_payout_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791455376665,
+      "tag": "0006_hire_compliance_document_catalog",
+      "breakpoints": true
     }
   ]
 }

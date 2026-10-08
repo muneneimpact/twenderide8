@@ -74,7 +74,10 @@ function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
         </p>
         <AddVehicleForHire hireOnly={hireOnly} label="Add a car for hire" />
       </section>
-      {!hireOnly ? <DriverComplianceDocuments /> : null}
+      <DriverComplianceDocuments
+        {...(hireOnly ? { heading: "Step 2 · Owner and vehicle compliance" } : {})}
+        includeDriverDocuments={!hireOnly}
+      />
       <HireVehicleManager
         hireOnly={hireOnly}
         showAddVehicle={false}

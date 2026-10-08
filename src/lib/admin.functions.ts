@@ -219,6 +219,24 @@ export const reviewApproval = createServerFn({ method: "POST" })
           : data.decision === "pending"
             ? "pending"
             : "rejected";
+      if (decision === "approved") {
+        const { data: listing, error: listingError } = await supabaseAdmin
+          .from("vehicles")
+          .select("status, hire_daily_rate, photo_url, photo_urls")
+          .eq("id", data.id)
+          .maybeSingle();
+        if (listingError) throw new Error(listingError.message);
+        if (!listing) throw new Error("Hire vehicle not found.");
+        if (listing.status !== "approved") {
+          throw new Error("Approve the vehicle for road use before approving its hire listing.");
+        }
+        if (!(Number(listing.hire_daily_rate ?? 0) > 0)) {
+          throw new Error("The owner must set a daily hire price before approval.");
+        }
+        if (!listing.photo_url && !(listing.photo_urls ?? []).length) {
+          throw new Error("The owner must add at least one hire photo before approval.");
+        }
+      }
       const { error } = await supabaseAdmin
         .from("vehicles")
         .update({
@@ -329,6 +347,55 @@ export const reviewApproval = createServerFn({ method: "POST" })
       note: data.note ?? null,
     });
     return { ok: true };
+  });
+
+/** Ops may pause or republish only a vehicle and hire listing already approved. */
+export const setHireListingAvailability = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        vehicleId: z.string().uuid(),
+        available: z.boolean(),
+        note: z.string().max(400).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole, OPS } = await import("./authz.server");
+    await requireRole(context.userId, OPS);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: vehicle, error: loadError } = await supabaseAdmin
+      .from("vehicles")
+      .select("status, hire_approval_status")
+      .eq("id", data.vehicleId)
+      .maybeSingle();
+    if (loadError) throw new Error(loadError.message);
+    if (!vehicle) throw new Error("Hire vehicle not found.");
+    if (
+      data.available &&
+      (vehicle.status !== "approved" || vehicle.hire_approval_status !== "approved")
+    ) {
+      throw new Error("Only road-approved vehicles with approved hire listings can be published.");
+    }
+    const { error } = await supabaseAdmin
+      .from("vehicles")
+      .update({
+        hire_available: data.available,
+        hire_reviewed_by: context.userId,
+        hire_reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", data.vehicleId);
+    if (error) throw new Error(error.message);
+    const { audit } = await import("./notifications.server");
+    await audit(
+      context.userId,
+      data.available ? "hire_vehicle_published" : "hire_vehicle_unlisted",
+      "vehicle",
+      data.vehicleId,
+      { note: data.note ?? null },
+    );
+    return { ok: true, available: data.available };
   });
 
 export const opsCancelRide = createServerFn({ method: "POST" })

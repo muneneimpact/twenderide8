@@ -371,7 +371,7 @@ export const getDriverOnboarding = createServerFn({ method: "POST" })
       profile,
       vehicles: [...(ownedVehicles ?? []), ...authorisedVehicles],
       documentTypes: (types ?? []).filter(
-        (t) => t.applies_to === "driver" || t.applies_to === "vehicle",
+        (t) => t.applies_to === "driver" || t.applies_to === "owner" || t.applies_to === "vehicle",
       ),
       documents: documents ?? [],
     };
@@ -395,20 +395,23 @@ export const submitDocument = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: type } = await context.supabase
       .from("document_types")
-      .select("label, requires_image, active, applies_to")
+      .select("label, requires_image, active, applies_to, expires")
       .eq("id", data.documentTypeId)
       .maybeSingle();
-    if (!type?.active || !["driver", "vehicle"].includes(type.applies_to)) {
+    if (!type?.active || !["driver", "owner", "vehicle"].includes(type.applies_to)) {
       throw new Error("That compliance document type is not available for driver submission.");
     }
     if (type?.requires_image && !data.filePath) {
       throw new Error(`Attach a clear photo or scan of your ${type.label.toLowerCase()}.`);
     }
+    if (type.expires && !data.expiresOn) {
+      throw new Error(`Enter the expiry date for your ${type.label.toLowerCase()}.`);
+    }
     if (type.applies_to === "vehicle" && !data.vehicleId) {
       throw new Error("Choose which vehicle this document belongs to.");
     }
-    if (type.applies_to === "driver" && data.vehicleId) {
-      throw new Error("This document belongs to your driver profile, not a vehicle.");
+    if (type.applies_to !== "vehicle" && data.vehicleId) {
+      throw new Error("This document belongs to your profile, not a vehicle.");
     }
     // A driver may only reference a file inside their own folder.
     if (data.filePath && !data.filePath.startsWith(`${context.userId}/`)) {

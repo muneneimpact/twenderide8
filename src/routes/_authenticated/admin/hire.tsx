@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
+import { AdminHireListingsBoard } from "@/components/AdminHireListingsBoard";
 import { AdminHireFinanceBoard } from "@/components/AdminHireFinanceBoard";
 import {
   decideHireQuote,
@@ -15,14 +16,17 @@ import {
 export const Route = createFileRoute("/_authenticated/admin/hire")({
   head: () => ({
     meta: [
-      { title: "Hire and corporate quotations | Twende Meru Rides" },
+      { title: "Hire management | Twende Meru Rides" },
       {
         name: "description",
         content:
-          "Review hire and corporate requests, manage the default commission, and monitor payments.",
+          "Manage hire vehicle listings, compliance, bookings, commissions, wallets and payouts.",
       },
-      { property: "og:title", content: "Hire and corporate quotations | Twende Meru Rides" },
-      { property: "og:description", content: "Ops queue for hire requests and payments." },
+      { property: "og:title", content: "Hire management | Twende Meru Rides" },
+      {
+        property: "og:description",
+        content: "Admin management for hire listings, compliance and payments.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -32,7 +36,7 @@ export const Route = createFileRoute("/_authenticated/admin/hire")({
 
 function AdminHirePage() {
   return (
-    <RoleGate allow={["ops_admin", "super_admin"]} title="Hire requests">
+    <RoleGate allow={["ops_admin", "super_admin"]} title="Hire management">
       <AdminHireBoard />
     </RoleGate>
   );
@@ -82,7 +86,7 @@ function AdminHireBoard() {
   const totals = commission.data;
   const rows = quotes.data ?? [];
   return (
-    <AppShell title="Hire requests">
+    <AppShell title="Hire management">
       <div className="space-y-3 pb-24">
         <section className="surface-card p-4">
           <h2 className="text-sm font-semibold text-foreground">Hire payment and commission</h2>
@@ -122,6 +126,7 @@ function AdminHireBoard() {
           </div>
         </section>
 
+        <AdminHireListingsBoard />
         <AdminHireFinanceBoard />
 
         {rows.length === 0 ? (
