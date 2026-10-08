@@ -6,23 +6,13 @@ const CUSTOMER_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const OPS = ["ops_admin", "super_admin"] as const;
 
 function whatsappSetup() {
-  const apiVersion = process.env["WHATSAPP_GRAPH_API_VERSION"] ?? "v26.0";
-  const token = process.env["WHATSAPP_ACCESS_TOKEN"];
-  const phoneNumberId = process.env["WHATSAPP_PHONE_NUMBER_ID"];
-  const appSecret = process.env["WHATSAPP_APP_SECRET"];
-  const verifyToken = process.env["WHATSAPP_VERIFY_TOKEN"];
+  const configured = Boolean(process.env["LOVABLE_API_KEY"] && process.env["WHATSAPP_API_KEY"]);
   return {
-    apiVersion,
-    token,
-    phoneNumberId,
-    appSecret,
-    verifyToken,
-    sendConfigured: Boolean(token && phoneNumberId && /^v\d+\.\d+$/.test(apiVersion)),
-    webhookConfigured: Boolean(appSecret && verifyToken),
+    sendConfigured: configured,
+    webhookConfigured: configured,
     missing: [
-      !token ? "WHATSAPP_ACCESS_TOKEN" : null,
-      !phoneNumberId ? "WHATSAPP_PHONE_NUMBER_ID" : null,
-      !/^v\d+\.\d+$/.test(apiVersion) ? "WHATSAPP_GRAPH_API_VERSION" : null,
+      !process.env["LOVABLE_API_KEY"] ? "LOVABLE_API_KEY" : null,
+      !process.env["WHATSAPP_API_KEY"] ? "WhatsApp connection" : null,
     ].filter((value): value is string => Boolean(value)),
   };
 }
