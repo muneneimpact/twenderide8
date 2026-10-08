@@ -5,7 +5,13 @@ import { addVehicleForDriver, addVehicleForHire } from "@/lib/account.functions"
 
 const vehicleClasses = ["boda", "e_boda", "go", "plus", "comfort", "xl"] as const;
 
-export function AddVehicleForHire({ hireOnly = false }: { hireOnly?: boolean }) {
+export function AddVehicleForHire({
+  hireOnly = false,
+  label,
+}: {
+  hireOnly?: boolean;
+  label?: string;
+}) {
   const queryClient = useQueryClient();
   const addDriverVehicleFn = useServerFn(addVehicleForDriver);
   const addHireVehicleFn = useServerFn(addVehicleForHire);
@@ -49,7 +55,9 @@ export function AddVehicleForHire({ hireOnly = false }: { hireOnly?: boolean }) 
         onClick={() => setOpen((value) => !value)}
         className="w-full rounded-full border border-input px-4 py-2.5 text-sm font-semibold text-foreground"
       >
-        {open ? "Close vehicle form" : hireOnly ? "Add a vehicle for hire" : "Add another vehicle"}
+        {open
+          ? "Close vehicle form"
+          : (label ?? (hireOnly ? "Add a vehicle for hire" : "Add another vehicle"))}
       </button>
       {open ? (
         <div className="mt-3 space-y-2">
@@ -126,7 +134,7 @@ export function AddVehicleForHire({ hireOnly = false }: { hireOnly?: boolean }) 
             <p className="text-xs text-success">
               {hireOnly
                 ? "Vehicle sent for Ops approval. Hire listing review is a separate step."
-                : "Vehicle added and sent to Ops for review."}
+                : "Vehicle sent to Ops. Upload its compliance documents in Step 2 and add photos, price and terms in Step 3; hire inspection can be requested after vehicle approval."}
             </p>
           ) : null}
         </div>

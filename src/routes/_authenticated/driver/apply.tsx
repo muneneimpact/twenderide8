@@ -8,13 +8,13 @@ import {
   getDriverOnboarding,
   getMyPhotoUrl,
   saveDriverPhoto,
-  submitDocument,
   updateProfile,
 } from "@/lib/account.functions";
 
 import { supabase } from "@/integrations/supabase/client";
 import { formatKenyanPlate } from "@/lib/plate";
 import { CarBadge } from "@/components/CarBadge";
+import { DriverComplianceDocuments } from "@/components/DriverComplianceDocuments";
 
 export const Route = createFileRoute("/_authenticated/driver/apply")({
   head: () => ({
@@ -45,7 +45,6 @@ function DriverApply() {
   const queryClient = useQueryClient();
   const fetchOnboarding = useServerFn(getDriverOnboarding);
   const applyFn = useServerFn(applyAsDriver);
-  const docFn = useServerFn(submitDocument);
   const profileFn = useServerFn(updateProfile);
   const photoFn = useServerFn(saveDriverPhoto);
   const myPhotoFn = useServerFn(getMyPhotoUrl);
@@ -62,12 +61,6 @@ function DriverApply() {
   const [model, setModel] = useState("");
   const [colour, setColour] = useState("");
   const [year, setYear] = useState("");
-  const [docType, setDocType] = useState("");
-  const [docRef, setDocRef] = useState("");
-  const [docExpiry, setDocExpiry] = useState("");
-  const [docVehicle, setDocVehicle] = useState("");
-  const [docFile, setDocFile] = useState<File | null>(null);
-  const [documentNotice, setDocumentNotice] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   /** Riders see this photo once they are matched, so it is stored on the profile. */
@@ -121,59 +114,6 @@ function DriverApply() {
     },
   });
 
-  const addDoc = useMutation({
-    mutationFn: async () => {
-      let filePath: string | undefined;
-      if (docFile) {
-        if (docFile.size > 10 * 1024 * 1024) {
-          throw new Error("Each compliance document must be 10 MB or smaller.");
-        }
-        if (
-          docFile.type &&
-          !docFile.type.startsWith("image/") &&
-          docFile.type !== "application/pdf"
-        ) {
-          throw new Error("Upload a photo or PDF of your compliance document.");
-        }
-        const { data: session } = await supabase.auth.getUser();
-        const userId = session.user?.id;
-        if (!userId) throw new Error("Your session expired. Sign in again.");
-        const extension =
-          docFile.name
-            .split(".")
-            .pop()
-            ?.toLowerCase()
-            .replace(/[^a-z0-9]/g, "") || "jpg";
-        const path = `${userId}/${docType}-${Date.now()}.${extension}`;
-        const { error } = await supabase.storage
-          .from("driver-documents")
-          .upload(path, docFile, { contentType: docFile.type || "image/jpeg", upsert: false });
-        if (error) throw new Error(`Compliance document upload failed: ${error.message}`);
-        filePath = path;
-      }
-      return docFn({
-        data: {
-          documentTypeId: docType,
-          reference: docRef,
-          ...(docExpiry ? { expiresOn: docExpiry } : {}),
-          ...(docVehicle ? { vehicleId: docVehicle } : {}),
-          ...(filePath ? { filePath } : {}),
-        },
-      });
-    },
-    onSuccess: () => {
-      setDocRef("");
-      setDocExpiry("");
-      setDocFile(null);
-      setDocumentNotice(
-        "Compliance document submitted. Operations will review it before approval.",
-      );
-      invalidate();
-    },
-  });
-
-
-
   if (board.isPending) {
     return (
       <AppShell title="Driver onboarding" tabs={driverTabs} eyebrow="Twende Driver">
@@ -189,7 +129,7 @@ function DriverApply() {
     );
   }
 
-  const { driver, profile, vehicles, documentTypes, documents } = board.data!;
+  const { driver, profile, vehicles, documents } = board.data!;
   const approvedCount = documents.filter((d) => d.status === "approved").length;
 
   return (
@@ -375,140 +315,7 @@ function DriverApply() {
           )}
         </section>
 
-        {/* Step 4 — documents */}
-        <section id="compliance-documents" className="surface-card scroll-mt-20 p-4">
-          <h3 className="text-sm font-semibold text-foreground">4 · Compliance documents</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Drivers can add or renew documents here at any time, including after approval. Uploads
-            are sent to Operations for review; they are not approved automatically. National ID,
-            driving licence and certificate of good conduct need a clear photo or scan.
-          </p>
-          <ul className="mt-3 space-y-2">
-            {documentTypes.map((t) => {
-              const mine = documents.find((d) => d.document_type_id === t.id);
-              const selected = docType === t.id;
-              const needsPhoto = Boolean(t.requires_image);
-              return (
-                <li
-                  key={t.id}
-                  className={`overflow-hidden rounded-2xl border ${
-                    selected ? "border-primary bg-accent" : "border-input bg-card"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDocType(selected ? "" : t.id);
-                      setDocRef("");
-                      setDocExpiry("");
-                      setDocVehicle("");
-                      setDocFile(null);
-                      setDocumentNotice(null);
-                      addDoc.reset();
-                    }}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold text-foreground">{t.label}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        {t.required ? "Required" : "Optional"}
-                        {needsPhoto ? " · photo needed" : ""}
-                      </span>
-                    </span>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        mine ? (statusTone[mine.status] ?? "") : "bg-secondary text-secondary-foreground"
-                      }`}
-                    >
-                      {mine ? mine.status : selected ? "close" : "add"}
-                    </span>
-                  </button>
-
-                  {/* The form opens right here so nothing has to be scrolled to. */}
-                  {selected && (
-                    <div className="space-y-2 border-t border-border bg-card px-3 py-3">
-                      <label className="block text-xs font-medium text-muted-foreground">
-                        {needsPhoto ? "Photo of the document (required)" : "Photo of the document (optional)"}
-                        <input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          capture="environment"
-                          onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
-                          className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground file:mr-3 file:rounded-full file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-foreground"
-                        />
-                      </label>
-                      {docFile && <p className="text-xs text-muted-foreground">Attached: {docFile.name}</p>}
-                      <input
-                        value={docRef}
-                        onChange={(e) => setDocRef(e.target.value)}
-                        placeholder="Document number / reference"
-                        maxLength={80}
-                        className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
-                      />
-                      <label className="block text-xs font-medium text-muted-foreground">
-                        Expiry date (if any)
-                        <input
-                          type="date"
-                          value={docExpiry}
-                          onChange={(e) => setDocExpiry(e.target.value)}
-                          className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground"
-                        />
-                      </label>
-                      {t.applies_to === "vehicle" && vehicles.length > 0 && (
-                        <select
-                          value={docVehicle}
-                          onChange={(e) => setDocVehicle(e.target.value)}
-                          className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
-                        >
-                          <option value="">Choose a vehicle</option>
-                          {vehicles.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.plate_number}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      <button
-                        onClick={() => addDoc.mutate()}
-                        disabled={addDoc.isPending || docRef.trim().length < 3 || (needsPhoto && !docFile)}
-                        className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
-                      >
-                        {addDoc.isPending ? "Submitting…" : `Submit ${t.label}`}
-                      </button>
-                      {addDoc.isError && (
-                        <p className="text-xs text-destructive">{(addDoc.error as Error).message}</p>
-                      )}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-
-          {documentNotice ? <p className="mt-3 text-xs text-success">{documentNotice}</p> : null}
-
-          {documents.length > 0 && (
-            <ul className="mt-3 divide-y divide-border">
-              {documents.map((d) => (
-                <li key={d.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {documentTypes.find((t) => t.id === d.document_type_id)?.label ?? "Document"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {d.reference}
-                      {d.expires_on ? ` · expires ${d.expires_on}` : ""}
-                      {d.rejection_reason ? ` · ${d.rejection_reason}` : ""}
-                    </p>
-                  </div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusTone[d.status] ?? ""}`}>
-                    {d.status}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <DriverComplianceDocuments heading="4 · Compliance documents" />
       </div>
     </AppShell>
   );

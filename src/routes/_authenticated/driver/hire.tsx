@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell, driverTabs } from "@/components/AppShell";
+import { AddVehicleForHire } from "@/components/AddVehicleForHire";
+import { DriverComplianceDocuments } from "@/components/DriverComplianceDocuments";
 import { HirePortfolioFinance } from "@/components/HirePortfolioFinance";
 import { HireRequestsBoard } from "@/components/HireRequestsBoard";
 import { HireVehicleManager } from "@/components/HireVehicleManager";
@@ -56,15 +58,28 @@ function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
           Manage your hire cars
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Add or select a vehicle, manage its photos and listing details, and track Ops inspection.
-          Driver approval and hire-listing approval are separate. Once Ops approves the hire
-          listing, it is published on the customer Hire page automatically.
+          Complete the steps below. Driver and vehicle approval are separate from the hire-listing
+          inspection. Once Ops approves the hire listing, it is published on the customer Hire page
+          automatically.
         </p>
         <Link to="/hire" className="mt-3 inline-flex text-sm font-semibold text-primary">
           View the customer Hire page →
         </Link>
       </section>
-      <HireVehicleManager hireOnly={hireOnly} />
+      <section className="surface-card p-4">
+        <h2 className="text-sm font-semibold text-foreground">Step 1 · Register your vehicle</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Use a vehicle you own or add one here. Operations must approve the vehicle before a hire
+          listing can go live.
+        </p>
+        <AddVehicleForHire hireOnly={hireOnly} label="Add a car for hire" />
+      </section>
+      {!hireOnly ? <DriverComplianceDocuments /> : null}
+      <HireVehicleManager
+        hireOnly={hireOnly}
+        showAddVehicle={false}
+        heading="Step 3 · Photos, listing details and payment terms"
+      />
       <HireRequestsBoard />
       <HirePortfolioFinance />
     </div>

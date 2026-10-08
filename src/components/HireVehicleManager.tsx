@@ -32,7 +32,15 @@ function PendingPhotoPreview({ file }: { file: File }) {
   ) : null;
 }
 
-export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean }) {
+export function HireVehicleManager({
+  hireOnly = false,
+  showAddVehicle = true,
+  heading = "My vehicles for hire",
+}: {
+  hireOnly?: boolean;
+  showAddVehicle?: boolean;
+  heading?: string;
+}) {
   const queryClient = useQueryClient();
   const listFn = useServerFn(listMyVehicles);
   const updateFn = useServerFn(updateVehicleHire);
@@ -149,7 +157,7 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
 
   return (
     <section className="surface-card p-4">
-      <h3 className="text-sm font-semibold text-foreground">My vehicles for hire</h3>
+      <h3 className="text-sm font-semibold text-foreground">{heading}</h3>
       <p className="mt-1 text-xs text-muted-foreground">
         Add photos, features and listing details, then submit the car for an in-person Ops
         inspection and approval. Rental dates are reserved and ride dispatch pauses while a vehicle
@@ -160,8 +168,9 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
       ) : null}
       {!vehicles.isPending && vehicleRows.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          You have no approved vehicles yet. Add a vehicle below or first submit one for vehicle
-          approval.
+          {showAddVehicle
+            ? "You have no approved vehicles yet. Add a vehicle below or first submit one for vehicle approval."
+            : "No vehicle is registered yet. Add a vehicle in Step 1 above; Operations must approve it before it can be hired."}
         </p>
       ) : null}
 
@@ -309,8 +318,12 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
                     onChange={(event) => updateDraft(vehicle, "paymentPolicy", event.target.value)}
                     className="input-base"
                   >
-                    <option value="full">Full hire amount before booking is shown</option>
-                    <option value="daily_flexible">First day upfront, then daily payments</option>
+                    <option value="full">
+                      Full hire amount upfront before the booking is shown
+                    </option>
+                    <option value="daily_flexible">
+                      First day upfront; remaining days can be paid daily
+                    </option>
                   </select>
                 </label>
               </div>
@@ -393,7 +406,7 @@ export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean })
           );
         })}
       </div>
-      <AddVehicleForHire hireOnly={hireOnly} />
+      {showAddVehicle ? <AddVehicleForHire hireOnly={hireOnly} /> : null}
       {notice ? (
         <p className="mt-2 text-xs text-muted-foreground" role="status">
           {notice}
