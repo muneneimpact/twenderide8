@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
+import { AdminHireFinanceBoard } from "@/components/AdminHireFinanceBoard";
 import { adjustWallet, getFinanceBoard, reviewWithdrawal } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/finance")({
@@ -102,6 +103,8 @@ function FinanceBoard() {
       </div>
 
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
+        <AdminHireFinanceBoard />
+
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Review note</h3>
           <input

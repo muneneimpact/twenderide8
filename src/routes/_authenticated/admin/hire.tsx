@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
+import { AdminHireFinanceBoard } from "@/components/AdminHireFinanceBoard";
 import {
   decideHireQuote,
   getHireCommissionAdmin,
@@ -120,6 +121,8 @@ function AdminHireBoard() {
             <Metric label="Owner balances" value={totals?.ownerBalanceTotal ?? 0} />
           </div>
         </section>
+
+        <AdminHireFinanceBoard />
 
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No hire or corporate requests yet.</p>

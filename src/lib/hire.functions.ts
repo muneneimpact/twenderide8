@@ -777,6 +777,476 @@ export const updateHireCommissionPercent = createServerFn({ method: "POST" })
     return { ok: true, percent: data.percent };
   });
 
+type HireCarTotals = {
+  gross_paid_total: number;
+  platform_fee_total: number;
+  owner_net_total: number;
+  settlement_count: number;
+};
+
+/** Sum verified hire settlements by car without relying on generated joins. */
+async function getHireCarSettlementTotals(vehicleIds: string[]) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const ids = [...new Set(vehicleIds)];
+  const byVehicle = new Map<string, HireCarTotals>(
+    ids.map((id) => [
+      id,
+      { gross_paid_total: 0, platform_fee_total: 0, owner_net_total: 0, settlement_count: 0 },
+    ]),
+  );
+  if (ids.length === 0) return byVehicle;
+
+  const vehicleByQuote = new Map<string, string>();
+  for (let start = 0; start < ids.length; start += 100) {
+    const pageIds = ids.slice(start, start + 100);
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from("hire_quotes")
+        .select("id, vehicle_id")
+        .in("vehicle_id", pageIds)
+        .order("id")
+        .range(offset, offset + 999);
+      if (error) throw new Error(`Could not load hire finance bookings: ${error.message}`);
+      for (const row of data ?? []) {
+        if (row.vehicle_id) vehicleByQuote.set(row.id, row.vehicle_id);
+      }
+      if ((data ?? []).length < 1000) break;
+    }
+  }
+
+  const quoteIds = [...vehicleByQuote.keys()];
+  for (let start = 0; start < quoteIds.length; start += 100) {
+    const pageIds = quoteIds.slice(start, start + 100);
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from("hire_payment_settlements")
+        .select("hire_quote_id, gross_amount, platform_fee_amount, owner_net_amount")
+        .in("hire_quote_id", pageIds)
+        .order("id")
+        .range(offset, offset + 999);
+      if (error) throw new Error(`Could not load hire settlement ledger: ${error.message}`);
+      for (const row of data ?? []) {
+        const vehicleId = vehicleByQuote.get(row.hire_quote_id);
+        if (!vehicleId) continue;
+        const totals = byVehicle.get(vehicleId)!;
+        totals.gross_paid_total += Number(row.gross_amount);
+        totals.platform_fee_total += Number(row.platform_fee_amount);
+        totals.owner_net_total += Number(row.owner_net_amount);
+        totals.settlement_count += 1;
+      }
+      if ((data ?? []).length < 1000) break;
+    }
+  }
+  return byVehicle;
+}
+
+/** Owner-facing hire wallet, car-by-car income and payout history. */
+export const getMyHirePortfolioFinance = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: fleets, error: fleetError } = await supabaseAdmin
+      .from("fleets")
+      .select("id")
+      .eq("owner_id", context.userId);
+    if (fleetError) throw new Error(fleetError.message);
+    const fleetIds = (fleets ?? []).map((fleet) => fleet.id);
+    const ownerFilter = fleetIds.length
+      ? `owner_driver_id.eq.${context.userId},fleet_id.in.(${fleetIds.join(",")})`
+      : `owner_driver_id.eq.${context.userId}`;
+    const [vehicleResult, balanceResult, phoneResult, requestResult] = await Promise.all([
+      supabaseAdmin
+        .from("vehicles")
+        .select(
+          "id, plate_number, make, model, vehicle_class, status, hire_approval_status, hire_available, hire_daily_rate",
+        )
+        .or(ownerFilter)
+        .neq("hire_approval_status", "not_submitted")
+        .order("plate_number"),
+      supabaseAdmin
+        .from("hire_owner_balances")
+        .select("gross_paid_total, platform_fee_total, owner_balance, paid_out_total, updated_at")
+        .eq("owner_user_id", context.userId)
+        .maybeSingle(),
+      supabaseAdmin.from("profiles").select("phone").eq("id", context.userId).maybeSingle(),
+      supabaseAdmin
+        .from("hire_payout_requests")
+        .select(
+          "id, amount, payout_phone, status, review_note, payout_reference, requested_at, reviewed_at, paid_at",
+        )
+        .eq("owner_user_id", context.userId)
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ]);
+    if (vehicleResult.error) throw new Error(vehicleResult.error.message);
+    if (balanceResult.error) throw new Error(balanceResult.error.message);
+    if (phoneResult.error) throw new Error(phoneResult.error.message);
+    if (requestResult.error) throw new Error(requestResult.error.message);
+    const vehicles = vehicleResult.data ?? [];
+    const totals = await getHireCarSettlementTotals(vehicles.map((vehicle) => vehicle.id));
+    const requests = requestResult.data ?? [];
+    let reservedPayoutTotal = 0;
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from("hire_payout_requests")
+        .select("amount")
+        .eq("owner_user_id", context.userId)
+        .in("status", ["requested", "approved"])
+        .order("id")
+        .range(offset, offset + 999);
+      if (error) throw new Error(error.message);
+      reservedPayoutTotal += (data ?? []).reduce((sum, row) => sum + Number(row.amount), 0);
+      if ((data ?? []).length < 1000) break;
+    }
+    const ownerBalance = balanceResult.data ?? {
+      gross_paid_total: 0,
+      platform_fee_total: 0,
+      owner_balance: 0,
+      paid_out_total: 0,
+      updated_at: null,
+    };
+    return {
+      vehicles: vehicles.map((vehicle) => ({
+        ...vehicle,
+        finance: totals.get(vehicle.id) ?? {
+          gross_paid_total: 0,
+          platform_fee_total: 0,
+          owner_net_total: 0,
+          settlement_count: 0,
+        },
+      })),
+      ownerBalance,
+      availableBalance: Math.max(0, Number(ownerBalance.owner_balance) - reservedPayoutTotal),
+      reservedPayoutTotal,
+      payoutRequests: requests,
+      profilePhone: phoneResult.data?.phone ?? "",
+    };
+  });
+
+/** Finance/ops staff view of approved hire cars, income, owner wallets and payouts. */
+export const getAdminHirePortfolioFinance = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole, STAFF, FINANCE } = await import("./authz.server");
+    const roles = await requireRole(context.userId, STAFF);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const vehicles: Array<{
+      id: string;
+      plate_number: string;
+      make: string | null;
+      model: string | null;
+      vehicle_class: string;
+      status: string;
+      hire_available: boolean;
+      hire_daily_rate: number | null;
+      owner_driver_id: string | null;
+      fleet_id: string | null;
+    }> = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from("vehicles")
+        .select(
+          "id, plate_number, make, model, vehicle_class, status, hire_available, hire_daily_rate, owner_driver_id, fleet_id",
+        )
+        .eq("status", "approved")
+        .eq("hire_approval_status", "approved")
+        .order("plate_number")
+        .order("id")
+        .range(offset, offset + 999);
+      if (error) throw new Error(`Could not load approved hire cars: ${error.message}`);
+      vehicles.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+
+    const fleetIds = [
+      ...new Set(vehicles.flatMap((vehicle) => (vehicle.fleet_id ? [vehicle.fleet_id] : []))),
+    ];
+    const fleets: Array<{ id: string; owner_id: string; business_name: string }> = [];
+    for (let start = 0; start < fleetIds.length; start += 100) {
+      const { data, error } = await supabaseAdmin
+        .from("fleets")
+        .select("id, owner_id, business_name")
+        .in("id", fleetIds.slice(start, start + 100));
+      if (error) throw new Error(`Could not load hire owner accounts: ${error.message}`);
+      fleets.push(...(data ?? []));
+    }
+    const fleetById = new Map(fleets.map((fleet) => [fleet.id, fleet]));
+    const ownerIds = [
+      ...new Set(
+        vehicles
+          .map(
+            (vehicle) =>
+              vehicle.owner_driver_id ??
+              (vehicle.fleet_id ? fleetById.get(vehicle.fleet_id)?.owner_id : null),
+          )
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    const profiles: Array<{ id: string; full_name: string | null; phone: string | null }> = [];
+    const balances: Array<{
+      owner_user_id: string;
+      gross_paid_total: number;
+      platform_fee_total: number;
+      owner_balance: number;
+      paid_out_total: number;
+    }> = [];
+    for (let start = 0; start < ownerIds.length; start += 100) {
+      const pageIds = ownerIds.slice(start, start + 100);
+      const [
+        { data: profileRows, error: profileError },
+        { data: balanceRows, error: balanceError },
+      ] = await Promise.all([
+        supabaseAdmin.from("profiles").select("id, full_name, phone").in("id", pageIds),
+        supabaseAdmin
+          .from("hire_owner_balances")
+          .select(
+            "owner_user_id, gross_paid_total, platform_fee_total, owner_balance, paid_out_total",
+          )
+          .in("owner_user_id", pageIds),
+      ]);
+      if (profileError) throw new Error(profileError.message);
+      if (balanceError) throw new Error(balanceError.message);
+      profiles.push(...(profileRows ?? []));
+      balances.push(...(balanceRows ?? []));
+    }
+    const ownerBalanceById = new Map(balances.map((balance) => [balance.owner_user_id, balance]));
+    const payoutReservedByOwner = new Map<string, number>();
+    const payoutRequests: Array<{
+      id: string;
+      owner_user_id: string;
+      amount: number;
+      payout_phone: string;
+      status: string;
+      review_note: string | null;
+      payout_reference: string | null;
+      requested_at: string;
+      reviewed_at: string | null;
+      paid_at: string | null;
+    }> = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from("hire_payout_requests")
+        .select(
+          "id, owner_user_id, amount, payout_phone, status, review_note, payout_reference, requested_at, reviewed_at, paid_at",
+        )
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(offset, offset + 999);
+      if (error) throw new Error(`Could not load hire payout requests: ${error.message}`);
+      payoutRequests.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+    for (const request of payoutRequests) {
+      if (request.status === "requested" || request.status === "approved") {
+        payoutReservedByOwner.set(
+          request.owner_user_id,
+          (payoutReservedByOwner.get(request.owner_user_id) ?? 0) + Number(request.amount),
+        );
+      }
+    }
+    const knownProfileIds = new Set(profiles.map((profile) => profile.id));
+    const payoutOwnerIds = [
+      ...new Set(payoutRequests.map((request) => request.owner_user_id)),
+    ].filter((ownerId) => !knownProfileIds.has(ownerId));
+    for (let start = 0; start < payoutOwnerIds.length; start += 100) {
+      const { data, error } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, phone")
+        .in("id", payoutOwnerIds.slice(start, start + 100));
+      if (error) throw new Error(`Could not load payout owner profiles: ${error.message}`);
+      profiles.push(...(data ?? []));
+    }
+    const systemBalances: Array<{
+      gross_paid_total: number;
+      platform_fee_total: number;
+      owner_balance: number;
+      paid_out_total: number;
+    }> = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from("hire_owner_balances")
+        .select("gross_paid_total, platform_fee_total, owner_balance, paid_out_total")
+        .order("owner_user_id")
+        .range(offset, offset + 999);
+      if (error) throw new Error(`Could not load hire wallet totals: ${error.message}`);
+      systemBalances.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+    const settlementTotals = await getHireCarSettlementTotals(
+      vehicles.map((vehicle) => vehicle.id),
+    );
+    const financeVehicles = vehicles.map((vehicle) => {
+      const ownerId =
+        vehicle.owner_driver_id ??
+        (vehicle.fleet_id ? (fleetById.get(vehicle.fleet_id)?.owner_id ?? null) : null);
+      const profile = ownerId ? profileById.get(ownerId) : null;
+      const fleet = vehicle.fleet_id ? fleetById.get(vehicle.fleet_id) : null;
+      const balance = ownerId ? ownerBalanceById.get(ownerId) : null;
+      const reserved = ownerId ? (payoutReservedByOwner.get(ownerId) ?? 0) : 0;
+      return {
+        ...vehicle,
+        owner_user_id: ownerId,
+        owner_name: fleet?.business_name ?? profile?.full_name ?? "Unknown hire owner",
+        owner_phone: profile?.phone ?? null,
+        owner_gross_paid_total: Number(balance?.gross_paid_total ?? 0),
+        owner_platform_fee_total: Number(balance?.platform_fee_total ?? 0),
+        owner_wallet_balance: Number(balance?.owner_balance ?? 0),
+        owner_paid_out_total: Number(balance?.paid_out_total ?? 0),
+        owner_reserved_payout_total: reserved,
+        owner_available_balance: Math.max(0, Number(balance?.owner_balance ?? 0) - reserved),
+        finance: settlementTotals.get(vehicle.id) ?? {
+          gross_paid_total: 0,
+          platform_fee_total: 0,
+          owner_net_total: 0,
+          settlement_count: 0,
+        },
+      };
+    });
+    const profileForOwner = new Map(profiles.map((profile) => [profile.id, profile]));
+    return {
+      vehicles: financeVehicles,
+      payoutRequests: payoutRequests.map((request) => ({
+        ...request,
+        owner_name: profileForOwner.get(request.owner_user_id)?.full_name ?? "Hire owner",
+        owner_phone: profileForOwner.get(request.owner_user_id)?.phone ?? null,
+      })),
+      totals: {
+        grossPaidTotal: systemBalances.reduce(
+          (sum, balance) => sum + Number(balance.gross_paid_total),
+          0,
+        ),
+        platformFeeTotal: systemBalances.reduce(
+          (sum, balance) => sum + Number(balance.platform_fee_total),
+          0,
+        ),
+        ownerWalletTotal: systemBalances.reduce(
+          (sum, balance) => sum + Number(balance.owner_balance),
+          0,
+        ),
+        paidOutTotal: systemBalances.reduce(
+          (sum, balance) => sum + Number(balance.paid_out_total),
+          0,
+        ),
+        reservedPayoutTotal: [...payoutReservedByOwner.values()].reduce(
+          (sum, value) => sum + value,
+          0,
+        ),
+      },
+      canReviewPayouts: roles.some((role) => FINANCE.includes(role)),
+    };
+  });
+
+/** Owners can request a manual payout from their available hire wallet balance. */
+export const requestHirePayout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        amount: z.number().positive().max(10_000_000),
+        payoutPhone: z.string().min(6).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { normaliseKenyanPhone } = await import("./phone");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const phone = normaliseKenyanPhone(data.payoutPhone);
+    const { data: result, error } = await supabaseAdmin.rpc("request_hire_payout", {
+      p_owner_user_id: context.userId,
+      p_amount: data.amount,
+      p_payout_phone: phone,
+    });
+    if (error) throw new Error(error.message);
+    const payload = result as { request_id?: string; amount?: number; available_balance?: number };
+    if (!payload.request_id) throw new Error("The hire payout request could not be recorded.");
+    try {
+      const { audit } = await import("./notifications.server");
+      await audit(
+        context.userId,
+        "hire_payout_requested",
+        "hire_payout_request",
+        payload.request_id,
+        {
+          amount: payload.amount ?? data.amount,
+          payout_phone: phone,
+        },
+      );
+    } catch (auditError) {
+      console.error("hire payout request audit failed", auditError);
+    }
+    return {
+      requestId: payload.request_id,
+      amount: payload.amount ?? data.amount,
+      availableBalance: payload.available_balance ?? 0,
+    };
+  });
+
+/** Finance staff approves/rejects requests or records a completed manual transfer. */
+export const reviewHirePayoutRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        decision: z.enum(["approved", "paid", "rejected"]),
+        note: z.string().max(400).optional(),
+        payoutReference: z.string().max(120).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole, FINANCE } = await import("./authz.server");
+    await requireRole(context.userId, FINANCE);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: result, error } = await supabaseAdmin.rpc("review_hire_payout_request", {
+      p_request_id: data.id,
+      p_decision: data.decision,
+      p_reviewer_id: context.userId,
+      p_note: data.note?.trim() || null,
+      p_payout_reference: data.payoutReference?.trim() || null,
+    });
+    if (error) throw new Error(error.message);
+    const payload = result as {
+      owner_user_id?: string;
+      amount?: number;
+      status?: string;
+      payout_reference?: string | null;
+    };
+    if (!payload.owner_user_id) throw new Error("The hire payout review could not be recorded.");
+    try {
+      const { audit } = await import("./notifications.server");
+      await audit(context.userId, `hire_payout_${data.decision}`, "hire_payout_request", data.id, {
+        amount: payload.amount,
+        payout_reference: payload.payout_reference ?? null,
+        note: data.note ?? null,
+      });
+    } catch (auditError) {
+      console.error("hire payout review audit failed", auditError);
+    }
+    try {
+      const { notify } = await import("./notifications.server");
+      const messages = {
+        approved:
+          "Your hire payout request has been approved. Finance will send it to your requested M-Pesa number.",
+        paid: `Your hire payout was marked paid. Reference: ${payload.payout_reference ?? data.payoutReference ?? "recorded by Finance"}.`,
+        rejected: `Your hire payout request was declined.${data.note?.trim() ? ` Finance note: ${data.note.trim()}` : ""}`,
+      };
+      await notify({
+        userId: payload.owner_user_id,
+        templateCode: `hire_payout_${data.decision}`,
+        title: `Hire payout ${data.decision}`,
+        body: messages[data.decision],
+        critical: true,
+        dedupeKey: `hire-payout:${data.id}:${data.decision}`,
+      });
+    } catch (notifyError) {
+      console.error("hire payout status notification failed", notifyError);
+    }
+    return { ok: true, status: payload.status ?? data.decision };
+  });
+
 export const listHireQuotes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

@@ -981,6 +981,7 @@ export type Database = {
           gross_paid_total: number
           owner_balance: number
           owner_user_id: string
+          paid_out_total: number
           platform_fee_total: number
           updated_at: string
         }
@@ -988,6 +989,7 @@ export type Database = {
           gross_paid_total?: number
           owner_balance?: number
           owner_user_id: string
+          paid_out_total?: number
           platform_fee_total?: number
           updated_at?: string
         }
@@ -995,7 +997,56 @@ export type Database = {
           gross_paid_total?: number
           owner_balance?: number
           owner_user_id?: string
+          paid_out_total?: number
           platform_fee_total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hire_payout_requests: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          owner_user_id: string
+          paid_at: string | null
+          payout_phone: string
+          payout_reference: string | null
+          requested_at: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          owner_user_id: string
+          paid_at?: string | null
+          payout_phone: string
+          payout_reference?: string | null
+          requested_at?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          owner_user_id?: string
+          paid_at?: string | null
+          payout_phone?: string
+          payout_reference?: string | null
+          requested_at?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: []
@@ -2780,6 +2831,20 @@ export type Database = {
         Returns: boolean
       }
       requires_phone_verification: { Args: never; Returns: boolean }
+      request_hire_payout: {
+        Args: { p_amount: number; p_owner_user_id: string; p_payout_phone: string }
+        Returns: Json
+      }
+      review_hire_payout_request: {
+        Args: {
+          p_decision: string
+          p_note?: string | null
+          p_payout_reference?: string | null
+          p_request_id: string
+          p_reviewer_id: string
+        }
+        Returns: Json
+      }
       review_delivery_rate_proposal: {
         Args: {
           p_decision: string

@@ -7,6 +7,7 @@ import { RoleGate } from "@/components/RoleGate";
 import { getFleetBoard, updateFleetSettlement } from "@/lib/admin.functions";
 import { HireVehicleManager } from "@/components/HireVehicleManager";
 import { HireRequestsBoard } from "@/components/HireRequestsBoard";
+import { HirePortfolioFinance } from "@/components/HirePortfolioFinance";
 
 export const Route = createFileRoute("/_authenticated/fleet")({
   head: () => ({
@@ -208,6 +209,7 @@ function FleetBoard() {
 
         <HireVehicleManager />
         <HireRequestsBoard />
+        <HirePortfolioFinance />
       </div>
     </AppShell>
   );

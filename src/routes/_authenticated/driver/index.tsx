@@ -10,6 +10,7 @@ import { CarBadge } from "@/components/CarBadge";
 import { PushSettings } from "@/components/PushSettings";
 import { HireRequestsBoard } from "@/components/HireRequestsBoard";
 import { HireVehicleManager } from "@/components/HireVehicleManager";
+import { HirePortfolioFinance } from "@/components/HirePortfolioFinance";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acceptOffer,
@@ -83,6 +84,8 @@ function HireOwnerPortal() {
           </Link>
         </section>
         <HireVehicleManager hireOnly />
+        <HireRequestsBoard />
+        <HirePortfolioFinance />
       </div>
     </AppShell>
   );
@@ -656,6 +659,7 @@ function DriverHome() {
 
         <HireRequestsBoard />
         <HireVehicleManager />
+        <HirePortfolioFinance />
       </div>
     </AppShell>
   );

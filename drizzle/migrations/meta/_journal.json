@@ -36,6 +36,13 @@
       "when": 1791446348232,
       "tag": "0004_hire_payments_commission_and_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791449512695,
+      "tag": "0005_hire_wallet_payout_requests",
+      "breakpoints": true
     }
   ]
 }
