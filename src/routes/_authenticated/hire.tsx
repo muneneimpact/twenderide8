@@ -397,12 +397,12 @@ function HirePage() {
         {tab === "self_drive" && bookingStep === "browse" ? (
           <section className="surface-card p-4">
             <h2 className="font-display text-lg font-bold text-foreground">
-              Available cars for hire
+              Available cars for hire{vehicles.isSuccess ? ` · ${listed.length}` : ""}
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Browse the fleet first. Cars with the earliest available pickup window appear at the
-              top. Open a car to choose pickup and return times and see the total before entering
-              your details.
+              Browse the collection first. Tap any car to view its photo gallery, features and
+              unavailable dates, then choose pickup and return times. You will see the total before
+              entering your details.
             </p>
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">

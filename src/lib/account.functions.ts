@@ -335,7 +335,7 @@ export const getDriverOnboarding = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const [
       { data: driver },
-      { data: vehicles },
+      { data: ownedVehicles },
       { data: types },
       { data: documents },
       { data: profile },
@@ -346,10 +346,30 @@ export const getDriverOnboarding = createServerFn({ method: "POST" })
       supabase.from("documents").select("*").eq("subject_user_id", userId),
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
     ]);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: authorisations, error: authorisationError } = await supabaseAdmin
+      .from("driver_vehicle_authorisations")
+      .select("vehicle_id")
+      .eq("driver_id", userId)
+      .is("revoked_at", null);
+    if (authorisationError) throw new Error(authorisationError.message);
+    const ownedVehicleIds = new Set((ownedVehicles ?? []).map((vehicle) => vehicle.id));
+    const additionalVehicleIds = [
+      ...new Set((authorisations ?? []).map((row) => row.vehicle_id)),
+    ].filter((id) => !ownedVehicleIds.has(id));
+    let authorisedVehicles: NonNullable<typeof ownedVehicles> = [];
+    if (additionalVehicleIds.length) {
+      const { data, error } = await supabaseAdmin
+        .from("vehicles")
+        .select("*")
+        .in("id", additionalVehicleIds);
+      if (error) throw new Error(error.message);
+      authorisedVehicles = data ?? [];
+    }
     return {
       driver,
       profile,
-      vehicles: vehicles ?? [],
+      vehicles: [...(ownedVehicles ?? []), ...authorisedVehicles],
       documentTypes: (types ?? []).filter(
         (t) => t.applies_to === "driver" || t.applies_to === "vehicle",
       ),
@@ -395,14 +415,15 @@ export const submitDocument = createServerFn({ method: "POST" })
       throw new Error("That upload does not belong to your account.");
     }
     if (data.vehicleId) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const [{ data: owned }, { data: authorised }] = await Promise.all([
-        context.supabase
+        supabaseAdmin
           .from("vehicles")
           .select("id")
           .eq("id", data.vehicleId)
           .eq("owner_driver_id", context.userId)
           .maybeSingle(),
-        context.supabase
+        supabaseAdmin
           .from("driver_vehicle_authorisations")
           .select("vehicle_id")
           .eq("vehicle_id", data.vehicleId)

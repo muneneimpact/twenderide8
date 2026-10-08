@@ -345,8 +345,15 @@ function DriverHome() {
                 {documents.filter((d) => d.status === "approved").length}/{documents.length || 0}
               </p>
               <p className="mt-1 text-xs text-brand-foreground/70">approved</p>
-              <Link to="/driver/apply" className="mt-2 inline-flex text-xs font-semibold text-brand-foreground">
-                Add or update documents →
+              <p className="mt-1 text-[11px] text-brand-foreground/70">
+                Upload or renew your compliance documents for Operations review.
+              </p>
+              <Link
+                to="/driver/apply"
+                hash="compliance-documents"
+                className="mt-2 inline-flex text-xs font-semibold text-brand-foreground"
+              >
+                Upload or renew documents →
               </Link>
             </section>
           </div>

@@ -67,6 +67,7 @@ function DriverApply() {
   const [docExpiry, setDocExpiry] = useState("");
   const [docVehicle, setDocVehicle] = useState("");
   const [docFile, setDocFile] = useState<File | null>(null);
+  const [documentNotice, setDocumentNotice] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   /** Riders see this photo once they are matched, so it is stored on the profile. */
@@ -124,16 +125,30 @@ function DriverApply() {
     mutationFn: async () => {
       let filePath: string | undefined;
       if (docFile) {
-        if (docFile.size > 10 * 1024 * 1024) throw new Error("Each compliance document must be 10 MB or smaller.");
+        if (docFile.size > 10 * 1024 * 1024) {
+          throw new Error("Each compliance document must be 10 MB or smaller.");
+        }
+        if (
+          docFile.type &&
+          !docFile.type.startsWith("image/") &&
+          docFile.type !== "application/pdf"
+        ) {
+          throw new Error("Upload a photo or PDF of your compliance document.");
+        }
         const { data: session } = await supabase.auth.getUser();
         const userId = session.user?.id;
         if (!userId) throw new Error("Your session expired. Sign in again.");
-        const extension = docFile.name.split(".").pop()?.toLowerCase() ?? "jpg";
+        const extension =
+          docFile.name
+            .split(".")
+            .pop()
+            ?.toLowerCase()
+            .replace(/[^a-z0-9]/g, "") || "jpg";
         const path = `${userId}/${docType}-${Date.now()}.${extension}`;
         const { error } = await supabase.storage
           .from("driver-documents")
           .upload(path, docFile, { contentType: docFile.type || "image/jpeg", upsert: false });
-        if (error) throw new Error(`Photo upload failed: ${error.message}`);
+        if (error) throw new Error(`Compliance document upload failed: ${error.message}`);
         filePath = path;
       }
       return docFn({
@@ -150,6 +165,9 @@ function DriverApply() {
       setDocRef("");
       setDocExpiry("");
       setDocFile(null);
+      setDocumentNotice(
+        "Compliance document submitted. Operations will review it before approval.",
+      );
       invalidate();
     },
   });
@@ -361,8 +379,9 @@ function DriverApply() {
         <section id="compliance-documents" className="surface-card scroll-mt-20 p-4">
           <h3 className="text-sm font-semibold text-foreground">4 · Compliance documents</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Tap a document below to add it. National ID, driving licence and certificate of good conduct need a clear
-            photo; the rest only need a reference for now.
+            Drivers can add or renew documents here at any time, including after approval. Uploads
+            are sent to Operations for review; they are not approved automatically. National ID,
+            driving licence and certificate of good conduct need a clear photo or scan.
           </p>
           <ul className="mt-3 space-y-2">
             {documentTypes.map((t) => {
@@ -382,7 +401,9 @@ function DriverApply() {
                       setDocType(selected ? "" : t.id);
                       setDocRef("");
                       setDocExpiry("");
+                      setDocVehicle("");
                       setDocFile(null);
+                      setDocumentNotice(null);
                       addDoc.reset();
                     }}
                     className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm"
@@ -433,13 +454,13 @@ function DriverApply() {
                           className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground"
                         />
                       </label>
-                      {vehicles.length > 0 && (
+                      {t.applies_to === "vehicle" && vehicles.length > 0 && (
                         <select
                           value={docVehicle}
                           onChange={(e) => setDocVehicle(e.target.value)}
                           className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
                         >
-                          <option value="">Not vehicle-specific</option>
+                          <option value="">Choose a vehicle</option>
                           {vehicles.map((v) => (
                             <option key={v.id} value={v.id}>
                               {v.plate_number}
@@ -464,6 +485,7 @@ function DriverApply() {
             })}
           </ul>
 
+          {documentNotice ? <p className="mt-3 text-xs text-success">{documentNotice}</p> : null}
 
           {documents.length > 0 && (
             <ul className="mt-3 divide-y divide-border">
