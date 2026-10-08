@@ -808,12 +808,6 @@ export type Database = {
           kind: string
           license_document_path: string | null
           notes: string | null
-          commission_percent_snapshot: number | null
-          payment_hold_expires_at: string | null
-          payment_minimum_amount: number | null
-          payment_paid_total: number
-          payment_policy: string
-          payment_status: string
           organisation: string | null
           passengers: number
           pickup_label: string | null
@@ -853,12 +847,6 @@ export type Database = {
           kind?: string
           license_document_path?: string | null
           notes?: string | null
-          commission_percent_snapshot?: number | null
-          payment_hold_expires_at?: string | null
-          payment_minimum_amount?: number | null
-          payment_paid_total?: number
-          payment_policy?: string
-          payment_status?: string
           organisation?: string | null
           passengers?: number
           pickup_label?: string | null
@@ -898,12 +886,6 @@ export type Database = {
           kind?: string
           license_document_path?: string | null
           notes?: string | null
-          commission_percent_snapshot?: number | null
-          payment_hold_expires_at?: string | null
-          payment_minimum_amount?: number | null
-          payment_paid_total?: number
-          payment_policy?: string
-          payment_status?: string
           organisation?: string | null
           passengers?: number
           pickup_label?: string | null
@@ -933,123 +915,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      hire_payment_settlements: {
-        Row: {
-          commission_percent: number
-          created_at: string
-          currency: string
-          gross_amount: number
-          hire_quote_id: string
-          id: string
-          mpesa_receipt: string | null
-          owner_net_amount: number
-          owner_user_id: string
-          payment_intent_id: string
-          platform_fee_amount: number
-        }
-        Insert: {
-          commission_percent: number
-          created_at?: string
-          currency?: string
-          gross_amount: number
-          hire_quote_id: string
-          id?: string
-          mpesa_receipt?: string | null
-          owner_net_amount: number
-          owner_user_id: string
-          payment_intent_id: string
-          platform_fee_amount: number
-        }
-        Update: {
-          commission_percent?: number
-          created_at?: string
-          currency?: string
-          gross_amount?: number
-          hire_quote_id?: string
-          id?: string
-          mpesa_receipt?: string | null
-          owner_net_amount?: number
-          owner_user_id?: string
-          payment_intent_id?: string
-          platform_fee_amount?: number
-        }
-        Relationships: []
-      }
-      hire_owner_balances: {
-        Row: {
-          gross_paid_total: number
-          owner_balance: number
-          owner_user_id: string
-          paid_out_total: number
-          platform_fee_total: number
-          updated_at: string
-        }
-        Insert: {
-          gross_paid_total?: number
-          owner_balance?: number
-          owner_user_id: string
-          paid_out_total?: number
-          platform_fee_total?: number
-          updated_at?: string
-        }
-        Update: {
-          gross_paid_total?: number
-          owner_balance?: number
-          owner_user_id?: string
-          paid_out_total?: number
-          platform_fee_total?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      hire_payout_requests: {
-        Row: {
-          amount: number
-          created_at: string
-          id: string
-          owner_user_id: string
-          paid_at: string | null
-          payout_phone: string
-          payout_reference: string | null
-          requested_at: string
-          review_note: string | null
-          reviewed_at: string | null
-          reviewed_by: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          id?: string
-          owner_user_id: string
-          paid_at?: string | null
-          payout_phone: string
-          payout_reference?: string | null
-          requested_at?: string
-          review_note?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          id?: string
-          owner_user_id?: string
-          paid_at?: string | null
-          payout_phone?: string
-          payout_reference?: string | null
-          requested_at?: string
-          review_note?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       incidents: {
         Row: {
@@ -1169,9 +1034,6 @@ export type Database = {
           push_enabled: boolean
           push_permission: string
           sms_enabled: boolean
-          whatsapp_enabled: boolean
-          whatsapp_opted_in_at: string | null
-          whatsapp_opt_in_source: string | null
           updated_at: string
           user_id: string
         }
@@ -1180,9 +1042,6 @@ export type Database = {
           push_enabled?: boolean
           push_permission?: string
           sms_enabled?: boolean
-          whatsapp_enabled?: boolean
-          whatsapp_opted_in_at?: string | null
-          whatsapp_opt_in_source?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1191,9 +1050,6 @@ export type Database = {
           push_enabled?: boolean
           push_permission?: string
           sms_enabled?: boolean
-          whatsapp_enabled?: boolean
-          whatsapp_opted_in_at?: string | null
-          whatsapp_opt_in_source?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -1259,8 +1115,7 @@ export type Database = {
           provider_reference: string | null
           provider_request: Json
           provider_response: Json
-          ride_id: string | null
-          hire_quote_id: string | null
+          ride_id: string
           status: Database["public"]["Enums"]["payment_status"]
           updated_at: string
         }
@@ -1279,8 +1134,7 @@ export type Database = {
           provider_reference?: string | null
           provider_request?: Json
           provider_response?: Json
-          ride_id?: string | null
-          hire_quote_id?: string | null
+          ride_id: string
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string
         }
@@ -1299,19 +1153,11 @@ export type Database = {
           provider_reference?: string | null
           provider_request?: Json
           provider_response?: Json
-          ride_id?: string | null
-          hire_quote_id?: string | null
+          ride_id?: string
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "payment_intents_hire_quote_id_fkey"
-            columns: ["hire_quote_id"]
-            isOneToOne: false
-            referencedRelation: "hire_quotes"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "payment_intents_ride_id_fkey"
             columns: ["ride_id"]
@@ -2350,9 +2196,7 @@ export type Database = {
           hire_available: boolean
           hire_daily_rate: number | null
           hire_description: string | null
-          hire_features: string | null
           hire_mode: string
-          hire_payment_policy: string
           hire_notes: string | null
           hire_rejection_reason: string | null
           hire_reviewed_at: string | null
@@ -2380,9 +2224,7 @@ export type Database = {
           hire_available?: boolean
           hire_daily_rate?: number | null
           hire_description?: string | null
-          hire_features?: string | null
           hire_mode?: string
-          hire_payment_policy?: string
           hire_notes?: string | null
           hire_rejection_reason?: string | null
           hire_reviewed_at?: string | null
@@ -2410,9 +2252,7 @@ export type Database = {
           hire_available?: boolean
           hire_daily_rate?: number | null
           hire_description?: string | null
-          hire_features?: string | null
           hire_mode?: string
-          hire_payment_policy?: string
           hire_notes?: string | null
           hire_rejection_reason?: string | null
           hire_reviewed_at?: string | null
@@ -2603,8 +2443,6 @@ export type Database = {
           direction: string
           error_message: string | null
           id: string
-          hire_quote_id: string | null
-          idempotency_key: string | null
           message_type: string
           provider_message_id: string | null
           sent_by: string | null
@@ -2618,8 +2456,6 @@ export type Database = {
           direction: string
           error_message?: string | null
           id?: string
-          hire_quote_id?: string | null
-          idempotency_key?: string | null
           message_type?: string
           provider_message_id?: string | null
           sent_by?: string | null
@@ -2633,8 +2469,6 @@ export type Database = {
           direction?: string
           error_message?: string | null
           id?: string
-          hire_quote_id?: string | null
-          idempotency_key?: string | null
           message_type?: string
           provider_message_id?: string | null
           sent_by?: string | null
@@ -2746,10 +2580,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      apply_hire_payment: {
-        Args: { p_payment_intent_id: string; p_mpesa_receipt?: string | null }
-        Returns: Json
-      }
       accept_ride_offer: {
         Args: {
           _driver_id: string
@@ -2831,20 +2661,6 @@ export type Database = {
         Returns: boolean
       }
       requires_phone_verification: { Args: never; Returns: boolean }
-      request_hire_payout: {
-        Args: { p_amount: number; p_owner_user_id: string; p_payout_phone: string }
-        Returns: Json
-      }
-      review_hire_payout_request: {
-        Args: {
-          p_decision: string
-          p_note?: string | null
-          p_payout_reference?: string | null
-          p_request_id: string
-          p_reviewer_id: string
-        }
-        Returns: Json
-      }
       review_delivery_rate_proposal: {
         Args: {
           p_decision: string
