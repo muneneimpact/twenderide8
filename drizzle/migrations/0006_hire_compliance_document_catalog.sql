@@ -1,3 +1,5 @@
+ALTER TABLE public.document_types DROP CONSTRAINT IF EXISTS document_types_applies_to;
+ALTER TABLE public.document_types ADD CONSTRAINT document_types_applies_to CHECK (applies_to = ANY (ARRAY['driver','fleet','vehicle','customer','owner']));
 -- Standardize compliance document types used by driver and hire-vehicle workflows.
 -- Logbook and roadworthiness inspection are available but optional for now.
 WITH desired(code, label, applies_to, required, requires_image, expires, reminder_days, active) AS (
