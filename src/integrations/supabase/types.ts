@@ -2196,6 +2196,7 @@ export type Database = {
           hire_available: boolean
           hire_daily_rate: number | null
           hire_description: string | null
+          hire_features: string | null
           hire_mode: string
           hire_notes: string | null
           hire_rejection_reason: string | null
@@ -2224,6 +2225,7 @@ export type Database = {
           hire_available?: boolean
           hire_daily_rate?: number | null
           hire_description?: string | null
+          hire_features?: string | null
           hire_mode?: string
           hire_notes?: string | null
           hire_rejection_reason?: string | null
@@ -2252,6 +2254,7 @@ export type Database = {
           hire_available?: boolean
           hire_daily_rate?: number | null
           hire_description?: string | null
+          hire_features?: string | null
           hire_mode?: string
           hire_notes?: string | null
           hire_rejection_reason?: string | null

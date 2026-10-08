@@ -219,14 +219,18 @@ function AdminBoard() {
           )}
         </section>
 
-        {/* Hire listings have a separate safety and quality approval from vehicle registration. */}
+        {/* Ops inspects hire listing details and photos separately from road-use registration. */}
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">
-            Hire listings awaiting review ({b.pendingHireVehicles.length})
+            Hire vehicles awaiting inspection ({b.pendingHireVehicles.length})
           </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Inspect the physical car and verify its photos, features, description, and hire price
+            before approving the public listing.
+          </p>
           {b.pendingHireVehicles.length === 0 ? (
             <p className="mt-2 text-xs text-muted-foreground">
-              No hire listings awaiting approval.
+              No hire vehicles awaiting inspection.
             </p>
           ) : (
             <ul className="mt-2 divide-y divide-border">
@@ -242,6 +246,11 @@ function AdminBoard() {
                   </p>
                   {vehicle.hire_description ? (
                     <p className="mt-1 text-xs text-muted-foreground">{vehicle.hire_description}</p>
+                  ) : null}
+                  {vehicle.hire_features ? (
+                    <p className="mt-1 text-xs text-foreground">
+                      Listed features: {vehicle.hire_features}
+                    </p>
                   ) : null}
                   {vehicle.review_photo_links.length ? (
                     <div className="mt-2 flex gap-2 overflow-x-auto">

@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  estimateHireTotal,
   listHireVehicles,
   listMyHireQuotes,
   respondToHireOffer,
@@ -19,12 +20,13 @@ export const Route = createFileRoute("/_authenticated/hire")({
       {
         name: "description",
         content:
-          "Browse every hire car in Meru with photos, details and booked dates, pick your days and book it, or ask for a fuelled, chauffeured quotation.",
+          "Browse inspected hire cars in Meru, compare features and availability, choose pickup and return times, see your total, then send your booking details.",
       },
       { property: "og:title", content: "Hire a car in Meru | Twende Meru Rides" },
       {
         property: "og:description",
-        content: "Self-drive hire with real listed cars and live availability, or a full-service quotation.",
+        content:
+          "Self-drive hire with real listed cars and live availability, or a full-service quotation.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -57,15 +59,53 @@ interface Place {
 
 type Vehicle = Awaited<ReturnType<typeof listHireVehicles>>[number];
 
-function overlaps(vehicle: Vehicle, start: Date, days: number) {
-  const end = start.getTime() + days * DAY;
+function overlapsRange(vehicle: Vehicle, start: Date, end: Date) {
   return vehicle.bookings.some(
-    (b) => new Date(b.start).getTime() < end && new Date(b.end).getTime() > start.getTime(),
+    (booking) =>
+      new Date(booking.start).getTime() < end.getTime() &&
+      new Date(booking.end).getTime() > start.getTime(),
   );
 }
 
-function fmtDate(value: string | Date) {
-  return new Date(value).toLocaleDateString("en-KE", { day: "numeric", month: "short" });
+function nextAvailableStart(vehicle: Vehicle, days: number, from = new Date()) {
+  let cursor = from.getTime();
+  const duration = Math.max(1, days) * DAY;
+  const bookings = [...vehicle.bookings].sort(
+    (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+  );
+  for (const booking of bookings) {
+    const bookingStart = new Date(booking.start).getTime();
+    const bookingEnd = new Date(booking.end).getTime();
+    if (bookingEnd <= cursor) continue;
+    if (bookingStart < cursor + duration) cursor = bookingEnd;
+  }
+  return new Date(cursor);
+}
+
+function parseFeatures(value: string | null) {
+  return (value ?? "")
+    .split(",")
+    .map((feature) => feature.trim())
+    .filter(Boolean);
+}
+
+function localDateTimeInput(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function availabilityDateLabel(value: string | Date) {
+  const date = new Date(value);
+  const today = new Date();
+  const sameDay =
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate();
+  const formatted = date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  return sameDay ? `Available today, ${formatted}` : `Available on ${formatted}`;
 }
 
 function HirePage() {
@@ -82,7 +122,7 @@ function HirePage() {
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
-  const [modalStartDate, setModalStartDate] = useState<Date | null>(null);
+  const [bookingStep, setBookingStep] = useState<"browse" | "details">("browse");
 
   // Filters
   const [fSeats, setFSeats] = useState("");
@@ -98,7 +138,7 @@ function HirePage() {
   const [organisation, setOrganisation] = useState("");
   const [vehicleClass, setVehicleClass] = useState<(typeof CLASSES)[number]["value"]>("go");
   const [startAt, setStartAt] = useState("");
-  const [daysText, setDaysText] = useState("1");
+  const [returnAt, setReturnAt] = useState("");
   const [peopleText, setPeopleText] = useState("1");
   const [pickup, setPickup] = useState<Place | null>(null);
   const [stops, setStops] = useState<Place[]>([]);
@@ -109,14 +149,30 @@ function HirePage() {
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const days = Math.min(90, Math.max(1, Number(daysText) || 1));
   const passengers = Math.min(60, Math.max(1, Number(peopleText) || 1));
   const start = startAt ? new Date(startAt) : null;
-  const endDate = start ? new Date(start.getTime() + days * DAY) : null;
+  const endDate = returnAt ? new Date(returnAt) : null;
+  const days =
+    start && endDate && endDate.getTime() > start.getTime()
+      ? Math.ceil((endDate.getTime() - start.getTime()) / DAY)
+      : 0;
+  const scheduleValid = Boolean(
+    start &&
+    endDate &&
+    !Number.isNaN(start.getTime()) &&
+    !Number.isNaN(endDate.getTime()) &&
+    start.getTime() >= Date.now() &&
+    endDate.getTime() > start.getTime() &&
+    days >= 1 &&
+    days <= 90,
+  );
 
-  const all = vehicles.data ?? [];
-  const makes = useMemo(() => [...new Set(all.map((v) => v.make).filter(Boolean))] as string[], [all]);
-  const listed = all.filter((v) => {
+  const all = useMemo(() => vehicles.data ?? [], [vehicles.data]);
+  const makes = useMemo(
+    () => [...new Set(all.map((v) => v.make).filter(Boolean))] as string[],
+    [all],
+  );
+  const filtered = all.filter((v) => {
     if (!(v.hire_mode === "both" || v.hire_mode === tab || !v.hire_mode)) return false;
     if (fSeats && (v.seats ?? 0) < Number(fSeats)) return false;
     if (fMake && v.make !== fMake) return false;
@@ -126,9 +182,52 @@ function HirePage() {
     return true;
   });
 
+  const listed = [...filtered].sort((a, b) => {
+    const aBusy = Boolean(scheduleValid && start && endDate && overlapsRange(a, start, endDate));
+    const bBusy = Boolean(scheduleValid && start && endDate && overlapsRange(b, start, endDate));
+    if (scheduleValid && aBusy !== bBusy) return aBusy ? 1 : -1;
+    const durationDays = days || 1;
+    const refA = scheduleValid && aBusy && endDate ? endDate : new Date();
+    const refB = scheduleValid && bBusy && endDate ? endDate : new Date();
+    const nextA = nextAvailableStart(a, durationDays, refA).getTime();
+    const nextB = nextAvailableStart(b, durationDays, refB).getTime();
+    return nextA - nextB || Number(a.day_rate) - Number(b.day_rate);
+  });
+
   const chosen = all.find((v) => v.id === vehicleId) ?? null;
   const opened = all.find((v) => v.id === openId) ?? null;
-  const clash = Boolean(chosen && start && overlaps(chosen, start, days));
+  const clash = Boolean(
+    chosen && scheduleValid && start && endDate && overlapsRange(chosen, start, endDate),
+  );
+  const openClash = Boolean(
+    opened && scheduleValid && start && endDate && overlapsRange(opened, start, endDate),
+  );
+  const detailsReady =
+    scheduleValid && (tab === "self_drive" ? bookingStep === "details" && Boolean(chosen) : true);
+  const estimatedTotal = scheduleValid
+    ? estimateHireTotal({
+        vehicleClass: (chosen?.vehicle_class ?? vehicleClass) as Vehicle["vehicle_class"],
+        driveMode: tab,
+        days,
+        stops: stops.length,
+        dailyRate: chosen ? Number(chosen.day_rate) : null,
+      })
+    : null;
+  const openedTotal =
+    scheduleValid && opened
+      ? estimateHireTotal({
+          vehicleClass: opened.vehicle_class,
+          driveMode: tab,
+          days,
+          stops: 0,
+          dailyRate: Number(opened.day_rate),
+        })
+      : null;
+
+  function updatePickupTime(value: string) {
+    setStartAt(value);
+    if (returnAt && new Date(returnAt).getTime() <= new Date(value).getTime()) setReturnAt("");
+  }
 
   async function upload(kind: "id" | "license", file: File) {
     setUploading(kind);
@@ -158,7 +257,7 @@ function HirePage() {
           vehicleClass: (chosen?.vehicle_class ?? vehicleClass) as typeof vehicleClass,
           driveMode: tab,
           startAt: new Date(startAt).toISOString(),
-          days,
+          endAt: new Date(returnAt).toISOString(),
           passengers,
           pickupLabel: pickup!.label,
           pickupLat: pickup!.lat,
@@ -186,19 +285,20 @@ function HirePage() {
   });
 
   const respond = useMutation({
-    mutationFn: (vars: { offerId: string; action: "accept" | "decline" }) => respondFn({ data: vars }),
+    mutationFn: (vars: { offerId: string; action: "accept" | "decline" }) =>
+      respondFn({ data: vars }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hire-quotes"] }),
   });
 
   const missing: string[] = [];
   if (tab === "self_drive" && !vehicleId) missing.push("choose a vehicle");
-  if (!startAt) missing.push("pick a start date");
+  if (!scheduleValid) missing.push("choose a future pickup and return time within 90 days");
   if (!pickup) missing.push("set where the car is brought");
   if (!renterName.trim()) missing.push("enter your name");
   if (!idPath) missing.push("upload your ID");
   if (tab === "self_drive" && !licensePath) missing.push("upload your driving licence");
   if (chosen && !rulesAccepted) missing.push("accept the owner's rules");
-  if (clash) missing.push("choose free dates");
+  if (clash) missing.push("choose available pickup and return times");
   const canSubmit = missing.length === 0 && !submit.isPending;
 
   return (
@@ -216,6 +316,8 @@ function HirePage() {
               onClick={() => {
                 setTab(o.key);
                 setVehicleId(null);
+                setBookingStep("browse");
+                setRulesAccepted(false);
               }}
               className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold ${
                 tab === o.key
@@ -228,43 +330,35 @@ function HirePage() {
           ))}
         </div>
 
-        {/* 1. Dates first, so every car shows whether it is free. */}
-        <section className="surface-card p-4">
-          <h2 className="font-display text-lg font-bold text-foreground">When do you need it?</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <Field label="Start date and time">
-              <input
-                type="datetime-local"
-                value={startAt}
-                onChange={(e) => setStartAt(e.target.value)}
-                className="input-base"
-              />
-            </Field>
-            <Field label="Number of days">
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={90}
-                value={daysText}
-                onChange={(e) => setDaysText(e.target.value)}
-                onBlur={() => setDaysText(String(days))}
-                className="input-base"
-              />
-            </Field>
-          </div>
-          {start && endDate ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              From {start.toLocaleString("en-KE")} to {endDate.toLocaleString("en-KE")}
-            </p>
-          ) : null}
-        </section>
-
-        {tab === "self_drive" ? (
+        {tab === "chauffeured" ? (
           <section className="surface-card p-4">
-            <h2 className="font-display text-lg font-bold text-foreground">Choose a vehicle</h2>
+            <h2 className="font-display text-lg font-bold text-foreground">Pickup and return</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              All hire cars are shown. Booked dates are marked — pick days when the car is free. You fuel it yourself.
+              Choose both times. Hire is charged in 24-hour blocks, rounded up to a full day.
+            </p>
+            <ScheduleFields
+              startAt={startAt}
+              returnAt={returnAt}
+              onPickup={updatePickupTime}
+              onReturn={setReturnAt}
+            />
+            {scheduleValid && estimatedTotal !== null ? (
+              <p className="mt-3 font-display text-base font-bold text-foreground">
+                Estimated total: KES {estimatedTotal.toLocaleString("en-KE")}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
+        {tab === "self_drive" && bookingStep === "browse" ? (
+          <section className="surface-card p-4">
+            <h2 className="font-display text-lg font-bold text-foreground">
+              Available cars for hire
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Browse the fleet first. Cars with the earliest available pickup window appear at the
+              top. Open a car to choose pickup and return times and see the total before entering
+              your details.
             </p>
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -275,7 +369,11 @@ function HirePage() {
                 placeholder="Min seats"
                 className="input-base"
               />
-              <select value={fMake} onChange={(e) => setFMake(e.target.value)} className="input-base">
+              <select
+                value={fMake}
+                onChange={(e) => setFMake(e.target.value)}
+                className="input-base"
+              >
                 <option value="">Any make</option>
                 {makes.map((m) => (
                   <option key={m} value={m}>
@@ -289,7 +387,11 @@ function HirePage() {
                 placeholder="Model"
                 className="input-base"
               />
-              <select value={fClass} onChange={(e) => setFClass(e.target.value)} className="input-base">
+              <select
+                value={fClass}
+                onChange={(e) => setFClass(e.target.value)}
+                className="input-base"
+              >
                 <option value="">Any type</option>
                 {CLASSES.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -306,14 +408,29 @@ function HirePage() {
               />
             </div>
 
-            {vehicles.isPending ? <p className="mt-3 text-xs text-muted-foreground">Loading cars…</p> : null}
+            {vehicles.isPending ? (
+              <p className="mt-3 text-xs text-muted-foreground">Loading cars…</p>
+            ) : null}
             {!vehicles.isPending && listed.length === 0 ? (
               <p className="mt-3 text-xs text-muted-foreground">No cars match these filters.</p>
             ) : null}
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {listed.map((v) => {
-                const busy = start ? overlaps(v, start, days) : false;
+                const busy = Boolean(
+                  scheduleValid && start && endDate && overlapsRange(v, start, endDate),
+                );
+                const availabilityFrom = nextAvailableStart(
+                  v,
+                  scheduleValid && busy ? days : scheduleValid ? days : 1,
+                  scheduleValid && busy && endDate ? endDate : new Date(),
+                );
+                const availabilityLabel = scheduleValid
+                  ? busy
+                    ? availabilityDateLabel(availabilityFrom)
+                    : "Available for your dates"
+                  : availabilityDateLabel(availabilityFrom);
+                const features = parseFeatures(v.hire_features);
                 return (
                   <article
                     key={v.id}
@@ -325,7 +442,6 @@ function HirePage() {
                       onClick={() => {
                         setOpenId(v.id);
                         setPhotoIndex(0);
-                        setModalStartDate(start ? new Date(start.getFullYear(), start.getMonth(), start.getDate()) : null);
                       }}
                       className="block w-full text-left"
                     >
@@ -346,15 +462,15 @@ function HirePage() {
                           <p className="truncate text-sm font-semibold text-foreground">
                             {[v.make, v.model].filter(Boolean).join(" ") || "Vehicle"}
                           </p>
-                          {start ? (
-                            <span
-                              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                busy ? "bg-destructive/15 text-destructive" : "bg-primary/15 text-primary"
-                              }`}
-                            >
-                              {busy ? "Booked then" : "Free"}
-                            </span>
-                          ) : null}
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              busy
+                                ? "bg-secondary text-muted-foreground"
+                                : "bg-primary/15 text-primary"
+                            }`}
+                          >
+                            {availabilityLabel}
+                          </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
                           {v.plate_number} · {v.vehicle_class}
@@ -364,7 +480,14 @@ function HirePage() {
                         <p className="mt-1 font-display text-sm font-bold text-foreground">
                           KES {Number(v.day_rate).toLocaleString("en-KE")} / day
                         </p>
-                        <p className="mt-1 text-[11px] font-medium text-primary">View details</p>
+                        {features.length ? (
+                          <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+                            {features.slice(0, 3).join(" · ")}
+                          </p>
+                        ) : null}
+                        <p className="mt-1 text-[11px] font-medium text-primary">
+                          View details and choose times
+                        </p>
                       </div>
                     </button>
                   </article>
@@ -374,199 +497,277 @@ function HirePage() {
           </section>
         ) : null}
 
-        {/* 2. Hirer details and needs. */}
-        <section className="surface-card p-4">
-          <h2 className="font-display text-lg font-bold text-foreground">Your details and needs</h2>
-          {chosen ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Selected: {[chosen.make, chosen.model].filter(Boolean).join(" ")} · {chosen.plate_number}
-              {start ? ` · KES ${(Number(chosen.day_rate) * days).toLocaleString("en-KE")} for ${days} day(s)` : ""}
-            </p>
-          ) : null}
-          {clash ? (
-            <p className="mt-2 rounded-xl bg-destructive/10 p-2 text-xs text-destructive">
-              This car is already booked for some of these dates. Choose other dates or another car.
-            </p>
-          ) : null}
-
-          <div className="mt-3 space-y-3">
-            <div className="flex gap-2">
-              {(
-                [
-                  { key: "individual", label: "Hiring as a person" },
-                  { key: "company", label: "For a company" },
-                ] as const
-              ).map((o) => (
-                <button
-                  key={o.key}
-                  onClick={() => setHirerType(o.key)}
-                  className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold ${
-                    hirerType === o.key
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-secondary text-secondary-foreground"
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
+        {tab === "self_drive" && bookingStep === "details" && chosen ? (
+          <section className="surface-card p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-primary">Selected car</p>
+                <h2 className="font-display text-lg font-bold text-foreground">
+                  {[chosen.make, chosen.model].filter(Boolean).join(" ") || "Vehicle"}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Pickup {start?.toLocaleString("en-KE")} · Return{" "}
+                  {endDate?.toLocaleString("en-KE")} · {days} day(s)
+                </p>
+                {estimatedTotal !== null ? (
+                  <p className="mt-1 font-display text-base font-bold text-foreground">
+                    Estimated total: KES {estimatedTotal.toLocaleString("en-KE")}
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setBookingStep("browse");
+                  setOpenId(chosen.id);
+                }}
+                className="rounded-full border border-input px-3 py-2 text-xs font-semibold text-foreground"
+              >
+                Change car or times
+              </button>
             </div>
+            {clash ? (
+              <p className="mt-2 rounded-xl bg-destructive/10 p-2 text-xs text-destructive">
+                This car is no longer available for these times. Select another pickup and return
+                window.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Full name">
-                <input value={renterName} onChange={(e) => setRenterName(e.target.value)} className="input-base" />
-              </Field>
-              <Field label="ID / passport number">
-                <input
-                  value={renterIdNumber}
-                  onChange={(e) => setRenterIdNumber(e.target.value)}
-                  className="input-base"
-                />
-              </Field>
-            </div>
-
-            {hirerType === "company" ? (
-              <Field label="Company or organisation">
-                <input
-                  value={organisation}
-                  onChange={(e) => setOrganisation(e.target.value)}
-                  placeholder="Tukuze Afrika Ltd"
-                  className="input-base"
-                />
-              </Field>
+        {detailsReady ? (
+          <section className="surface-card p-4">
+            <h2 className="font-display text-lg font-bold text-foreground">
+              Your details and needs
+            </h2>
+            {chosen ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Selected: {[chosen.make, chosen.model].filter(Boolean).join(" ")} ·{" "}
+                {chosen.plate_number}
+                {estimatedTotal !== null
+                  ? ` · KES ${estimatedTotal.toLocaleString("en-KE")} total for ${days} day(s)`
+                  : ""}
+              </p>
+            ) : null}
+            {clash ? (
+              <p className="mt-2 rounded-xl bg-destructive/10 p-2 text-xs text-destructive">
+                This car is already booked for some of these dates. Choose other dates or another
+                car.
+              </p>
             ) : null}
 
-            {tab === "chauffeured" ? (
-              <Field label="Vehicle type">
-                <select
-                  value={vehicleClass}
-                  onChange={(e) => setVehicleClass(e.target.value as typeof vehicleClass)}
-                  className="input-base"
-                >
-                  {CLASSES.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            ) : null}
-
-            <Field label="Number of people">
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={60}
-                value={peopleText}
-                onChange={(e) => setPeopleText(e.target.value)}
-                onBlur={() => setPeopleText(String(passengers))}
-                className="input-base"
-              />
-            </Field>
-            {chosen?.seats && passengers > chosen.seats ? (
-              <p className="text-xs text-destructive">This car has {chosen.seats} seats.</p>
-            ) : null}
-
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <UploadBox
-                label="Your ID (photo)"
-                done={Boolean(idPath)}
-                busy={uploading === "id"}
-                onFile={(f) => void upload("id", f)}
-              />
-              {tab === "self_drive" ? (
-                <UploadBox
-                  label="Driving licence (photo)"
-                  done={Boolean(licensePath)}
-                  busy={uploading === "license"}
-                  onFile={(f) => void upload("license", f)}
-                />
-              ) : null}
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">Where should the car be brought?</p>
-              {pickup ? (
-                <div className="mt-1 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">{pickup.label}</span>
+            <div className="mt-3 space-y-3">
+              <div className="flex gap-2">
+                {(
+                  [
+                    { key: "individual", label: "Hiring as a person" },
+                    { key: "company", label: "For a company" },
+                  ] as const
+                ).map((o) => (
                   <button
-                    onClick={() => setPickup(null)}
-                    className="rounded-full border border-input px-2 py-1 text-xs text-muted-foreground"
+                    key={o.key}
+                    onClick={() => setHirerType(o.key)}
+                    className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold ${
+                      hirerType === o.key
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border bg-secondary text-secondary-foreground"
+                    }`}
                   >
-                    Change
+                    {o.label}
                   </button>
-                </div>
-              ) : (
-                <div className="mt-1">
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Full name">
+                  <input
+                    value={renterName}
+                    onChange={(e) => setRenterName(e.target.value)}
+                    className="input-base"
+                  />
+                </Field>
+                <Field label="ID / passport number">
+                  <input
+                    value={renterIdNumber}
+                    onChange={(e) => setRenterIdNumber(e.target.value)}
+                    className="input-base"
+                  />
+                </Field>
+              </div>
+
+              {hirerType === "company" ? (
+                <Field label="Company or organisation">
+                  <input
+                    value={organisation}
+                    onChange={(e) => setOrganisation(e.target.value)}
+                    placeholder="Tukuze Afrika Ltd"
+                    className="input-base"
+                  />
+                </Field>
+              ) : null}
+
+              {tab === "chauffeured" ? (
+                <Field label="Vehicle type">
+                  <select
+                    value={vehicleClass}
+                    onChange={(e) => setVehicleClass(e.target.value as typeof vehicleClass)}
+                    className="input-base"
+                  >
+                    {CLASSES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              ) : null}
+
+              <Field label="Number of people">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={60}
+                  value={peopleText}
+                  onChange={(e) => setPeopleText(e.target.value)}
+                  onBlur={() => setPeopleText(String(passengers))}
+                  className="input-base"
+                />
+              </Field>
+              {chosen?.seats && passengers > chosen.seats ? (
+                <p className="text-xs text-destructive">This car has {chosen.seats} seats.</p>
+              ) : null}
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <UploadBox
+                  label="Your ID (photo)"
+                  done={Boolean(idPath)}
+                  busy={uploading === "id"}
+                  onFile={(f) => void upload("id", f)}
+                />
+                {tab === "self_drive" ? (
+                  <UploadBox
+                    label="Driving licence (photo)"
+                    done={Boolean(licensePath)}
+                    busy={uploading === "license"}
+                    onFile={(f) => void upload("license", f)}
+                  />
+                ) : null}
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Where should the car be brought?
+                </p>
+                {pickup ? (
+                  <div className="mt-1 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                      {pickup.label}
+                    </span>
+                    <button
+                      onClick={() => setPickup(null)}
+                      className="rounded-full border border-input px-2 py-1 text-xs text-muted-foreground"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-1">
+                    <PlaceSearch
+                      placeholder="Search for the collection point"
+                      value={null}
+                      onPick={(p) => setPickup({ label: p.label, lat: p.lat, lng: p.lng })}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Places you plan to visit
+                </p>
+                {stops.length ? (
+                  <ol className="mt-2 space-y-2">
+                    {stops.map((s, i) => (
+                      <li
+                        key={`${s.label}-${i}`}
+                        className="flex items-center gap-2 rounded-xl bg-secondary/50 px-3 py-2"
+                      >
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                          {i + 1}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                          {s.label}
+                        </span>
+                        <button
+                          onClick={() => setStops(stops.filter((_, x) => x !== i))}
+                          aria-label="Remove place"
+                          className="rounded-full border border-input px-2 py-1 text-xs text-destructive"
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+                <div className="mt-2">
                   <PlaceSearch
-                    placeholder="Search for the collection point"
+                    placeholder="Add a place you will visit"
                     value={null}
-                    onPick={(p) => setPickup({ label: p.label, lat: p.lat, lng: p.lng })}
+                    onPick={(p) =>
+                      setStops((c) => [...c, { label: p.label, lat: p.lat, lng: p.lng }])
+                    }
                   />
                 </div>
-              )}
-            </div>
+              </div>
 
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">Places you plan to visit</p>
-              {stops.length ? (
-                <ol className="mt-2 space-y-2">
-                  {stops.map((s, i) => (
-                    <li key={`${s.label}-${i}`} className="flex items-center gap-2 rounded-xl bg-secondary/50 px-3 py-2">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                        {i + 1}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{s.label}</span>
-                      <button
-                        onClick={() => setStops(stops.filter((_, x) => x !== i))}
-                        aria-label="Remove place"
-                        className="rounded-full border border-input px-2 py-1 text-xs text-destructive"
-                      >
-                        ✕
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              ) : null}
-              <div className="mt-2">
-                <PlaceSearch
-                  placeholder="Add a place you will visit"
-                  value={null}
-                  onPick={(p) => setStops((c) => [...c, { label: p.label, lat: p.lat, lng: p.lng }])}
+              <Field label="Anything else we should know?">
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  className="input-base"
                 />
-              </div>
-            </div>
+              </Field>
 
-            <Field label="Anything else we should know?">
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="input-base" />
-            </Field>
+              {chosen ? (
+                <div className="rounded-xl border border-border p-3">
+                  <p className="text-xs font-semibold text-foreground">Owner's rules</p>
+                  <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
+                    {chosen.hire_rules ||
+                      "Return the car clean and with the same fuel level. No smoking."}
+                  </p>
+                  <label className="mt-2 flex items-center gap-2 text-xs text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={rulesAccepted}
+                      onChange={(e) => setRulesAccepted(e.target.checked)}
+                    />
+                    I have read and accept the owner's rules
+                  </label>
+                </div>
+              ) : null}
 
-            {chosen ? (
-              <div className="rounded-xl border border-border p-3">
-                <p className="text-xs font-semibold text-foreground">Owner's rules</p>
-                <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
-                  {chosen.hire_rules || "Return the car clean and with the same fuel level. No smoking."}
+              <button
+                onClick={() => submit.mutate()}
+                disabled={!canSubmit}
+                className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {submit.isPending
+                  ? "Sending…"
+                  : tab === "self_drive"
+                    ? "Book this car"
+                    : "Request a quotation"}
+              </button>
+              {missing.length && !submit.isPending ? (
+                <p className="text-[11px] text-muted-foreground">
+                  To continue: {missing.join(", ")}.
                 </p>
-                <label className="mt-2 flex items-center gap-2 text-xs text-foreground">
-                  <input type="checkbox" checked={rulesAccepted} onChange={(e) => setRulesAccepted(e.target.checked)} />
-                  I have read and accept the owner's rules
-                </label>
-              </div>
-            ) : null}
-
-            <button
-              onClick={() => submit.mutate()}
-              disabled={!canSubmit}
-              className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              {submit.isPending ? "Sending…" : tab === "self_drive" ? "Book this car" : "Request a quotation"}
-            </button>
-            {missing.length && !submit.isPending ? (
-              <p className="text-[11px] text-muted-foreground">To continue: {missing.join(", ")}.</p>
-            ) : null}
-            {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
-          </div>
-        </section>
+              ) : null}
+              {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
+            </div>
+          </section>
+        ) : null}
 
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Your requests</h3>
@@ -583,7 +784,11 @@ function HirePage() {
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {new Date(q.start_at).toLocaleString("en-KE")} · {q.days} day(s) · {q.passengers} people ·{" "}
+                    {new Date(q.start_at).toLocaleString("en-KE")} –{" "}
+                    {new Date(
+                      q.end_at ?? new Date(new Date(q.start_at).getTime() + q.days * DAY),
+                    ).toLocaleString("en-KE")}{" "}
+                    · {q.days} day(s) · {q.passengers} people ·{" "}
                     {q.drive_mode === "self_drive" ? "Self drive" : "With driver"}
                   </p>
                   <p className="mt-1 font-display text-sm font-semibold text-foreground">
@@ -591,7 +796,9 @@ function HirePage() {
                       ? `Estimate KES ${Number(q.estimated_total).toLocaleString("en-KE")}`
                       : `KES ${Number(q.quoted_total).toLocaleString("en-KE")}`}
                   </p>
-                  {q.admin_notes ? <p className="mt-1 text-xs text-muted-foreground">{q.admin_notes}</p> : null}
+                  {q.admin_notes ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{q.admin_notes}</p>
+                  ) : null}
                   {(q.offers ?? [])
                     .filter((o) => o.status === "offered")
                     .map((o) => (
@@ -599,7 +806,9 @@ function HirePage() {
                         <p className="text-sm font-semibold text-foreground">
                           Offer: KES {Number(o.price).toLocaleString("en-KE")}
                         </p>
-                        {o.note ? <p className="mt-0.5 text-xs text-muted-foreground">{o.note}</p> : null}
+                        {o.note ? (
+                          <p className="mt-0.5 text-xs text-muted-foreground">{o.note}</p>
+                        ) : null}
                         <div className="mt-2 flex gap-2">
                           <button
                             onClick={() => respond.mutate({ offerId: o.id, action: "accept" })}
@@ -681,7 +890,10 @@ function HirePage() {
               <Detail k="Seats" v={opened.seats ? String(opened.seats) : "—"} />
               <Detail k="Colour" v={opened.colour ?? "—"} />
               <Detail k="Year" v={opened.year ? String(opened.year) : "—"} />
-              <Detail k="Price" v={`KES ${Number(opened.day_rate).toLocaleString("en-KE")} / day`} />
+              <Detail
+                k="Price"
+                v={`KES ${Number(opened.day_rate).toLocaleString("en-KE")} / day`}
+              />
             </dl>
             {opened.hire_description ? (
               <p className="mt-3 text-sm text-foreground">{opened.hire_description}</p>
@@ -690,7 +902,8 @@ function HirePage() {
             <div className="mt-3 rounded-xl border border-border p-3">
               <p className="text-xs font-semibold text-foreground">Owner's rules</p>
               <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
-                {opened.hire_rules || "Return the car clean and with the same fuel level. No smoking."}
+                {opened.hire_rules ||
+                  "Return the car clean and with the same fuel level. No smoking."}
               </p>
             </div>
 
@@ -700,34 +913,76 @@ function HirePage() {
                 <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
                   {opened.bookings.map((b) => (
                     <li key={b.start}>
-                      {fmtDate(b.start)} – {fmtDate(b.end)}
+                      {new Date(b.start).toLocaleString("en-KE")} –{" "}
+                      {new Date(b.end).toLocaleString("en-KE")}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-1 text-xs text-muted-foreground">No bookings — free any day.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Available any day — no upcoming bookings.
+                </p>
               )}
             </div>
 
-            <AvailabilityCalendar
-              key={opened.id}
-              vehicle={opened}
-              days={days}
-              selected={modalStartDate}
-              onSelect={setModalStartDate}
-            />
+            {parseFeatures(opened.hire_features).length ? (
+              <div className="mt-3">
+                <p className="text-xs font-semibold text-foreground">Features</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {parseFeatures(opened.hire_features).map((feature) => (
+                    <span
+                      key={feature}
+                      className="rounded-full bg-secondary px-2.5 py-1 text-[11px] text-foreground"
+                    >
+                      {feature}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-3 rounded-xl border border-border p-3">
+              <p className="text-xs font-semibold text-foreground">
+                Choose pickup and return times
+              </p>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Price is charged per 24-hour block, rounded up, with a one-day minimum.
+              </p>
+              <ScheduleFields
+                startAt={startAt}
+                returnAt={returnAt}
+                onPickup={updatePickupTime}
+                onReturn={setReturnAt}
+              />
+              {openClash ? (
+                <p className="mt-2 text-xs text-destructive">
+                  This car is reserved during part of that period. Choose a different time window.
+                </p>
+              ) : null}
+              {openedTotal !== null && scheduleValid ? (
+                <p className="mt-3 font-display text-base font-bold text-foreground">
+                  Estimated total: KES {openedTotal.toLocaleString("en-KE")} · {days} day(s)
+                </p>
+              ) : (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Set both times to see the full rental estimate.
+                </p>
+              )}
+            </div>
 
             <button
+              type="button"
               onClick={() => {
                 setVehicleId(opened.id);
                 setRulesAccepted(false);
-                if (modalStartDate) setStartAt(toLocalDateTime(modalStartDate, start));
+                setBookingStep("details");
+                setMessage(null);
                 setOpenId(null);
               }}
-              disabled={!modalStartDate || overlaps(opened, modalStartDate, days)}
+              disabled={!scheduleValid || openClash}
               className="mt-4 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
-              {modalStartDate ? "Start booking with this car" : "Choose an available date first"}
+              Continue to renter details
             </button>
           </div>
         </div>
@@ -745,112 +1000,39 @@ function Detail({ k, v }: { k: string; v: string }) {
   );
 }
 
-function AvailabilityCalendar({
-  vehicle,
-  days,
-  selected,
-  onSelect,
+function ScheduleFields({
+  startAt,
+  returnAt,
+  onPickup,
+  onReturn,
 }: {
-  vehicle: Vehicle;
-  days: number;
-  selected: Date | null;
-  onSelect: (date: Date) => void;
+  startAt: string;
+  returnAt: string;
+  onPickup: (value: string) => void;
+  onReturn: (value: string) => void;
 }) {
-  const [month, setMonth] = useState(() => {
-    const value = selected ?? new Date();
-    return new Date(value.getFullYear(), value.getMonth(), 1);
-  });
-  const firstWeekday = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
-  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const cells: Array<number | null> = [
-    ...Array.from({ length: firstWeekday }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
-  ];
-
   return (
-    <section className="mt-4 rounded-2xl border border-border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="text-xs font-semibold text-foreground">Choose a free start day</p>
-          <p className="text-[10px] text-muted-foreground">Unavailable days are disabled for a {days}-day hire.</p>
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-            aria-label="Previous month"
-            className="rounded-full border border-input px-2.5 py-1 text-sm text-foreground"
-          >
-            ‹
-          </button>
-          <button
-            onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-            aria-label="Next month"
-            className="rounded-full border border-input px-2.5 py-1 text-sm text-foreground"
-          >
-            ›
-          </button>
-        </div>
-      </div>
-      <p className="mt-2 text-center text-xs font-semibold text-foreground">
-        {month.toLocaleDateString("en-KE", { month: "long", year: "numeric" })}
-      </p>
-      <div className="mt-2 grid grid-cols-7 gap-1 text-center">
-        {[
-          ["Su", "Sunday"],
-          ["Mo", "Monday"],
-          ["Tu", "Tuesday"],
-          ["We", "Wednesday"],
-          ["Th", "Thursday"],
-          ["Fr", "Friday"],
-          ["Sa", "Saturday"],
-        ].map(([short, full]) => (
-          <span key={full} className="py-1 text-[10px] font-medium text-muted-foreground">
-            {short}
-          </span>
-        ))}
-        {cells.map((day, index) => {
-          if (day === null) return <span key={`blank-${index}`} />;
-          const date = new Date(month.getFullYear(), month.getMonth(), day);
-          const past = date < today;
-          const busy = overlaps(vehicle, date, days);
-          const isSelected = selected?.toDateString() === date.toDateString();
-          const disabled = past || busy;
-          return (
-            <button
-              key={day}
-              type="button"
-              disabled={disabled}
-              title={busy ? "Unavailable for some of these hire days" : past ? "Past date" : "Available"}
-              onClick={() => onSelect(date)}
-              className={`aspect-square rounded-lg text-xs font-medium ${
-                isSelected && !busy
-                  ? "bg-primary text-primary-foreground"
-                  : busy
-                    ? "cursor-not-allowed bg-destructive/10 text-destructive/70 line-through"
-                    : past
-                      ? "cursor-not-allowed text-muted-foreground/40"
-                      : "border border-success/30 bg-success/5 text-foreground hover:bg-success/15"
-              }`}
-            >
-              {day}
-            </button>
-          );
-        })}
-      </div>
-      {selected ? (
-        <p className="mt-2 text-center text-[11px] font-medium text-primary">
-          Selected: {selected.toLocaleDateString("en-KE", { weekday: "short", day: "numeric", month: "short" })}
-        </p>
-      ) : null}
-    </section>
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <Field label="Pickup date and time">
+        <input
+          type="datetime-local"
+          min={localDateTimeInput(new Date(Date.now() + 60_000))}
+          value={startAt}
+          onChange={(event) => onPickup(event.target.value)}
+          className="input-base"
+        />
+      </Field>
+      <Field label="Return date and time">
+        <input
+          type="datetime-local"
+          min={startAt || localDateTimeInput(new Date())}
+          value={returnAt}
+          onChange={(event) => onReturn(event.target.value)}
+          className="input-base"
+        />
+      </Field>
+    </div>
   );
-}
-
-function toLocalDateTime(date: Date, current: Date | null) {
-  const local = new Date(date.getFullYear(), date.getMonth(), date.getDate(), current?.getHours() ?? 9, current?.getMinutes() ?? 0);
-  return new Date(local.getTime() - local.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
 function UploadBox({

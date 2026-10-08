@@ -11,6 +11,7 @@ type Draft = {
   seats: string;
   hireMode: HireMode;
   description: string;
+  features: string;
   rules: string;
 };
 
@@ -54,6 +55,7 @@ export function HireVehicleManager() {
         seats: String(vehicle.seats ?? ""),
         hireMode: (vehicle.hire_mode ?? "self_drive") as HireMode,
         description: vehicle.hire_description ?? "",
+        features: vehicle.hire_features ?? "",
         rules: vehicle.hire_rules ?? "",
       };
       const paths: string[] = [];
@@ -82,6 +84,7 @@ export function HireVehicleManager() {
           seats: draft.seats === "" ? null : Number(draft.seats),
           hireMode: draft.hireMode,
           description: draft.description.trim() || null,
+          features: draft.features.trim() || null,
           rules: draft.rules.trim() || null,
           ...(paths.length ? { addPhotoPaths: paths } : {}),
           ...(submitForHireReview ? { submitForHireReview: true } : {}),
@@ -92,7 +95,7 @@ export function HireVehicleManager() {
       setPendingPhotos((current) => ({ ...current, [variables.vehicle.id]: [] }));
       setNotice(
         variables.submitForHireReview
-          ? "Hire listing sent to Ops for approval."
+          ? "Hire listing sent to Ops for vehicle inspection and approval."
           : "Vehicle listing saved.",
       );
       void queryClient.invalidateQueries({ queryKey: ["my-vehicles"] });
@@ -116,6 +119,7 @@ export function HireVehicleManager() {
           seats: String(vehicle.seats ?? ""),
           hireMode: (vehicle.hire_mode ?? "self_drive") as HireMode,
           description: vehicle.hire_description ?? "",
+          features: vehicle.hire_features ?? "",
           rules: vehicle.hire_rules ?? "",
         }),
         [key]: value,
@@ -142,8 +146,9 @@ export function HireVehicleManager() {
     <section className="surface-card p-4">
       <h3 className="text-sm font-semibold text-foreground">My vehicles for hire</h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Save your photos and listing details, then submit the hire listing for a separate Ops
-        approval. Rental dates are reserved and ride dispatch pauses while a vehicle is out on hire.
+        Add photos, features and listing details, then submit the car for an in-person Ops
+        inspection and approval. Rental dates are reserved and ride dispatch pauses while a vehicle
+        is out on hire.
       </p>
       {vehicles.isPending ? (
         <p className="mt-3 text-xs text-muted-foreground">Loading your vehicles…</p>
@@ -171,6 +176,7 @@ export function HireVehicleManager() {
             seats: String(vehicle.seats ?? ""),
             hireMode: (vehicle.hire_mode ?? "self_drive") as HireMode,
             description: vehicle.hire_description ?? "",
+            features: vehicle.hire_features ?? "",
             rules: vehicle.hire_rules ?? "",
           };
           const photos = pendingPhotos[vehicle.id] ?? [];
@@ -293,6 +299,22 @@ export function HireVehicleManager() {
                 />
               </label>
               <label className="mt-2 block">
+                <span className="text-[11px] text-muted-foreground">
+                  Features customers should know about
+                </span>
+                <textarea
+                  value={draft.features}
+                  rows={2}
+                  maxLength={800}
+                  placeholder="Air conditioning, Bluetooth, 4WD, child seats"
+                  onChange={(event) => updateDraft(vehicle, "features", event.target.value)}
+                  className="input-base"
+                />
+                <span className="mt-1 block text-[10px] text-muted-foreground">
+                  Separate features with commas. Ops will verify the listing during inspection.
+                </span>
+              </label>
+              <label className="mt-2 block">
                 <span className="text-[11px] text-muted-foreground">Your rules for hirers</span>
                 <textarea
                   value={draft.rules}
@@ -318,12 +340,14 @@ export function HireVehicleManager() {
                   disabled={!canRequestReview || busyId === vehicle.id}
                   className="mt-2 w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
                 >
-                  {busyId === vehicle.id ? "Submitting…" : "Submit hire listing for Ops approval"}
+                  {busyId === vehicle.id
+                    ? "Submitting…"
+                    : "Submit hire listing for inspection and approval"}
                 </button>
               ) : null}
               {reviewing ? (
                 <p className="mt-2 rounded-xl bg-warning/10 p-2 text-xs text-warning-foreground">
-                  Hire listing is waiting for Ops review.
+                  Hire listing is waiting for team inspection and approval.
                 </p>
               ) : null}
               <button

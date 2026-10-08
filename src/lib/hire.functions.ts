@@ -64,6 +64,7 @@ export interface HireVehicleRow {
   hire_daily_rate: number | null;
   hire_notes: string | null;
   hire_description: string | null;
+  hire_features: string | null;
   hire_available: boolean;
   hire_approval_status: string;
   hire_rejection_reason: string | null;
@@ -97,7 +98,7 @@ async function withPhotos(
 }
 
 const VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_daily_rate, hire_notes, hire_description, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_daily_rate, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
@@ -208,6 +209,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         dailyRate: z.number().min(0).max(1_000_000).nullable().optional(),
         seats: z.number().int().min(1).max(60).nullable().optional(),
         description: z.string().max(500).nullable().optional(),
+        features: z.string().max(800).nullable().optional(),
         addPhotoPath: z.string().max(400).optional(),
         addPhotoPaths: z.array(z.string().max(400)).max(12).optional(),
         removePhotoPath: z.string().max(400).optional(),
@@ -231,6 +233,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
     if (data.dailyRate !== undefined) patch["hire_daily_rate"] = data.dailyRate;
     if (data.seats !== undefined) patch["seats"] = data.seats;
     if (data.description !== undefined) patch["hire_description"] = data.description;
+    if (data.features !== undefined) patch["hire_features"] = data.features;
     if (data.rules !== undefined) patch["hire_rules"] = data.rules;
 
     const photoAdds = [
@@ -258,6 +261,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       data.dailyRate !== undefined ||
       data.seats !== undefined ||
       data.description !== undefined ||
+      data.features !== undefined ||
       data.rules !== undefined ||
       photoAdds.length > 0 ||
       Boolean(data.removePhotoPath);
@@ -317,7 +321,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         vehicleClass: z.enum(VEHICLE_CLASSES),
         driveMode: z.enum(["self_drive", "chauffeured"]).default("chauffeured"),
         startAt: z.string().min(10).max(40),
-        days: z.number().int().min(1).max(90),
+        endAt: z.string().min(10).max(40),
         passengers: z.number().int().min(1).max(60).default(1),
         /** Where the car should be delivered to start the drive. */
         pickupLabel: z.string().min(2).max(200),
@@ -349,16 +353,26 @@ export const submitHireQuote = createServerFn({ method: "POST" })
     if (Number.isNaN(startAt.getTime())) throw new Error("Choose a valid start date and time.");
     if (startAt.getTime() < Date.now() - 60_000)
       throw new Error("Choose a date and time in the future.");
+    const endAt = new Date(data.endAt);
+    if (Number.isNaN(endAt.getTime()) || endAt.getTime() <= startAt.getTime())
+      throw new Error("Return time must be after pickup time.");
+    const days = Math.ceil((endAt.getTime() - startAt.getTime()) / 86_400_000);
+    if (days < 1 || days > 90) throw new Error("Hire duration must be between 1 and 90 days.");
 
     let dailyRate: number | null = null;
     let vehicleClass = data.vehicleClass;
     if (data.vehicleId) {
       const { data: vehicle } = await supabaseAdmin
         .from("vehicles")
-        .select("id, vehicle_class, hire_daily_rate, hire_available, status")
+        .select("id, vehicle_class, hire_daily_rate, hire_available, hire_approval_status, status")
         .eq("id", data.vehicleId)
         .maybeSingle();
-      if (!vehicle || !vehicle.hire_available || vehicle.status !== "approved") {
+      if (
+        !vehicle ||
+        !vehicle.hire_available ||
+        vehicle.status !== "approved" ||
+        vehicle.hire_approval_status !== "approved"
+      ) {
         throw new Error("That car is no longer available for hire.");
       }
       dailyRate = vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate);
@@ -370,7 +384,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
     const estimate = estimateHireTotal({
       vehicleClass,
       driveMode: data.driveMode,
-      days: data.days,
+      days,
       stops: data.stops.length,
       dailyRate,
     });
@@ -388,7 +402,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         vehicle_class: vehicleClass,
         drive_mode: data.driveMode,
         start_at: startAt.toISOString(),
-        days: data.days,
+        days,
         passengers: data.passengers,
         pickup_label: data.pickupLabel,
         pickup_lat: data.pickupLat ?? null,
@@ -396,7 +410,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         stops: data.stops as never,
         notes: data.notes ?? null,
         estimated_total: estimate,
-        end_at: new Date(startAt.getTime() + data.days * 86_400_000).toISOString(),
+        end_at: endAt.toISOString(),
         hirer_type: data.hirerType,
         renter_name: data.renterName ?? null,
         renter_id_number: data.renterIdNumber ?? null,
@@ -424,7 +438,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
           data.driveMode === "self_drive"
             ? "Self-drive request received"
             : "Quotation request received",
-        body: `Request ${row.reference}: KES ${estimate.toLocaleString("en-KE")} for ${data.days} day(s). The owner will confirm shortly.`,
+        body: `Request ${row.reference}: KES ${estimate.toLocaleString("en-KE")} for ${days} day(s). The owner will confirm shortly.`,
         dedupeKey: `hire:${row.id}`,
         critical: true,
       });
