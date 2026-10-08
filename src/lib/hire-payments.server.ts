@@ -290,7 +290,7 @@ export async function startHirePayment(input: {
 export async function settleHirePayment(paymentIntentId: string, receipt: string | null) {
   const { data, error } = await supabaseAdmin.rpc("apply_hire_payment", {
     p_payment_intent_id: paymentIntentId,
-    p_mpesa_receipt: receipt,
+    ...(receipt ? { p_mpesa_receipt: receipt } : {}),
   });
   if (error) throw new Error(`Hire payment settlement failed: ${error.message}`);
   const result = (data ?? {}) as {

@@ -50,6 +50,13 @@
       "when": 1791455376665,
       "tag": "0006_hire_compliance_document_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791456291525,
+      "tag": "0007_whatsapp_webhook_inbox",
+      "breakpoints": true
     }
   ]
 }

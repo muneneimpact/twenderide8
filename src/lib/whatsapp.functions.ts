@@ -6,23 +6,13 @@ const CUSTOMER_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const OPS = ["ops_admin", "super_admin"] as const;
 
 function whatsappSetup() {
-  const apiVersion = process.env["WHATSAPP_GRAPH_API_VERSION"] ?? "v26.0";
-  const token = process.env["WHATSAPP_ACCESS_TOKEN"];
-  const phoneNumberId = process.env["WHATSAPP_PHONE_NUMBER_ID"];
-  const appSecret = process.env["WHATSAPP_APP_SECRET"];
-  const verifyToken = process.env["WHATSAPP_VERIFY_TOKEN"];
+  const configured = Boolean(process.env["LOVABLE_API_KEY"] && process.env["WHATSAPP_API_KEY"]);
   return {
-    apiVersion,
-    token,
-    phoneNumberId,
-    appSecret,
-    verifyToken,
-    sendConfigured: Boolean(token && phoneNumberId && /^v\d+\.\d+$/.test(apiVersion)),
-    webhookConfigured: Boolean(appSecret && verifyToken),
+    sendConfigured: configured,
+    webhookConfigured: configured,
     missing: [
-      !token ? "WHATSAPP_ACCESS_TOKEN" : null,
-      !phoneNumberId ? "WHATSAPP_PHONE_NUMBER_ID" : null,
-      !/^v\d+\.\d+$/.test(apiVersion) ? "WHATSAPP_GRAPH_API_VERSION" : null,
+      !process.env["LOVABLE_API_KEY"] ? "LOVABLE_API_KEY" : null,
+      !process.env["WHATSAPP_API_KEY"] ? "WhatsApp connection" : null,
     ].filter((value): value is string => Boolean(value)),
   };
 }
@@ -109,7 +99,7 @@ export const sendWhatsAppReply = createServerFn({ method: "POST" })
     const { requireRole } = await import("./authz.server");
     await requireRole(context.userId, [...OPS]);
     const config = whatsappSetup();
-    if (!config.sendConfigured || !config.token || !config.phoneNumberId) {
+    if (!config.sendConfigured) {
       throw new Error(
         `WhatsApp sending is not configured. Add ${config.missing.join(", ")} to the server environment.`,
       );
@@ -146,28 +136,15 @@ export const sendWhatsAppReply = createServerFn({ method: "POST" })
       .single();
     if (insertError) throw new Error(`Could not save the outgoing message: ${insertError.message}`);
 
-    let response: Response;
-    let payload: Record<string, unknown> = {};
+    let providerId: string;
     try {
-      response = await fetch(
-        `https://graph.facebook.com/${config.apiVersion}/${config.phoneNumberId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${config.token}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: conversation.customer_phone.replace(/\D/g, ""),
-            type: "text",
-            text: { preview_url: false, body: data.body },
-          }),
-          signal: AbortSignal.timeout(15_000),
-        },
-      );
-      payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      const { whatsappGatewaySend } = await import("./whatsapp-gateway.server");
+      providerId = await whatsappGatewaySend({
+        recipient_type: "individual",
+        to: conversation.customer_phone.replace(/\D/g, ""),
+        type: "text",
+        text: { preview_url: false, body: data.body },
+      });
     } catch (error) {
       const messageText =
         error instanceof Error ? error.message : "Network error while contacting WhatsApp.";
@@ -175,21 +152,7 @@ export const sendWhatsAppReply = createServerFn({ method: "POST" })
         .from("whatsapp_messages")
         .update({ status: "failed", error_message: messageText.slice(0, 500) })
         .eq("id", message.id);
-      throw new Error(`WhatsApp send failed: ${messageText}`);
-    }
-
-    const metaError = payload["error"] as { message?: unknown } | undefined;
-    const returnedMessages = payload["messages"] as Array<{ id?: string }> | undefined;
-    const providerId = returnedMessages?.[0]?.id ?? null;
-    if (!response.ok || !providerId) {
-      const errorText = String(
-        metaError?.message ?? `WhatsApp API returned HTTP ${response.status}.`,
-      ).slice(0, 500);
-      await supabaseAdmin
-        .from("whatsapp_messages")
-        .update({ status: "failed", error_message: errorText })
-        .eq("id", message.id);
-      throw new Error(`WhatsApp send failed: ${errorText}`);
+      throw new Error(messageText);
     }
 
     const now = new Date().toISOString();

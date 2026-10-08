@@ -788,151 +788,32 @@ export type Database = {
           },
         ]
       }
-      hire_quotes: {
+      hire_owner_balances: {
         Row: {
-          accepted_offer_id: string | null
-          admin_notes: string | null
-          assigned_driver_id: string | null
-          contact_email: string | null
-          contact_name: string | null
-          contact_phone: string | null
-          created_at: string
-          currency: string
-          days: number
-          drive_mode: string
-          end_at: string | null
-          estimated_total: number
-          hirer_type: string
-          id: string
-          id_document_path: string | null
-          kind: string
-          license_document_path: string | null
-          notes: string | null
-          commission_percent_snapshot: number | null
-          payment_hold_expires_at: string | null
-          payment_minimum_amount: number | null
-          payment_paid_total: number
-          payment_policy: string
-          payment_status: string
-          organisation: string | null
-          passengers: number
-          pickup_label: string | null
-          pickup_lat: number | null
-          pickup_lng: number | null
-          quoted_total: number | null
-          reference: string
-          renter_id_number: string | null
-          renter_name: string | null
-          requester_id: string
-          reviewed_at: string | null
-          reviewed_by: string | null
-          rules_accepted_at: string | null
-          start_at: string
-          status: string
-          stops: Json
+          gross_paid_total: number
+          owner_balance: number
+          owner_user_id: string
+          paid_out_total: number
+          platform_fee_total: number
           updated_at: string
-          vehicle_class: Database["public"]["Enums"]["vehicle_class"]
-          vehicle_id: string | null
         }
         Insert: {
-          accepted_offer_id?: string | null
-          admin_notes?: string | null
-          assigned_driver_id?: string | null
-          contact_email?: string | null
-          contact_name?: string | null
-          contact_phone?: string | null
-          created_at?: string
-          currency?: string
-          days?: number
-          drive_mode?: string
-          end_at?: string | null
-          estimated_total?: number
-          hirer_type?: string
-          id?: string
-          id_document_path?: string | null
-          kind?: string
-          license_document_path?: string | null
-          notes?: string | null
-          commission_percent_snapshot?: number | null
-          payment_hold_expires_at?: string | null
-          payment_minimum_amount?: number | null
-          payment_paid_total?: number
-          payment_policy?: string
-          payment_status?: string
-          organisation?: string | null
-          passengers?: number
-          pickup_label?: string | null
-          pickup_lat?: number | null
-          pickup_lng?: number | null
-          quoted_total?: number | null
-          reference?: string
-          renter_id_number?: string | null
-          renter_name?: string | null
-          requester_id: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          rules_accepted_at?: string | null
-          start_at: string
-          status?: string
-          stops?: Json
+          gross_paid_total?: number
+          owner_balance?: number
+          owner_user_id: string
+          paid_out_total?: number
+          platform_fee_total?: number
           updated_at?: string
-          vehicle_class: Database["public"]["Enums"]["vehicle_class"]
-          vehicle_id?: string | null
         }
         Update: {
-          accepted_offer_id?: string | null
-          admin_notes?: string | null
-          assigned_driver_id?: string | null
-          contact_email?: string | null
-          contact_name?: string | null
-          contact_phone?: string | null
-          created_at?: string
-          currency?: string
-          days?: number
-          drive_mode?: string
-          end_at?: string | null
-          estimated_total?: number
-          hirer_type?: string
-          id?: string
-          id_document_path?: string | null
-          kind?: string
-          license_document_path?: string | null
-          notes?: string | null
-          commission_percent_snapshot?: number | null
-          payment_hold_expires_at?: string | null
-          payment_minimum_amount?: number | null
-          payment_paid_total?: number
-          payment_policy?: string
-          payment_status?: string
-          organisation?: string | null
-          passengers?: number
-          pickup_label?: string | null
-          pickup_lat?: number | null
-          pickup_lng?: number | null
-          quoted_total?: number | null
-          reference?: string
-          renter_id_number?: string | null
-          renter_name?: string | null
-          requester_id?: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          rules_accepted_at?: string | null
-          start_at?: string
-          status?: string
-          stops?: Json
+          gross_paid_total?: number
+          owner_balance?: number
+          owner_user_id?: string
+          paid_out_total?: number
+          platform_fee_total?: number
           updated_at?: string
-          vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
-          vehicle_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "hire_quotes_vehicle_id_fkey"
-            columns: ["vehicle_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       hire_payment_settlements: {
         Row: {
@@ -974,34 +855,22 @@ export type Database = {
           payment_intent_id?: string
           platform_fee_amount?: number
         }
-        Relationships: []
-      }
-      hire_owner_balances: {
-        Row: {
-          gross_paid_total: number
-          owner_balance: number
-          owner_user_id: string
-          paid_out_total: number
-          platform_fee_total: number
-          updated_at: string
-        }
-        Insert: {
-          gross_paid_total?: number
-          owner_balance?: number
-          owner_user_id: string
-          paid_out_total?: number
-          platform_fee_total?: number
-          updated_at?: string
-        }
-        Update: {
-          gross_paid_total?: number
-          owner_balance?: number
-          owner_user_id?: string
-          paid_out_total?: number
-          platform_fee_total?: number
-          updated_at?: string
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "hire_payment_settlements_hire_quote_id_fkey"
+            columns: ["hire_quote_id"]
+            isOneToOne: false
+            referencedRelation: "hire_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hire_payment_settlements_payment_intent_id_fkey"
+            columns: ["payment_intent_id"]
+            isOneToOne: true
+            referencedRelation: "payment_intents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hire_payout_requests: {
         Row: {
@@ -1050,6 +919,152 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      hire_quotes: {
+        Row: {
+          accepted_offer_id: string | null
+          admin_notes: string | null
+          assigned_driver_id: string | null
+          commission_percent_snapshot: number | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          currency: string
+          days: number
+          drive_mode: string
+          end_at: string | null
+          estimated_total: number
+          hirer_type: string
+          id: string
+          id_document_path: string | null
+          kind: string
+          license_document_path: string | null
+          notes: string | null
+          organisation: string | null
+          passengers: number
+          payment_hold_expires_at: string | null
+          payment_minimum_amount: number | null
+          payment_paid_total: number
+          payment_policy: string
+          payment_status: string
+          pickup_label: string | null
+          pickup_lat: number | null
+          pickup_lng: number | null
+          quoted_total: number | null
+          reference: string
+          renter_id_number: string | null
+          renter_name: string | null
+          requester_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          rules_accepted_at: string | null
+          start_at: string
+          status: string
+          stops: Json
+          updated_at: string
+          vehicle_class: Database["public"]["Enums"]["vehicle_class"]
+          vehicle_id: string | null
+        }
+        Insert: {
+          accepted_offer_id?: string | null
+          admin_notes?: string | null
+          assigned_driver_id?: string | null
+          commission_percent_snapshot?: number | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          currency?: string
+          days?: number
+          drive_mode?: string
+          end_at?: string | null
+          estimated_total?: number
+          hirer_type?: string
+          id?: string
+          id_document_path?: string | null
+          kind?: string
+          license_document_path?: string | null
+          notes?: string | null
+          organisation?: string | null
+          passengers?: number
+          payment_hold_expires_at?: string | null
+          payment_minimum_amount?: number | null
+          payment_paid_total?: number
+          payment_policy?: string
+          payment_status?: string
+          pickup_label?: string | null
+          pickup_lat?: number | null
+          pickup_lng?: number | null
+          quoted_total?: number | null
+          reference?: string
+          renter_id_number?: string | null
+          renter_name?: string | null
+          requester_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rules_accepted_at?: string | null
+          start_at: string
+          status?: string
+          stops?: Json
+          updated_at?: string
+          vehicle_class: Database["public"]["Enums"]["vehicle_class"]
+          vehicle_id?: string | null
+        }
+        Update: {
+          accepted_offer_id?: string | null
+          admin_notes?: string | null
+          assigned_driver_id?: string | null
+          commission_percent_snapshot?: number | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          currency?: string
+          days?: number
+          drive_mode?: string
+          end_at?: string | null
+          estimated_total?: number
+          hirer_type?: string
+          id?: string
+          id_document_path?: string | null
+          kind?: string
+          license_document_path?: string | null
+          notes?: string | null
+          organisation?: string | null
+          passengers?: number
+          payment_hold_expires_at?: string | null
+          payment_minimum_amount?: number | null
+          payment_paid_total?: number
+          payment_policy?: string
+          payment_status?: string
+          pickup_label?: string | null
+          pickup_lat?: number | null
+          pickup_lng?: number | null
+          quoted_total?: number | null
+          reference?: string
+          renter_id_number?: string | null
+          renter_name?: string | null
+          requester_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rules_accepted_at?: string | null
+          start_at?: string
+          status?: string
+          stops?: Json
+          updated_at?: string
+          vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hire_quotes_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       incidents: {
         Row: {
@@ -1169,33 +1184,33 @@ export type Database = {
           push_enabled: boolean
           push_permission: string
           sms_enabled: boolean
-          whatsapp_enabled: boolean
-          whatsapp_opted_in_at: string | null
-          whatsapp_opt_in_source: string | null
           updated_at: string
           user_id: string
+          whatsapp_enabled: boolean
+          whatsapp_opt_in_source: string | null
+          whatsapp_opted_in_at: string | null
         }
         Insert: {
           email_enabled?: boolean
           push_enabled?: boolean
           push_permission?: string
           sms_enabled?: boolean
-          whatsapp_enabled?: boolean
-          whatsapp_opted_in_at?: string | null
-          whatsapp_opt_in_source?: string | null
           updated_at?: string
           user_id: string
+          whatsapp_enabled?: boolean
+          whatsapp_opt_in_source?: string | null
+          whatsapp_opted_in_at?: string | null
         }
         Update: {
           email_enabled?: boolean
           push_enabled?: boolean
           push_permission?: string
           sms_enabled?: boolean
-          whatsapp_enabled?: boolean
-          whatsapp_opted_in_at?: string | null
-          whatsapp_opt_in_source?: string | null
           updated_at?: string
           user_id?: string
+          whatsapp_enabled?: boolean
+          whatsapp_opt_in_source?: string | null
+          whatsapp_opted_in_at?: string | null
         }
         Relationships: []
       }
@@ -1250,6 +1265,7 @@ export type Database = {
           currency: string
           customer_id: string
           failure_reason: string | null
+          hire_quote_id: string | null
           id: string
           idempotency_key: string
           method: Database["public"]["Enums"]["payment_method"]
@@ -1260,7 +1276,6 @@ export type Database = {
           provider_request: Json
           provider_response: Json
           ride_id: string | null
-          hire_quote_id: string | null
           status: Database["public"]["Enums"]["payment_status"]
           updated_at: string
         }
@@ -1270,6 +1285,7 @@ export type Database = {
           currency?: string
           customer_id: string
           failure_reason?: string | null
+          hire_quote_id?: string | null
           id?: string
           idempotency_key: string
           method: Database["public"]["Enums"]["payment_method"]
@@ -1280,7 +1296,6 @@ export type Database = {
           provider_request?: Json
           provider_response?: Json
           ride_id?: string | null
-          hire_quote_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string
         }
@@ -1290,6 +1305,7 @@ export type Database = {
           currency?: string
           customer_id?: string
           failure_reason?: string | null
+          hire_quote_id?: string | null
           id?: string
           idempotency_key?: string
           method?: Database["public"]["Enums"]["payment_method"]
@@ -1300,7 +1316,6 @@ export type Database = {
           provider_request?: Json
           provider_response?: Json
           ride_id?: string | null
-          hire_quote_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string
         }
@@ -2352,8 +2367,8 @@ export type Database = {
           hire_description: string | null
           hire_features: string | null
           hire_mode: string
-          hire_payment_policy: string
           hire_notes: string | null
+          hire_payment_policy: string
           hire_rejection_reason: string | null
           hire_reviewed_at: string | null
           hire_reviewed_by: string | null
@@ -2382,8 +2397,8 @@ export type Database = {
           hire_description?: string | null
           hire_features?: string | null
           hire_mode?: string
-          hire_payment_policy?: string
           hire_notes?: string | null
+          hire_payment_policy?: string
           hire_rejection_reason?: string | null
           hire_reviewed_at?: string | null
           hire_reviewed_by?: string | null
@@ -2412,8 +2427,8 @@ export type Database = {
           hire_description?: string | null
           hire_features?: string | null
           hire_mode?: string
-          hire_payment_policy?: string
           hire_notes?: string | null
+          hire_payment_policy?: string
           hire_rejection_reason?: string | null
           hire_reviewed_at?: string | null
           hire_reviewed_by?: string | null
@@ -2602,8 +2617,8 @@ export type Database = {
           created_at: string
           direction: string
           error_message: string | null
-          id: string
           hire_quote_id: string | null
+          id: string
           idempotency_key: string | null
           message_type: string
           provider_message_id: string | null
@@ -2617,8 +2632,8 @@ export type Database = {
           created_at?: string
           direction: string
           error_message?: string | null
-          id?: string
           hire_quote_id?: string | null
+          id?: string
           idempotency_key?: string | null
           message_type?: string
           provider_message_id?: string | null
@@ -2632,8 +2647,8 @@ export type Database = {
           created_at?: string
           direction?: string
           error_message?: string | null
-          id?: string
           hire_quote_id?: string | null
+          id?: string
           idempotency_key?: string | null
           message_type?: string
           provider_message_id?: string | null
@@ -2648,7 +2663,47 @@ export type Database = {
             referencedRelation: "whatsapp_conversations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "whatsapp_messages_hire_quote_id_fkey"
+            columns: ["hire_quote_id"]
+            isOneToOne: false
+            referencedRelation: "hire_quotes"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      whatsapp_webhook_events: {
+        Row: {
+          attempts: number
+          delivery_id: string
+          event: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          processing_error: string | null
+          received_at: string
+        }
+        Insert: {
+          attempts?: number
+          delivery_id: string
+          event: string
+          id?: string
+          payload: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          received_at?: string
+        }
+        Update: {
+          attempts?: number
+          delivery_id?: string
+          event?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          received_at?: string
+        }
+        Relationships: []
       }
       withdrawal_events: {
         Row: {
@@ -2746,10 +2801,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      apply_hire_payment: {
-        Args: { p_payment_intent_id: string; p_mpesa_receipt?: string | null }
-        Returns: Json
-      }
       accept_ride_offer: {
         Args: {
           _driver_id: string
@@ -2795,6 +2846,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      apply_hire_payment: {
+        Args: { p_mpesa_receipt?: string; p_payment_intent_id: string }
+        Returns: Json
+      }
       available_balance: { Args: { _wallet_id: string }; Returns: number }
       can_view_ride: {
         Args: { _ride_id: string; _user_id: string }
@@ -2830,21 +2885,15 @@ export type Database = {
         Args: { _user_id: string; _vehicle_id: string }
         Returns: boolean
       }
-      requires_phone_verification: { Args: never; Returns: boolean }
       request_hire_payout: {
-        Args: { p_amount: number; p_owner_user_id: string; p_payout_phone: string }
-        Returns: Json
-      }
-      review_hire_payout_request: {
         Args: {
-          p_decision: string
-          p_note?: string | null
-          p_payout_reference?: string | null
-          p_request_id: string
-          p_reviewer_id: string
+          p_amount: number
+          p_owner_user_id: string
+          p_payout_phone: string
         }
         Returns: Json
       }
+      requires_phone_verification: { Args: never; Returns: boolean }
       review_delivery_rate_proposal: {
         Args: {
           p_decision: string
@@ -2853,6 +2902,16 @@ export type Database = {
           p_reviewer_id: string
         }
         Returns: undefined
+      }
+      review_hire_payout_request: {
+        Args: {
+          p_decision: string
+          p_note?: string
+          p_payout_reference?: string
+          p_request_id: string
+          p_reviewer_id: string
+        }
+        Returns: Json
       }
       vehicle_has_active_hire: {
         Args: { _at?: string; _vehicle_id: string }
