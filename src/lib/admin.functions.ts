@@ -266,20 +266,27 @@ export const reviewApproval = createServerFn({ method: "POST" })
             .maybeSingle();
           if (vehicle?.owner_driver_id) {
             if (data.decision === "approved") {
-              // Approval is what authorises the owning driver to operate the car.
-              const { data: existing } = await supabaseAdmin
-                .from("driver_vehicle_authorisations")
+              const { data: driverProfile } = await supabaseAdmin
+                .from("drivers")
                 .select("id")
-                .eq("vehicle_id", data.id)
-                .eq("driver_id", vehicle.owner_driver_id)
-                .is("revoked_at", null)
+                .eq("id", vehicle.owner_driver_id)
                 .maybeSingle();
-              if (!existing) {
-                await supabaseAdmin.from("driver_vehicle_authorisations").insert({
-                  vehicle_id: data.id,
-                  driver_id: vehicle.owner_driver_id,
-                  granted_by: context.userId,
-                });
+              if (driverProfile) {
+                // Only ride drivers receive authorisation to operate the car.
+                const { data: existing } = await supabaseAdmin
+                  .from("driver_vehicle_authorisations")
+                  .select("id")
+                  .eq("vehicle_id", data.id)
+                  .eq("driver_id", vehicle.owner_driver_id)
+                  .is("revoked_at", null)
+                  .maybeSingle();
+                if (!existing) {
+                  await supabaseAdmin.from("driver_vehicle_authorisations").insert({
+                    vehicle_id: data.id,
+                    driver_id: vehicle.owner_driver_id,
+                    granted_by: context.userId,
+                  });
+                }
               }
             } else {
               await supabaseAdmin

@@ -31,7 +31,7 @@ function PendingPhotoPreview({ file }: { file: File }) {
   ) : null;
 }
 
-export function HireVehicleManager() {
+export function HireVehicleManager({ hireOnly = false }: { hireOnly?: boolean }) {
   const queryClient = useQueryClient();
   const listFn = useServerFn(listMyVehicles);
   const updateFn = useServerFn(updateVehicleHire);
@@ -368,7 +368,7 @@ export function HireVehicleManager() {
           );
         })}
       </div>
-      <AddVehicleForHire />
+      <AddVehicleForHire hireOnly={hireOnly} />
       {notice ? (
         <p className="mt-2 text-xs text-muted-foreground" role="status">
           {notice}

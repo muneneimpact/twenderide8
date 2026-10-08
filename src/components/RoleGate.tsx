@@ -14,6 +14,7 @@ export function RoleGate({
   hint,
   actionTo,
   actionLabel,
+  fallback,
 }: {
   allow: AppRole[];
   title: string;
@@ -21,6 +22,7 @@ export function RoleGate({
   hint?: string;
   actionTo?: string;
   actionLabel?: string;
+  fallback?: ReactNode;
 }) {
   const { isPending, error, has } = useMe();
 
@@ -39,11 +41,14 @@ export function RoleGate({
     );
   }
   if (!has(...allow)) {
+    if (fallback) return <>{fallback}</>;
     return (
       <AppShell title={title}>
         <div className="mx-auto max-w-md px-4 py-8">
           <div className="surface-card p-5">
-            <h2 className="text-sm font-semibold text-foreground">You don't have access to this area</h2>
+            <h2 className="text-sm font-semibold text-foreground">
+              You don't have access to this area
+            </h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {hint ?? "Ask a Twende Meru Rides administrator to grant you the right role."}
             </p>

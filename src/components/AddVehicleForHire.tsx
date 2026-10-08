@@ -1,13 +1,14 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { addVehicleForDriver } from "@/lib/account.functions";
+import { addVehicleForDriver, addVehicleForHire } from "@/lib/account.functions";
 
 const vehicleClasses = ["boda", "e_boda", "go", "plus", "comfort", "xl"] as const;
 
-export function AddVehicleForHire() {
+export function AddVehicleForHire({ hireOnly = false }: { hireOnly?: boolean }) {
   const queryClient = useQueryClient();
-  const addFn = useServerFn(addVehicleForDriver);
+  const addDriverVehicleFn = useServerFn(addVehicleForDriver);
+  const addHireVehicleFn = useServerFn(addVehicleForHire);
   const [open, setOpen] = useState(false);
   const [plate, setPlate] = useState("");
   const [vehicleClass, setVehicleClass] = useState<(typeof vehicleClasses)[number]>("go");
@@ -16,8 +17,8 @@ export function AddVehicleForHire() {
   const [colour, setColour] = useState("");
   const [year, setYear] = useState("");
   const add = useMutation({
-    mutationFn: () =>
-      addFn({
+    mutationFn: () => {
+      const input = {
         data: {
           plate_number: plate,
           vehicle_class: vehicleClass,
@@ -26,7 +27,9 @@ export function AddVehicleForHire() {
           ...(colour.trim() ? { colour: colour.trim() } : {}),
           ...(year.trim() ? { year: Number(year) } : {}),
         },
-      }),
+      };
+      return hireOnly ? addHireVehicleFn(input) : addDriverVehicleFn(input);
+    },
     onSuccess: () => {
       setPlate("");
       setMake("");
@@ -46,12 +49,14 @@ export function AddVehicleForHire() {
         onClick={() => setOpen((value) => !value)}
         className="w-full rounded-full border border-input px-4 py-2.5 text-sm font-semibold text-foreground"
       >
-        {open ? "Close vehicle form" : "Add another vehicle"}
+        {open ? "Close vehicle form" : hireOnly ? "Add a vehicle for hire" : "Add another vehicle"}
       </button>
       {open ? (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-muted-foreground">
-            New vehicles are checked by Ops before they can be used or listed for hire.
+            {hireOnly
+              ? "Ops must approve the vehicle and inspect the hire listing separately. This does not register you as a ride driver."
+              : "New vehicles are checked by Ops before they can be used or listed for hire."}
           </p>
           <input
             value={plate}
@@ -108,13 +113,21 @@ export function AddVehicleForHire() {
             disabled={add.isPending || plate.trim().length < 4}
             className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
           >
-            {add.isPending ? "Adding vehicle…" : "Submit vehicle for approval"}
+            {add.isPending
+              ? "Adding vehicle…"
+              : hireOnly
+                ? "Submit vehicle for Ops approval"
+                : "Submit vehicle for approval"}
           </button>
           {add.isError ? (
             <p className="text-xs text-destructive">{(add.error as Error).message}</p>
           ) : null}
           {add.isSuccess ? (
-            <p className="text-xs text-success">Vehicle added and sent to Ops for review.</p>
+            <p className="text-xs text-success">
+              {hireOnly
+                ? "Vehicle sent for Ops approval. Hire listing review is a separate step."
+                : "Vehicle added and sent to Ops for review."}
+            </p>
           ) : null}
         </div>
       ) : null}

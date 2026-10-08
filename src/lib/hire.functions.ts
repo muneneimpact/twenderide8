@@ -152,18 +152,20 @@ export const listHireVehicles = createServerFn({ method: "GET" })
 export const listMyVehicles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: fleets } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: fleets, error: fleetError } = await supabaseAdmin
       .from("fleets")
       .select("id")
       .eq("owner_id", context.userId);
+    if (fleetError) throw new Error(fleetError.message);
     const fleetIds = (fleets ?? []).map((fleet) => fleet.id);
     const filter = fleetIds.length
       ? `owner_driver_id.eq.${context.userId},fleet_id.in.(${fleetIds.join(",")})`
       : `owner_driver_id.eq.${context.userId}`;
-    const { data } = await context.supabase.from("vehicles").select(VEHICLE_FIELDS).or(filter);
+    const { data, error } = await supabaseAdmin.from("vehicles").select(VEHICLE_FIELDS).or(filter);
+    if (error) throw new Error(error.message);
     const list = await withPhotos((data ?? []) as unknown as HireVehicleRow[]);
     const vehicleIds = list.map((vehicle) => vehicle.id);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const now = new Date().toISOString();
     const { data: bookings } = vehicleIds.length
       ? await supabaseAdmin
@@ -219,14 +221,26 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { data: current } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: fleets, error: fleetError } = await supabaseAdmin
+      .from("fleets")
+      .select("id")
+      .eq("owner_id", context.userId);
+    if (fleetError) throw new Error(fleetError.message);
+    const fleetIds = (fleets ?? []).map((fleet) => fleet.id);
+    const { data: current, error: loadError } = await supabaseAdmin
       .from("vehicles")
       .select(
-        "id, status, hire_available, hire_approval_status, hire_daily_rate, photo_url, photo_urls",
+        "id, owner_driver_id, fleet_id, status, hire_available, hire_approval_status, hire_daily_rate, photo_url, photo_urls",
       )
       .eq("id", data.vehicleId)
       .maybeSingle();
-    if (!current) throw new Error("Vehicle not found or you do not manage it.");
+    if (loadError) throw new Error(loadError.message);
+    const isDirectOwner = current?.owner_driver_id === context.userId;
+    const isFleetOwner = Boolean(current?.fleet_id && fleetIds.includes(current.fleet_id));
+    if (!current || (!isDirectOwner && !isFleetOwner)) {
+      throw new Error("Vehicle not found or you do not manage it.");
+    }
 
     const patch: Record<string, unknown> = {};
     if (data.hireMode !== undefined) patch["hire_mode"] = data.hireMode;
@@ -299,7 +313,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       patch["hire_available"] = data.hireAvailable;
     }
     if (Object.keys(patch).length === 0) return { ok: true };
-    const { error } = await context.supabase
+    const { error } = await supabaseAdmin
       .from("vehicles")
       .update(patch as never)
       .eq("id", data.vehicleId);

@@ -59,9 +59,32 @@ function DriverConsolePage() {
       hint="The driver console opens once operations approve your application."
       actionTo="/driver/apply"
       actionLabel="Start driver onboarding"
+      fallback={<HireOwnerPortal />}
     >
       <DriverHome />
     </RoleGate>
+  );
+}
+
+function HireOwnerPortal() {
+  return (
+    <AppShell title="List a vehicle for hire">
+      <div className="mx-auto max-w-md space-y-4 px-4 py-5">
+        <section className="surface-card p-4">
+          <h2 className="font-display text-lg font-semibold text-foreground">
+            Offer your vehicle for hire
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You can add and manage a hire car here without becoming a driver for ride requests.
+            Vehicle approval and hire-listing inspection are separate Ops reviews.
+          </p>
+          <Link to="/driver/apply" className="mt-3 inline-flex text-sm font-semibold text-primary">
+            Interested in driving rides? Apply separately →
+          </Link>
+        </section>
+        <HireVehicleManager hireOnly />
+      </div>
+    </AppShell>
   );
 }
 

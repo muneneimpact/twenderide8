@@ -158,6 +158,52 @@ export const addVehicleForDriver = createServerFn({ method: "POST" })
     return { vehicle };
   });
 
+/** Signed-in users may submit a vehicle for hire without applying to drive rides. */
+export const addVehicleForHire = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        plate_number: z.string().min(4).max(16),
+        vehicle_class: z.enum(["boda", "e_boda", "go", "plus", "comfort", "xl"]),
+        make: z.string().max(40).optional(),
+        model: z.string().max(40).optional(),
+        colour: z.string().max(24).optional(),
+        year: z.number().int().min(1980).max(2100).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const plate = formatKenyanPlate(data.plate_number);
+    const { data: duplicate } = await supabaseAdmin
+      .from("vehicles")
+      .select("id")
+      .eq("plate_number", plate)
+      .maybeSingle();
+    if (duplicate) throw new Error("That number plate is already registered.");
+
+    const { data: vehicle, error } = await supabaseAdmin
+      .from("vehicles")
+      .insert({
+        plate_number: plate,
+        vehicle_class: data.vehicle_class,
+        make: data.make ?? null,
+        model: data.model ?? null,
+        colour: data.colour ?? null,
+        year: data.year ?? null,
+        owner_driver_id: context.userId,
+        status: "pending",
+      })
+      .select()
+      .single();
+    if (error) {
+      if (error.code === "23505") throw new Error("That number plate is already registered.");
+      throw new Error(error.message);
+    }
+    return { vehicle };
+  });
+
 export const listNotifications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
