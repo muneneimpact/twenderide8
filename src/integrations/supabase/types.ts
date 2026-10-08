@@ -815,6 +815,33 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_customer_documents: {
+        Row: {
+          created_at: string
+          document_kind: string
+          file_path: string
+          id: string
+          requester_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_kind: string
+          file_path: string
+          id?: string
+          requester_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_kind?: string
+          file_path?: string
+          id?: string
+          requester_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       hire_payment_settlements: {
         Row: {
           commission_percent: number

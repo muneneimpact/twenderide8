@@ -57,6 +57,13 @@
       "when": 1791456291525,
       "tag": "0007_whatsapp_webhook_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791457997044,
+      "tag": "0008_hire_booking_defaults_and_customer_documents",
+      "breakpoints": true
     }
   ]
 }

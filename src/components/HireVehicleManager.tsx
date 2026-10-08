@@ -62,8 +62,8 @@ export function HireVehicleManager({
       const draft = drafts[vehicle.id] ?? {
         dailyRate: String(vehicle.hire_daily_rate ?? ""),
         seats: String(vehicle.seats ?? ""),
-        hireMode: (vehicle.hire_mode ?? "self_drive") as HireMode,
-        paymentPolicy: vehicle.hire_payment_policy === "daily_flexible" ? "daily_flexible" : "full",
+        hireMode: (vehicle.hire_mode ?? "both") as HireMode,
+        paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible",
         description: vehicle.hire_description ?? "",
         features: vehicle.hire_features ?? "",
         rules: vehicle.hire_rules ?? "",
@@ -128,9 +128,8 @@ export function HireVehicleManager({
         ...(current[vehicle.id] ?? {
           dailyRate: String(vehicle.hire_daily_rate ?? ""),
           seats: String(vehicle.seats ?? ""),
-          hireMode: (vehicle.hire_mode ?? "self_drive") as HireMode,
-          paymentPolicy:
-            vehicle.hire_payment_policy === "daily_flexible" ? "daily_flexible" : "full",
+          hireMode: (vehicle.hire_mode ?? "both") as HireMode,
+          paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible",
           description: vehicle.hire_description ?? "",
           features: vehicle.hire_features ?? "",
           rules: vehicle.hire_rules ?? "",
@@ -163,6 +162,11 @@ export function HireVehicleManager({
         inspection and approval. Rental dates are reserved and ride dispatch pauses while a vehicle
         is out on hire.
       </p>
+      <p className="mt-2 rounded-xl border border-warning/30 bg-warning/10 p-2 text-[11px] text-warning-foreground">
+        Payment safety: all hire payments and instalments must go through Twende Meru Rides. Never
+        ask customers to pay you directly or outside the system; this helps prevent extortion and
+        protects both parties.
+      </p>
       {vehicles.isPending ? (
         <p className="mt-3 text-xs text-muted-foreground">Loading your vehicles…</p>
       ) : null}
@@ -188,9 +192,8 @@ export function HireVehicleManager({
           const draft = drafts[vehicle.id] ?? {
             dailyRate: String(vehicle.hire_daily_rate ?? ""),
             seats: String(vehicle.seats ?? ""),
-            hireMode: (vehicle.hire_mode ?? "self_drive") as HireMode,
-            paymentPolicy:
-              vehicle.hire_payment_policy === "daily_flexible" ? "daily_flexible" : "full",
+            hireMode: (vehicle.hire_mode ?? "both") as HireMode,
+            paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible",
             description: vehicle.hire_description ?? "",
             features: vehicle.hire_features ?? "",
             rules: vehicle.hire_rules ?? "",
@@ -322,7 +325,7 @@ export function HireVehicleManager({
                       Full hire amount upfront before the booking is shown
                     </option>
                     <option value="daily_flexible">
-                      First day upfront; remaining days can be paid daily
+                      First day upfront; remaining days can be paid daily or later via the system
                     </option>
                   </select>
                 </label>

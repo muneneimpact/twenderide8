@@ -444,7 +444,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       }
       dailyRate = vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate);
       vehicleClass = vehicle.vehicle_class as VehicleClass;
-      paymentPolicy = vehicle.hire_payment_policy === "daily_flexible" ? "daily_flexible" : "full";
+      paymentPolicy = vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible";
       const { assertVehicleHasNoLiveRide } = await import("./vehicle-hire-lock.server");
       await assertVehicleHasNoLiveRide(data.vehicleId, startAt);
     }
@@ -562,6 +562,65 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       console.error("hire quote notification failed", notifyError);
     }
     return { ...row, payment };
+  });
+
+/** Private reusable identity/licence paths, scoped to the signed-in hirer. */
+export const getMyHireDocuments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("hire_customer_documents")
+      .select("document_kind, file_path")
+      .eq("requester_id", context.userId);
+    if (error) throw new Error(`Could not load saved hire documents: ${error.message}`);
+    return {
+      idDocumentPath: data?.find((document) => document.document_kind === "id")?.file_path ?? null,
+      licenseDocumentPath:
+        data?.find((document) => document.document_kind === "license")?.file_path ?? null,
+    };
+  });
+
+/** Save only files that exist in this user's private hire-document folder. */
+export const saveMyHireDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        kind: z.enum(["id", "license"]),
+        filePath: z.string().min(1).max(500),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const prefix = `${context.userId}/${data.kind}-`;
+    if (
+      !data.filePath.startsWith(prefix) ||
+      data.filePath.includes("..") ||
+      data.filePath.includes("\\")
+    ) {
+      throw new Error("That document upload does not belong to your account.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const fileName = data.filePath.slice(context.userId.length + 1);
+    const { data: files, error: storageError } = await supabaseAdmin.storage
+      .from("hire-documents")
+      .list(context.userId, { limit: 100, search: fileName });
+    if (storageError) throw new Error(`Could not verify document upload: ${storageError.message}`);
+    if (!files?.some((file) => file.name === fileName)) {
+      throw new Error("The uploaded document could not be found. Please upload it again.");
+    }
+    const { error } = await supabaseAdmin.from("hire_customer_documents").upsert(
+      {
+        requester_id: context.userId,
+        document_kind: data.kind,
+        file_path: data.filePath,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "requester_id,document_kind" },
+    );
+    if (error) throw new Error(`Could not save document for future bookings: ${error.message}`);
+    return { ok: true, filePath: data.filePath };
   });
 
 export const listMyHireQuotes = createServerFn({ method: "GET" })

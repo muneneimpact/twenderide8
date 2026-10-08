@@ -2,15 +2,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import type { DateRange } from "react-day-picker";
 import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
+import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import {
   estimateHireTotal,
+  getMyHireDocuments,
   listHireVehicles,
   listMyHireQuotes,
   payHireBooking,
   respondToHireOffer,
+  saveMyHireDocument,
   submitHireQuote,
 } from "@/lib/hire.functions";
 
@@ -94,6 +98,46 @@ function localDateTimeInput(date: Date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
+function calendarDay(value: string): Date | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function dayKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function dateAtClock(date: Date, clock: string) {
+  const [hour, minute] = clock.split(":").map(Number);
+  return localDateTimeInput(
+    new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour || 0, minute || 0),
+  );
+}
+
+function bookingTouchesDay(date: Date, bookings: Vehicle["bookings"]) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const end = start + DAY;
+  return bookings.some(
+    (booking) => new Date(booking.start).getTime() < end && new Date(booking.end).getTime() > start,
+  );
+}
+
+function clockFrom(value: string, fallback: string) {
+  return value.includes("T") ? value.slice(11, 16) : fallback;
+}
+
+function defaultPickupClock(date: Date) {
+  const now = new Date();
+  const target = new Date(now.getTime() + 5 * 60_000);
+  if (dayKey(date) !== dayKey(now)) return "10:00";
+  if (dayKey(target) === dayKey(date)) {
+    return `${String(target.getHours()).padStart(2, "0")}:${String(target.getMinutes()).padStart(2, "0")}`;
+  }
+  return "23:59";
+}
+
 function availabilityDateLabel(value: string | Date) {
   const date = new Date(value);
   const today = new Date();
@@ -113,14 +157,22 @@ function HirePage() {
   const queryClient = useQueryClient();
   const submitFn = useServerFn(submitHireQuote);
   const listFn = useServerFn(listMyHireQuotes);
+  const savedDocsFn = useServerFn(getMyHireDocuments);
+  const saveDocFn = useServerFn(saveMyHireDocument);
   const vehiclesFn = useServerFn(listHireVehicles);
   const respondFn = useServerFn(respondToHireOffer);
   const payFn = useServerFn(payHireBooking);
+  const [accountId, setAccountId] = useState<string | null>(null);
 
   const quotes = useQuery({
     queryKey: ["hire-quotes"],
     queryFn: () => listFn(),
     refetchInterval: 15_000,
+  });
+  const savedDocuments = useQuery({
+    queryKey: ["my-hire-documents", accountId],
+    queryFn: () => savedDocsFn(),
+    enabled: Boolean(accountId),
   });
   const vehicles = useQuery({ queryKey: ["hire-vehicles"], queryFn: () => vehiclesFn() });
 
@@ -157,9 +209,22 @@ function HirePage() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!idPath && savedDocuments.data?.idDocumentPath) {
+      setIdPath(savedDocuments.data.idDocumentPath);
+    }
+    if (!licensePath && savedDocuments.data?.licenseDocumentPath) {
+      setLicensePath(savedDocuments.data.licenseDocumentPath);
+    }
+  }, [idPath, licensePath, savedDocuments.data]);
+
+  useEffect(() => {
     let live = true;
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (live) setAccountId(session?.user.id ?? null);
+    });
     void supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
+      if (live) setAccountId(data.user.id);
       const { data: profile } = await supabase
         .from("profiles")
         .select("phone")
@@ -169,8 +234,14 @@ function HirePage() {
     });
     return () => {
       live = false;
+      authListener.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    setIdPath(null);
+    setLicensePath(null);
+  }, [accountId]);
 
   const passengers = Math.min(60, Math.max(1, Number(peopleText) || 1));
   const start = startAt ? new Date(startAt) : null;
@@ -253,6 +324,14 @@ function HirePage() {
   }
 
   async function upload(kind: "id" | "license", file: File) {
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage("Each document must be 10 MB or smaller.");
+      return;
+    }
+    if (file.type && !file.type.startsWith("image/") && file.type !== "application/pdf") {
+      setMessage("Upload a photo or PDF of the document.");
+      return;
+    }
     setUploading(kind);
     setMessage(null);
     const { data: auth } = await supabase.auth.getUser();
@@ -264,10 +343,25 @@ function HirePage() {
     const { error } = await supabase.storage
       .from("hire-documents")
       .upload(path, file, { upsert: true, contentType: file.type });
-    setUploading(null);
-    if (error) return setMessage(error.message);
-    if (kind === "id") setIdPath(path);
-    else setLicensePath(path);
+    if (error) {
+      setUploading(null);
+      setMessage(error.message);
+      return;
+    }
+    try {
+      await saveDocFn({ data: { kind, filePath: path } });
+      if (kind === "id") setIdPath(path);
+      else setLicensePath(path);
+      void queryClient.invalidateQueries({ queryKey: ["my-hire-documents"] });
+      setMessage(
+        `${kind === "id" ? "ID" : "Driving licence"} saved securely for future bookings. Upload again only when you need to replace it.`,
+      );
+    } catch (error) {
+      await supabase.storage.from("hire-documents").remove([path]);
+      setMessage((error as Error).message);
+    } finally {
+      setUploading(null);
+    }
   }
 
   const submit = useMutation({
@@ -339,15 +433,21 @@ function HirePage() {
   if (!pickup) missing.push("set where the car is brought");
   if (!renterName.trim()) missing.push("enter your name");
   if (chosen && !paymentPhone.trim()) missing.push("enter your M-Pesa phone number");
-  if (!idPath) missing.push("upload your ID");
-  if (tab === "self_drive" && !licensePath) missing.push("upload your driving licence");
+  if (!idPath && !savedDocuments.isPending) missing.push("upload your ID");
+  if (tab === "self_drive" && !licensePath && !savedDocuments.isPending)
+    missing.push("upload your driving licence");
   if (chosen && !rulesAccepted) missing.push("accept the owner's rules");
   if (clash) missing.push("choose available pickup and return times");
-  const canSubmit = missing.length === 0 && !submit.isPending;
+  const canSubmit = missing.length === 0 && !submit.isPending && !savedDocuments.isPending;
 
   return (
     <AppShell title="Hire a car">
       <div className="space-y-4 pb-24">
+        <p className="mx-4 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-warning-foreground">
+          Payment safety: pay for bookings and instalments only through Twende Meru Rides. Never
+          send money directly to a driver or owner; report any pressure to pay outside the system to
+          help prevent extortion and fraud.
+        </p>
         <div className="flex gap-2">
           {(
             [
@@ -385,6 +485,7 @@ function HirePage() {
               returnAt={returnAt}
               onPickup={updatePickupTime}
               onReturn={setReturnAt}
+              bookings={[]}
             />
             {scheduleValid && estimatedTotal !== null ? (
               <p className="mt-3 font-display text-base font-bold text-foreground">
@@ -561,7 +662,7 @@ function HirePage() {
                 {chosen && estimatedTotal !== null ? (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {chosen.hire_payment_policy === "daily_flexible"
-                      ? `Pay at least KES ${Math.ceil(estimatedTotal / Math.max(1, days)).toLocaleString("en-KE")} for day one; later days can be paid daily.`
+                      ? `Pay at least KES ${Math.ceil(estimatedTotal / Math.max(1, days)).toLocaleString("en-KE")} for day one; later days can be paid daily or later via the system.`
                       : `Pay KES ${estimatedTotal.toLocaleString("en-KE")} in full before the owner sees the booking.`}
                   </p>
                 ) : null}
@@ -702,6 +803,21 @@ function HirePage() {
               ) : null}
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <p className="col-span-full text-[11px] text-muted-foreground">
+                  Upload your ID and driving licence once. They are saved securely to your account
+                  and reused for future bookings; upload a replacement only when the document
+                  changes.
+                </p>
+                {savedDocuments.isPending ? (
+                  <p className="col-span-full text-[11px] text-muted-foreground">
+                    Checking for your saved documents…
+                  </p>
+                ) : null}
+                {savedDocuments.error ? (
+                  <p className="col-span-full text-[11px] text-destructive">
+                    Could not load saved documents. Upload them again to continue.
+                  </p>
+                ) : null}
                 <UploadBox
                   label="Your ID (photo)"
                   done={Boolean(idPath)}
@@ -1080,6 +1196,8 @@ function HirePage() {
                 returnAt={returnAt}
                 onPickup={updatePickupTime}
                 onReturn={setReturnAt}
+                bookings={opened.bookings}
+                availabilityKnown
               />
               {openClash ? (
                 <p className="mt-2 text-xs text-destructive">
@@ -1132,32 +1250,140 @@ function ScheduleFields({
   returnAt,
   onPickup,
   onReturn,
+  bookings,
+  availabilityKnown = false,
 }: {
   startAt: string;
   returnAt: string;
   onPickup: (value: string) => void;
   onReturn: (value: string) => void;
+  bookings: Vehicle["bookings"];
+  availabilityKnown?: boolean;
 }) {
+  const pickupDate = calendarDay(startAt);
+  const returnDate = calendarDay(returnAt);
+  const selectedRange: DateRange | undefined = pickupDate
+    ? { from: pickupDate, ...(returnDate ? { to: returnDate } : {}) }
+    : undefined;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isUnavailable = (date: Date) =>
+    date.getTime() < today.getTime() ||
+    (availabilityKnown && bookingTouchesDay(date, bookings)) ||
+    (dayKey(date) === dayKey(today) &&
+      new Date(dateAtClock(date, defaultPickupClock(date))).getTime() <= Date.now());
+  const isAvailable = (date: Date) => availabilityKnown && !isUnavailable(date);
+  const isBooked = (date: Date) => availabilityKnown && bookingTouchesDay(date, bookings);
+
+  function selectRange(next: DateRange | undefined) {
+    if (!next?.from) {
+      onPickup("");
+      onReturn("");
+      return;
+    }
+    const pickupClock = clockFrom(startAt, defaultPickupClock(next.from));
+    const pickupValue = dateAtClock(next.from, pickupClock);
+    onPickup(pickupValue);
+    if (!next.to) {
+      onReturn("");
+      return;
+    }
+    let returnValue = dateAtClock(next.to, clockFrom(returnAt, "10:00"));
+    if (new Date(returnValue).getTime() <= new Date(pickupValue).getTime()) {
+      const pickup = new Date(pickupValue);
+      pickup.setMinutes(pickup.getMinutes() + 60);
+      const latestSameDay = new Date(
+        next.to.getFullYear(),
+        next.to.getMonth(),
+        next.to.getDate(),
+        23,
+        59,
+      );
+      returnValue = localDateTimeInput(
+        pickup.getTime() > latestSameDay.getTime() ? latestSameDay : pickup,
+      );
+    }
+    onReturn(returnValue);
+  }
+
+  function setPickupClock(clock: string) {
+    if (pickupDate) onPickup(dateAtClock(pickupDate, clock));
+  }
+
+  function setReturnClock(clock: string) {
+    if (returnDate) onReturn(dateAtClock(returnDate, clock));
+  }
+
   return (
-    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-      <Field label="Pickup date and time">
-        <input
-          type="datetime-local"
-          min={localDateTimeInput(new Date(Date.now() + 60_000))}
-          value={startAt}
-          onChange={(event) => onPickup(event.target.value)}
-          className="input-base"
-        />
-      </Field>
-      <Field label="Return date and time">
-        <input
-          type="datetime-local"
-          min={startAt || localDateTimeInput(new Date())}
-          value={returnAt}
-          onChange={(event) => onReturn(event.target.value)}
-          className="input-base"
-        />
-      </Field>
+    <div className="mt-3 space-y-3">
+      <Calendar
+        mode="range"
+        selected={selectedRange}
+        onSelect={selectRange}
+        disabled={isUnavailable}
+        excludeDisabled
+        modifiers={{
+          available: isAvailable,
+          booked: isBooked,
+        }}
+        modifiersClassNames={{
+          available:
+            "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-100",
+          booked:
+            "bg-red-100 text-red-800 line-through opacity-90 dark:bg-red-900/40 dark:text-red-100",
+        }}
+        showOutsideDays={false}
+        className="mx-auto"
+      />
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+        {availabilityKnown ? (
+          <>
+            <span className="inline-flex items-center gap-1.5">
+              <i className="size-2.5 rounded-full bg-emerald-500" /> Available
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <i className="size-2.5 rounded-full bg-red-500" /> Booked / unavailable
+            </span>
+          </>
+        ) : (
+          <span>Choose dates; actual vehicle availability is confirmed with the quotation.</span>
+        )}
+        {availabilityKnown ? <span>Past dates are disabled.</span> : null}
+      </div>
+      {pickupDate ? (
+        <p className="text-xs text-muted-foreground">
+          Dates: {pickupDate.toLocaleDateString("en-KE")} –{" "}
+          {(returnDate ?? pickupDate).toLocaleDateString("en-KE")}
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">Select a pickup day, then a return day.</p>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Pickup time">
+          <input
+            type="time"
+            value={startAt ? startAt.slice(11, 16) : ""}
+            {...(pickupDate && dayKey(pickupDate) === dayKey(today)
+              ? { min: clockFrom(localDateTimeInput(new Date()), "") }
+              : {})}
+            disabled={!pickupDate}
+            onChange={(event) => setPickupClock(event.target.value)}
+            className="input-base"
+          />
+        </Field>
+        <Field label="Return time">
+          <input
+            type="time"
+            value={returnAt ? returnAt.slice(11, 16) : ""}
+            {...(pickupDate && returnDate && dayKey(pickupDate) === dayKey(returnDate)
+              ? { min: startAt.slice(11, 16) }
+              : {})}
+            disabled={!returnDate}
+            onChange={(event) => setReturnClock(event.target.value)}
+            className="input-base"
+          />
+        </Field>
+      </div>
     </div>
   );
 }
@@ -1177,7 +1403,7 @@ function UploadBox({
     <label className="flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-input px-3 py-3 text-xs">
       <span className="font-medium text-foreground">{label}</span>
       <span className={done ? "text-primary" : "text-muted-foreground"}>
-        {busy ? "Uploading…" : done ? "Uploaded ✓" : "Upload"}
+        {busy ? "Uploading…" : done ? "Saved · reuse ✓" : "Upload"}
       </span>
       <input
         type="file"
@@ -1186,6 +1412,7 @@ function UploadBox({
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) onFile(f);
+          e.target.value = "";
         }}
       />
     </label>

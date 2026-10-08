@@ -75,6 +75,11 @@ export function HireRequestsBoard() {
         Listed-car requests appear here only after the required payment clears. Unpaid requests
         remain private to the customer.
       </p>
+      <p className="mt-2 rounded-xl border border-warning/30 bg-warning/10 p-2 text-[11px] text-warning-foreground">
+        Keep all customer payments and instalments inside the system. Do not request or accept
+        off-platform payments; direct payment requests can expose customers to extortion and are not
+        covered by the platform's payment record.
+      </p>
 
       {balance ? (
         <div className="mt-3 grid grid-cols-3 gap-2 rounded-2xl border border-border p-3">
