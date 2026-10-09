@@ -27,6 +27,7 @@ export function AdminHireListingsBoard() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-hire-listings"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-hire-portfolio-finance"] });
+    void queryClient.invalidateQueries({ queryKey: ["hire-vehicles"] });
   };
   const review = useMutation({
     mutationFn: (input: {

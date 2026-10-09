@@ -193,7 +193,12 @@ function HirePage() {
     queryFn: () => savedDocsFn(),
     enabled: Boolean(accountId),
   });
-  const vehicles = useQuery({ queryKey: ["hire-vehicles"], queryFn: () => vehiclesFn() });
+  const vehicles = useQuery({
+    queryKey: ["hire-vehicles"],
+    queryFn: () => vehiclesFn(),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
 
   const [tab, setTab] = useState<"self_drive" | "chauffeured">("self_drive");
   const [vehicleId, setVehicleId] = useState<string | null>(null);
@@ -575,7 +580,11 @@ function HirePage() {
               <p className="mt-3 text-xs text-muted-foreground">Loading cars…</p>
             ) : null}
             {!vehicles.isPending && listed.length === 0 ? (
-              <p className="mt-3 text-xs text-muted-foreground">No cars match these filters.</p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {fSeats || fMake || fModel || fMaxPrice
+                  ? "No cars match these filters. Clear a filter to see more listings."
+                  : "No hire cars are currently published. Operations-approved and published cars appear here automatically; this list refreshes every 30 seconds."}
+              </p>
             ) : null}
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
