@@ -737,6 +737,33 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_customer_documents: {
+        Row: {
+          created_at: string
+          document_kind: string
+          file_path: string
+          id: string
+          requester_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_kind: string
+          file_path: string
+          id?: string
+          requester_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_kind?: string
+          file_path?: string
+          id?: string
+          requester_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       hire_offers: {
         Row: {
           created_at: string
@@ -2363,9 +2390,14 @@ export type Database = {
           fleet_id: string | null
           hire_approval_status: string
           hire_available: boolean
+          hire_cancellation_policy: string
+          hire_chauffeur_daily_rate: number
           hire_daily_rate: number | null
           hire_description: string | null
           hire_features: string | null
+          hire_insurance_details: string | null
+          hire_insurance_type: string | null
+          hire_minimum_age: number | null
           hire_mode: string
           hire_notes: string | null
           hire_payment_policy: string
@@ -2393,9 +2425,14 @@ export type Database = {
           fleet_id?: string | null
           hire_approval_status?: string
           hire_available?: boolean
+          hire_cancellation_policy?: string
+          hire_chauffeur_daily_rate?: number
           hire_daily_rate?: number | null
           hire_description?: string | null
           hire_features?: string | null
+          hire_insurance_details?: string | null
+          hire_insurance_type?: string | null
+          hire_minimum_age?: number | null
           hire_mode?: string
           hire_notes?: string | null
           hire_payment_policy?: string
@@ -2423,9 +2460,14 @@ export type Database = {
           fleet_id?: string | null
           hire_approval_status?: string
           hire_available?: boolean
+          hire_cancellation_policy?: string
+          hire_chauffeur_daily_rate?: number
           hire_daily_rate?: number | null
           hire_description?: string | null
           hire_features?: string | null
+          hire_insurance_details?: string | null
+          hire_insurance_type?: string | null
+          hire_minimum_age?: number | null
           hire_mode?: string
           hire_notes?: string | null
           hire_payment_policy?: string
