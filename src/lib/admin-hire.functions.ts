@@ -26,6 +26,11 @@ export const getAdminHireVehicleListings = createServerFn({ method: "GET" })
       hire_mode: string | null;
       hire_payment_policy: string | null;
       hire_daily_rate: number | null;
+      hire_cancellation_policy: string;
+      hire_chauffeur_daily_rate: number | null;
+      hire_insurance_type: string | null;
+      hire_insurance_details: string | null;
+      hire_minimum_age: number | null;
       hire_description: string | null;
       hire_features: string | null;
       hire_rules: string | null;
@@ -43,7 +48,7 @@ export const getAdminHireVehicleListings = createServerFn({ method: "GET" })
       const { data, error } = await supabaseAdmin
         .from("vehicles")
         .select(
-          "id, plate_number, make, model, colour, year, seats, vehicle_class, status, owner_driver_id, fleet_id, hire_mode, hire_payment_policy, hire_daily_rate, hire_description, hire_features, hire_rules, hire_notes, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, created_at",
+          "id, plate_number, make, model, colour, year, seats, vehicle_class, status, owner_driver_id, fleet_id, hire_mode, hire_payment_policy, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_description, hire_features, hire_rules, hire_notes, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, created_at",
         )
         .order("created_at", { ascending: false })
         .order("id")

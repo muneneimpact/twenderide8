@@ -18,6 +18,7 @@ export function PlaceSearch({
   placeholder,
   near,
   onPick,
+  onManualPick,
   prominent = false,
   value,
   inputRef,
@@ -26,6 +27,8 @@ export function PlaceSearch({
   placeholder: string;
   near?: { lat: number; lng: number } | null;
   onPick: (place: FoundPlace) => void;
+  /** Allows forms that accept un-geocoded address text to use the current query. */
+  onManualPick?: (label: string) => void;
   /** Renders the field large and bold — used for the main "Where to?" input. */
   prominent?: boolean;
   /** Text to show when the caller already knows the chosen place. */
@@ -42,6 +45,8 @@ export function PlaceSearch({
   const [touched, setTouched] = useState(false);
   const requestId = useRef(0);
   const justPicked = useRef(false);
+  const nearLat = near?.lat;
+  const nearLng = near?.lng;
 
   useEffect(() => {
     onSuggestionsChange?.(results.length > 0);
@@ -52,7 +57,6 @@ export function PlaceSearch({
     if (value != null) setQuery(value);
   }, [value]);
 
-
   useEffect(() => {
     if (justPicked.current) {
       justPicked.current = false;
@@ -60,7 +64,6 @@ export function PlaceSearch({
     }
     const text = query.trim();
     if (text.length < 2) {
-
       setResults([]);
       setBusy(false);
       return;
@@ -70,7 +73,12 @@ export function PlaceSearch({
     const timer = window.setTimeout(async () => {
       try {
         const places = (await search({
-          data: { query: text, ...(near ? { near: { lat: near.lat, lng: near.lng } } : {}) },
+          data: {
+            query: text,
+            ...(nearLat !== undefined && nearLng !== undefined
+              ? { near: { lat: nearLat, lng: nearLng } }
+              : {}),
+          },
         })) as FoundPlace[];
         if (id === requestId.current) setResults(places);
       } catch {
@@ -80,8 +88,7 @@ export function PlaceSearch({
       }
     }, 120);
     return () => window.clearTimeout(timer);
-    // near is intentionally read as a value snapshot each keystroke
-  }, [query, near?.lat, near?.lng, search]);
+  }, [query, nearLat, nearLng, search]);
 
   /** One tap is enough: fired on pointer-down so a blur can't swallow it. */
   function choose(place: FoundPlace) {
@@ -93,7 +100,6 @@ export function PlaceSearch({
     setQuery(place.label);
     onPick(place);
   }
-
 
   return (
     <div className="relative">
@@ -120,8 +126,6 @@ export function PlaceSearch({
 
       {results.length > 0 && (
         <ul className="solid-panel relative z-30 mt-1 max-h-72 w-full overflow-y-auto p-1">
-
-
           {results.slice(0, 6).map((place) => (
             <li key={`${place.lat},${place.lng},${place.label}`}>
               <button
@@ -135,7 +139,9 @@ export function PlaceSearch({
               >
                 <span className="block text-base font-semibold leading-tight">{place.label}</span>
                 {place.address ? (
-                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">{place.address}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    {place.address}
+                  </span>
                 ) : null}
               </button>
             </li>
@@ -147,7 +153,24 @@ export function PlaceSearch({
           No match yet — keep typing, or drop the pin on the map instead.
         </p>
       ) : null}
+      {onManualPick && touched && query.trim().length >= 2 ? (
+        <button
+          type="button"
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={() => {
+            const label = query.trim();
+            requestId.current += 1;
+            setResults([]);
+            setBusy(false);
+            setTouched(false);
+            setQuery(label);
+            onManualPick(label);
+          }}
+          className="mt-1 w-full rounded-xl border border-input bg-card px-3 py-2 text-left text-xs font-medium text-foreground"
+        >
+          Use “{query.trim()}” as the pickup address
+        </button>
+      ) : null}
     </div>
   );
 }
-

@@ -3,13 +3,9 @@
  *
  * Two very different things share this file:
  *
- *  - Self-drive hire: the customer browses real listed cars (photo, plate,
- *    day rate), says where the car should be delivered and books it. They
- *    fuel the car themselves.
- *  - Chauffeured quotation: everything done for them — fuel and a driver.
- *    Owners/drivers (and our team) price it, the customer accepts or declines,
- *    and a declined offer leaves the request open for another owner with the
- *    same kind of vehicle.
+ *  - Vehicle hire: customers browse approved listings, select an available
+ *    date range, and book self-drive or chauffeured cars at the displayed rate.
+ *  - Custom corporate quotations remain available without a specific listing.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -44,10 +40,12 @@ export function estimateHireTotal(input: {
   days: number;
   stops: number;
   dailyRate?: number | null;
+  chauffeurDailyRate?: number | null;
 }) {
   const base =
     input.dailyRate && input.dailyRate > 0 ? input.dailyRate : DAY_RATE[input.vehicleClass];
-  const perDay = base + (input.driveMode === "chauffeured" ? CHAUFFEUR_DAY_RATE : 0);
+  const chauffeurRate = input.chauffeurDailyRate ?? CHAUFFEUR_DAY_RATE;
+  const perDay = base + (input.driveMode === "chauffeured" ? chauffeurRate : 0);
   const extraStops = Math.max(0, input.stops - 2) * STOP_ALLOWANCE;
   return Math.round(perDay * input.days + extraStops);
 }
@@ -64,6 +62,11 @@ export interface HireVehicleRow {
   hire_mode: string | null;
   hire_payment_policy: HirePaymentPolicy;
   hire_daily_rate: number | null;
+  hire_cancellation_policy: string;
+  hire_chauffeur_daily_rate: number | null;
+  hire_insurance_type: string | null;
+  hire_insurance_details: string | null;
+  hire_minimum_age: number | null;
   hire_notes: string | null;
   hire_description: string | null;
   hire_features: string | null;
@@ -110,9 +113,9 @@ async function withPhotos(
 }
 
 const VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_daily_rate, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 const PUBLIC_HIRE_VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_daily_rate, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
@@ -179,6 +182,7 @@ export const listHireVehicles = createServerFn({ method: "GET" })
         Number(vehicle.hire_daily_rate ?? 0) > 0
           ? Number(vehicle.hire_daily_rate)
           : DAY_RATE[vehicle.vehicle_class ?? "go"],
+      chauffeur_daily_rate: Number(vehicle.hire_chauffeur_daily_rate ?? CHAUFFEUR_DAY_RATE),
     }));
   });
 
@@ -257,6 +261,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         hireMode: z.enum(["self_drive", "chauffeured", "both"]).optional(),
         paymentPolicy: z.enum(["full", "daily_flexible"]).optional(),
         dailyRate: z.number().min(0).max(1_000_000).nullable().optional(),
+        chauffeurDailyRate: z.number().min(0).max(1_000_000).optional(),
         seats: z.number().int().min(1).max(60).nullable().optional(),
         description: z.string().max(500).nullable().optional(),
         features: z.string().max(800).nullable().optional(),
@@ -264,6 +269,14 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         addPhotoPaths: z.array(z.string().max(400)).max(12).optional(),
         removePhotoPath: z.string().max(400).optional(),
         rules: z.string().max(2000).nullable().optional(),
+        cancellationPolicy: z.string().trim().max(2000).optional(),
+        applyCancellationPolicyToOwner: z.boolean().optional(),
+        insuranceType: z
+          .enum(["comprehensive", "third_party_fire_theft", "third_party_only", "other"])
+          .nullable()
+          .optional(),
+        insuranceDetails: z.string().trim().max(200).nullable().optional(),
+        minimumAge: z.number().int().min(18).max(100).nullable().optional(),
         submitForHireReview: z.boolean().optional(),
       })
       .parse(input),
@@ -276,6 +289,9 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       .eq("owner_id", context.userId);
     if (fleetError) throw new Error(fleetError.message);
     const fleetIds = (fleets ?? []).map((fleet) => fleet.id);
+    const ownerFilter = fleetIds.length
+      ? `owner_driver_id.eq.${context.userId},fleet_id.in.(${fleetIds.join(",")})`
+      : `owner_driver_id.eq.${context.userId}`;
     const { data: current, error: loadError } = await supabaseAdmin
       .from("vehicles")
       .select(
@@ -294,10 +310,46 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
     if (data.hireMode !== undefined) patch["hire_mode"] = data.hireMode;
     if (data.paymentPolicy !== undefined) patch["hire_payment_policy"] = data.paymentPolicy;
     if (data.dailyRate !== undefined) patch["hire_daily_rate"] = data.dailyRate;
+    if (data.chauffeurDailyRate !== undefined)
+      patch["hire_chauffeur_daily_rate"] = data.chauffeurDailyRate;
     if (data.seats !== undefined) patch["seats"] = data.seats;
     if (data.description !== undefined) patch["hire_description"] = data.description;
     if (data.features !== undefined) patch["hire_features"] = data.features;
     if (data.rules !== undefined) patch["hire_rules"] = data.rules;
+    if (data.cancellationPolicy !== undefined) {
+      patch["hire_cancellation_policy"] =
+        data.cancellationPolicy ||
+        "Submit cancellation requests through Twende Meru Rides. Any refund or deduction is subject to platform review; do not settle cancellations off-platform.";
+    }
+    if (data.insuranceType !== undefined) patch["hire_insurance_type"] = data.insuranceType;
+    if (data.insuranceDetails !== undefined)
+      patch["hire_insurance_details"] = data.insuranceDetails || null;
+    if (data.minimumAge !== undefined) patch["hire_minimum_age"] = data.minimumAge;
+
+    if (data.applyCancellationPolicyToOwner && data.cancellationPolicy !== undefined) {
+      const cancellationPolicy =
+        data.cancellationPolicy ||
+        "Submit cancellation requests through Twende Meru Rides. Any refund or deduction is subject to platform review; do not settle cancellations off-platform.";
+      const { error: policyError } = await supabaseAdmin
+        .from("vehicles")
+        .update({ hire_cancellation_policy: cancellationPolicy } as never)
+        .or(ownerFilter);
+      if (policyError)
+        throw new Error(`Could not apply cancellation policy: ${policyError.message}`);
+      const { error: reapprovalError } = await supabaseAdmin
+        .from("vehicles")
+        .update({
+          hire_approval_status: "pending",
+          hire_available: false,
+          hire_rejection_reason: null,
+          hire_reviewed_at: null,
+          hire_reviewed_by: null,
+        } as never)
+        .or(ownerFilter)
+        .eq("hire_approval_status", "approved");
+      if (reapprovalError)
+        throw new Error(`Could not pause listings for policy review: ${reapprovalError.message}`);
+    }
 
     const photoAdds = [
       ...(data.addPhotoPaths ?? []),
@@ -326,6 +378,11 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       data.description !== undefined ||
       data.features !== undefined ||
       data.rules !== undefined ||
+      data.chauffeurDailyRate !== undefined ||
+      data.cancellationPolicy !== undefined ||
+      data.insuranceType !== undefined ||
+      data.insuranceDetails !== undefined ||
+      data.minimumAge !== undefined ||
       photoAdds.length > 0 ||
       Boolean(data.removePhotoPath);
     if (data.submitForHireReview) {
@@ -367,7 +424,11 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       .update(patch as never)
       .eq("id", data.vehicleId);
     if (error) throw new Error(error.message);
-    return { ok: true, submittedForReview: Boolean(data.submitForHireReview) };
+    return {
+      ok: true,
+      submittedForReview: Boolean(data.submitForHireReview),
+      cancellationPolicyAppliedToOwner: Boolean(data.applyCancellationPolicyToOwner),
+    };
   });
 
 export const submitHireQuote = createServerFn({ method: "POST" })
@@ -424,13 +485,14 @@ export const submitHireQuote = createServerFn({ method: "POST" })
     if (days < 1 || days > 90) throw new Error("Hire duration must be between 1 and 90 days.");
 
     let dailyRate: number | null = null;
+    let chauffeurDailyRate: number | null = null;
     let vehicleClass = data.vehicleClass;
     let paymentPolicy: HirePaymentPolicy | "legacy" = "legacy";
     if (data.vehicleId) {
       const { data: vehicle } = await supabaseAdmin
         .from("vehicles")
         .select(
-          "id, vehicle_class, hire_daily_rate, hire_payment_policy, hire_available, hire_approval_status, status",
+          "id, vehicle_class, hire_daily_rate, hire_chauffeur_daily_rate, hire_payment_policy, hire_mode, hire_available, hire_approval_status, status",
         )
         .eq("id", data.vehicleId)
         .maybeSingle();
@@ -442,7 +504,11 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       ) {
         throw new Error("That car is no longer available for hire.");
       }
+      if (vehicle.hire_mode !== "both" && vehicle.hire_mode !== data.driveMode) {
+        throw new Error("That car is not listed for the selected hire type.");
+      }
       dailyRate = vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate);
+      chauffeurDailyRate = Number(vehicle.hire_chauffeur_daily_rate ?? CHAUFFEUR_DAY_RATE);
       vehicleClass = vehicle.vehicle_class as VehicleClass;
       paymentPolicy = vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible";
       const { assertVehicleHasNoLiveRide } = await import("./vehicle-hire-lock.server");
@@ -455,6 +521,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       days,
       stops: data.stops.length,
       dailyRate,
+      chauffeurDailyRate,
     });
     const { data: profile } = await supabaseAdmin
       .from("profiles")

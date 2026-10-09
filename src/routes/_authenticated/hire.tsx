@@ -40,13 +40,6 @@ export const Route = createFileRoute("/_authenticated/hire")({
   component: HirePage,
 });
 
-const CLASSES = [
-  { value: "go", label: "Saloon (Go)" },
-  { value: "plus", label: "Plus" },
-  { value: "comfort", label: "Comfort" },
-  { value: "xl", label: "Van / XL" },
-] as const;
-
 const STATUS_COPY: Record<string, string> = {
   submitted: "Waiting for offers",
   quoted: "Offer waiting for you",
@@ -153,6 +146,32 @@ function availabilityDateLabel(value: string | Date) {
   return sameDay ? `Available today, ${formatted}` : `Available on ${formatted}`;
 }
 
+function listedDayTotal(vehicle: Vehicle, driveMode: "self_drive" | "chauffeured") {
+  return estimateHireTotal({
+    vehicleClass: vehicle.vehicle_class,
+    driveMode,
+    days: 1,
+    stops: 0,
+    dailyRate: Number(vehicle.day_rate),
+    chauffeurDailyRate: Number(vehicle.chauffeur_daily_rate),
+  });
+}
+
+function insuranceLabel(value: string | null) {
+  switch (value) {
+    case "comprehensive":
+      return "Comprehensive";
+    case "third_party_fire_theft":
+      return "Third party, fire and theft";
+    case "third_party_only":
+      return "Third party only";
+    case "other":
+      return "Other coverage";
+    default:
+      return "Not specified";
+  }
+}
+
 function HirePage() {
   const queryClient = useQueryClient();
   const submitFn = useServerFn(submitHireQuote);
@@ -186,7 +205,6 @@ function HirePage() {
   const [fSeats, setFSeats] = useState("");
   const [fMake, setFMake] = useState("");
   const [fModel, setFModel] = useState("");
-  const [fClass, setFClass] = useState("");
   const [fMaxPrice, setFMaxPrice] = useState("");
 
   // Hirer details and needs
@@ -195,11 +213,12 @@ function HirePage() {
   const [renterIdNumber, setRenterIdNumber] = useState("");
   const [paymentPhone, setPaymentPhone] = useState("");
   const [organisation, setOrganisation] = useState("");
-  const [vehicleClass, setVehicleClass] = useState<(typeof CLASSES)[number]["value"]>("go");
   const [startAt, setStartAt] = useState("");
   const [returnAt, setReturnAt] = useState("");
   const [peopleText, setPeopleText] = useState("1");
   const [pickup, setPickup] = useState<Place | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [stops, setStops] = useState<Place[]>([]);
   const [notes, setNotes] = useState("");
   const [idPath, setIdPath] = useState<string | null>(null);
@@ -227,10 +246,13 @@ function HirePage() {
       if (live) setAccountId(data.user.id);
       const { data: profile } = await supabase
         .from("profiles")
-        .select("phone")
+        .select("full_name, phone")
         .eq("id", data.user.id)
         .maybeSingle();
-      if (live && profile?.phone) setPaymentPhone(profile.phone);
+      if (live && profile) {
+        if (profile.full_name) setRenterName((current) => current || profile.full_name || "");
+        if (profile.phone) setPaymentPhone((current) => current || profile.phone || "");
+      }
     });
     return () => {
       live = false;
@@ -271,8 +293,7 @@ function HirePage() {
     if (fSeats && (v.seats ?? 0) < Number(fSeats)) return false;
     if (fMake && v.make !== fMake) return false;
     if (fModel && !(v.model ?? "").toLowerCase().includes(fModel.toLowerCase())) return false;
-    if (fClass && v.vehicle_class !== fClass) return false;
-    if (fMaxPrice && Number(v.day_rate) > Number(fMaxPrice)) return false;
+    if (fMaxPrice && listedDayTotal(v, tab) > Number(fMaxPrice)) return false;
     return true;
   });
 
@@ -285,7 +306,7 @@ function HirePage() {
     const refB = scheduleValid && bBusy && endDate ? endDate : new Date();
     const nextA = nextAvailableStart(a, durationDays, refA).getTime();
     const nextB = nextAvailableStart(b, durationDays, refB).getTime();
-    return nextA - nextB || Number(a.day_rate) - Number(b.day_rate);
+    return nextA - nextB || listedDayTotal(a, tab) - listedDayTotal(b, tab);
   });
 
   const chosen = all.find((v) => v.id === vehicleId) ?? null;
@@ -296,17 +317,18 @@ function HirePage() {
   const openClash = Boolean(
     opened && scheduleValid && start && endDate && overlapsRange(opened, start, endDate),
   );
-  const detailsReady =
-    scheduleValid && (tab === "self_drive" ? bookingStep === "details" && Boolean(chosen) : true);
-  const estimatedTotal = scheduleValid
-    ? estimateHireTotal({
-        vehicleClass: (chosen?.vehicle_class ?? vehicleClass) as Vehicle["vehicle_class"],
-        driveMode: tab,
-        days,
-        stops: stops.length,
-        dailyRate: chosen ? Number(chosen.day_rate) : null,
-      })
-    : null;
+  const detailsReady = scheduleValid && bookingStep === "details" && Boolean(chosen);
+  const estimatedTotal =
+    scheduleValid && chosen
+      ? estimateHireTotal({
+          vehicleClass: chosen.vehicle_class,
+          driveMode: tab,
+          days,
+          stops: stops.length,
+          dailyRate: Number(chosen.day_rate),
+          chauffeurDailyRate: Number(chosen.chauffeur_daily_rate),
+        })
+      : null;
   const openedTotal =
     scheduleValid && opened
       ? estimateHireTotal({
@@ -315,12 +337,41 @@ function HirePage() {
           days,
           stops: 0,
           dailyRate: Number(opened.day_rate),
+          chauffeurDailyRate: Number(opened.chauffeur_daily_rate),
         })
       : null;
 
   function updatePickupTime(value: string) {
     setStartAt(value);
     if (returnAt && new Date(returnAt).getTime() <= new Date(value).getTime()) setReturnAt("");
+  }
+
+  function capturePickupLocation() {
+    setLocationError(null);
+    if (!navigator.geolocation) {
+      setLocationError(
+        "Location capture is not supported by this browser. Search for a place instead.",
+      );
+      return;
+    }
+    setLocationBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const lat = Number(coords.latitude.toFixed(6));
+        const lng = Number(coords.longitude.toFixed(6));
+        setPickup({ label: `Current location (${lat.toFixed(5)}, ${lng.toFixed(5)})`, lat, lng });
+        setLocationBusy(false);
+      },
+      (error) => {
+        setLocationError(
+          error.code === error.PERMISSION_DENIED
+            ? "Location permission was denied. Search for a place or enable location access."
+            : "Could not capture your location. Try again or search for a place.",
+        );
+        setLocationBusy(false);
+      },
+      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
+    );
   }
 
   async function upload(kind: "id" | "license", file: File) {
@@ -369,9 +420,9 @@ function HirePage() {
       submitFn({
         data: {
           kind: hirerType === "company" ? "corporate" : "car_hire",
-          vehicleId: tab === "self_drive" ? vehicleId : null,
+          vehicleId,
           organisation: hirerType === "company" ? organisation.trim() || undefined : undefined,
-          vehicleClass: (chosen?.vehicle_class ?? vehicleClass) as typeof vehicleClass,
+          vehicleClass: chosen!.vehicle_class,
           driveMode: tab,
           startAt: new Date(startAt).toISOString(),
           endAt: new Date(returnAt).toISOString(),
@@ -428,7 +479,7 @@ function HirePage() {
   });
 
   const missing: string[] = [];
-  if (tab === "self_drive" && !vehicleId) missing.push("choose a vehicle");
+  if (!vehicleId) missing.push("choose a vehicle");
   if (!scheduleValid) missing.push("choose a future pickup and return time within 90 days");
   if (!pickup) missing.push("set where the car is brought");
   if (!renterName.trim()) missing.push("enter your name");
@@ -474,28 +525,7 @@ function HirePage() {
           ))}
         </div>
 
-        {tab === "chauffeured" ? (
-          <section className="surface-card p-4">
-            <h2 className="font-display text-lg font-bold text-foreground">Pickup and return</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Choose both times. Hire is charged in 24-hour blocks, rounded up to a full day.
-            </p>
-            <ScheduleFields
-              startAt={startAt}
-              returnAt={returnAt}
-              onPickup={updatePickupTime}
-              onReturn={setReturnAt}
-              bookings={[]}
-            />
-            {scheduleValid && estimatedTotal !== null ? (
-              <p className="mt-3 font-display text-base font-bold text-foreground">
-                Estimated total: KES {estimatedTotal.toLocaleString("en-KE")}
-              </p>
-            ) : null}
-          </section>
-        ) : null}
-
-        {tab === "self_drive" && bookingStep === "browse" ? (
+        {bookingStep === "browse" ? (
           <section className="surface-card p-4">
             <h2 className="font-display text-lg font-bold text-foreground">
               Available cars for hire{vehicles.isSuccess ? ` · ${listed.length}` : ""}
@@ -532,18 +562,6 @@ function HirePage() {
                 placeholder="Model"
                 className="input-base"
               />
-              <select
-                value={fClass}
-                onChange={(e) => setFClass(e.target.value)}
-                className="input-base"
-              >
-                <option value="">Any type</option>
-                {CLASSES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
               <input
                 value={fMaxPrice}
                 onChange={(e) => setFMaxPrice(e.target.value)}
@@ -560,7 +578,7 @@ function HirePage() {
               <p className="mt-3 text-xs text-muted-foreground">No cars match these filters.</p>
             ) : null}
 
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
               {listed.map((v) => {
                 const busy = Boolean(
                   scheduleValid && start && endDate && overlapsRange(v, start, endDate),
@@ -595,16 +613,16 @@ function HirePage() {
                           src={v.photo_link}
                           alt={`${v.make ?? "Car"} ${v.model ?? ""} for hire in Meru`}
                           loading="lazy"
-                          className="h-40 w-full object-cover"
+                          className="h-28 w-full object-cover sm:h-40"
                         />
                       ) : (
-                        <div className="grid h-40 w-full place-items-center bg-secondary text-xs text-muted-foreground">
+                        <div className="grid h-28 w-full place-items-center bg-secondary text-xs text-muted-foreground sm:h-40">
                           No photo
                         </div>
                       )}
                       <div className="p-3">
                         <div className="flex items-start justify-between gap-2">
-                          <p className="truncate text-sm font-semibold text-foreground">
+                          <p className="truncate text-xs font-semibold text-foreground sm:text-sm">
                             {[v.make, v.model].filter(Boolean).join(" ") || "Vehicle"}
                           </p>
                           <span
@@ -617,13 +635,24 @@ function HirePage() {
                             {availabilityLabel}
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {v.plate_number} · {v.vehicle_class}
+                        <p className="truncate text-[10px] text-muted-foreground sm:text-xs">
+                          {v.plate_number}
                           {v.seats ? ` · ${v.seats} seats` : ""}
                           {v.photo_links.length > 1 ? ` · ${v.photo_links.length} photos` : ""}
                         </p>
-                        <p className="mt-1 font-display text-sm font-bold text-foreground">
-                          KES {Number(v.day_rate).toLocaleString("en-KE")} / day
+                        <p className="mt-1 font-display text-xs font-bold text-foreground sm:text-sm">
+                          KES {listedDayTotal(v, tab).toLocaleString("en-KE")} / day
+                          {tab === "chauffeured" ? " with chauffeur" : ""}
+                        </p>
+                        {tab === "chauffeured" ? (
+                          <p className="text-[10px] text-muted-foreground">
+                            Car KES {Number(v.day_rate).toLocaleString("en-KE")} + chauffeur KES{" "}
+                            {Number(v.chauffeur_daily_rate).toLocaleString("en-KE")}
+                          </p>
+                        ) : null}
+                        <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground">
+                          {insuranceLabel(v.hire_insurance_type)}
+                          {v.hire_minimum_age ? ` · Minimum age ${v.hire_minimum_age}+` : ""}
                         </p>
                         {features.length ? (
                           <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
@@ -642,7 +671,7 @@ function HirePage() {
           </section>
         ) : null}
 
-        {tab === "self_drive" && bookingStep === "details" && chosen ? (
+        {bookingStep === "details" && chosen ? (
           <section className="surface-card p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -770,22 +799,6 @@ function HirePage() {
                 </Field>
               ) : null}
 
-              {tab === "chauffeured" ? (
-                <Field label="Vehicle type">
-                  <select
-                    value={vehicleClass}
-                    onChange={(e) => setVehicleClass(e.target.value as typeof vehicleClass)}
-                    className="input-base"
-                  >
-                    {CLASSES.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              ) : null}
-
               <Field label="Number of people">
                 <input
                   type="number"
@@ -851,12 +864,29 @@ function HirePage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="mt-1">
+                  <div className="mt-1 space-y-2">
+                    <button
+                      type="button"
+                      onClick={capturePickupLocation}
+                      disabled={locationBusy}
+                      className="w-full rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary disabled:opacity-60"
+                    >
+                      {locationBusy ? "Capturing location…" : "Use my location"}
+                    </button>
+                    <p className="text-center text-[11px] text-muted-foreground">
+                      or search manually
+                    </p>
                     <PlaceSearch
                       placeholder="Search for the collection point"
                       value={null}
-                      onPick={(p) => setPickup({ label: p.label, lat: p.lat, lng: p.lng })}
+                      onPick={(p) => {
+                        setPickup({ label: p.label, lat: p.lat, lng: p.lng });
+                        setLocationError(null);
+                      }}
                     />
+                    {locationError ? (
+                      <p className="text-xs text-destructive">{locationError}</p>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -932,11 +962,7 @@ function HirePage() {
                 disabled={!canSubmit}
                 className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
               >
-                {submit.isPending
-                  ? "Sending…"
-                  : tab === "self_drive"
-                    ? "Continue and pay by M-Pesa"
-                    : "Request a quotation"}
+                {submit.isPending ? "Sending…" : "Continue and pay by M-Pesa"}
               </button>
               {missing.length && !submit.isPending ? (
                 <p className="text-[11px] text-muted-foreground">
@@ -1129,15 +1155,39 @@ function HirePage() {
 
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <Detail k="Plate" v={opened.plate_number} />
-              <Detail k="Type" v={opened.vehicle_class} />
               <Detail k="Seats" v={opened.seats ? String(opened.seats) : "—"} />
               <Detail k="Colour" v={opened.colour ?? "—"} />
               <Detail k="Year" v={opened.year ? String(opened.year) : "—"} />
               <Detail
                 k="Price"
-                v={`KES ${Number(opened.day_rate).toLocaleString("en-KE")} / day`}
+                v={`KES ${listedDayTotal(opened, tab).toLocaleString("en-KE")} / day${tab === "chauffeured" ? " with chauffeur" : ""}`}
               />
+              {tab === "chauffeured" ? (
+                <Detail
+                  k="Daily breakdown"
+                  v={`Car KES ${Number(opened.day_rate).toLocaleString("en-KE")} + chauffeur KES ${Number(opened.chauffeur_daily_rate).toLocaleString("en-KE")}`}
+                />
+              ) : null}
             </dl>
+            <div className="mt-3 grid gap-2 rounded-xl border border-border p-3 text-xs">
+              <p className="font-semibold text-foreground">Hire terms</p>
+              <p className="text-muted-foreground">
+                <span className="font-medium text-foreground">Insurance: </span>
+                {insuranceLabel(opened.hire_insurance_type)}
+                {opened.hire_insurance_details ? ` — ${opened.hire_insurance_details}` : ""}
+              </p>
+              <p className="text-muted-foreground">
+                <span className="font-medium text-foreground">Minimum age: </span>
+                {opened.hire_minimum_age
+                  ? `${opened.hire_minimum_age}+ years`
+                  : "No specific age limit listed; valid ID and licence checks still apply."}
+              </p>
+              <p className="text-muted-foreground">
+                <span className="font-medium text-foreground">Cancellation: </span>
+                {opened.hire_cancellation_policy ||
+                  "Submit cancellation requests through Twende Meru Rides. Any refund or deduction is subject to platform review; do not settle cancellations off-platform."}
+              </p>
+            </div>
             {opened.hire_description ? (
               <p className="mt-3 text-sm text-foreground">{opened.hire_description}</p>
             ) : null}
@@ -1198,6 +1248,13 @@ function HirePage() {
                 onReturn={setReturnAt}
                 bookings={opened.bookings}
                 availabilityKnown
+                onRangeComplete={() => {
+                  setVehicleId(opened.id);
+                  setRulesAccepted(false);
+                  setBookingStep("details");
+                  setMessage(null);
+                  setOpenId(null);
+                }}
               />
               {openClash ? (
                 <p className="mt-2 text-xs text-destructive">
@@ -1252,6 +1309,7 @@ function ScheduleFields({
   onReturn,
   bookings,
   availabilityKnown = false,
+  onRangeComplete,
 }: {
   startAt: string;
   returnAt: string;
@@ -1259,6 +1317,7 @@ function ScheduleFields({
   onReturn: (value: string) => void;
   bookings: Vehicle["bookings"];
   availabilityKnown?: boolean;
+  onRangeComplete?: () => void;
 }) {
   const pickupDate = calendarDay(startAt);
   const returnDate = calendarDay(returnAt);
@@ -1304,6 +1363,13 @@ function ScheduleFields({
       );
     }
     onReturn(returnValue);
+    const pickupMs = new Date(pickupValue).getTime();
+    const returnMs = new Date(returnValue).getTime();
+    const rangeConflicts = bookings.some(
+      (booking) =>
+        new Date(booking.start).getTime() < returnMs && new Date(booking.end).getTime() > pickupMs,
+    );
+    if (availabilityKnown && returnMs > pickupMs && !rangeConflicts) onRangeComplete?.();
   }
 
   function setPickupClock(clock: string) {
@@ -1327,13 +1393,11 @@ function ScheduleFields({
           booked: isBooked,
         }}
         modifiersClassNames={{
-          available:
-            "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-100",
-          booked:
-            "bg-red-100 text-red-800 line-through opacity-90 dark:bg-red-900/40 dark:text-red-100",
+          available: "font-semibold text-emerald-700 hover:bg-emerald-50",
+          booked: "text-red-600 line-through opacity-90",
         }}
         showOutsideDays={false}
-        className="mx-auto"
+        className="mx-auto rounded-xl bg-white p-1 text-slate-900 shadow-sm"
       />
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
         {availabilityKnown ? (

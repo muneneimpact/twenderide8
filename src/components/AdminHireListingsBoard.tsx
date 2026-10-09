@@ -179,6 +179,21 @@ export function AdminHireListingsBoard() {
                         <p className="mt-1 text-xs font-semibold text-foreground">
                           KES {Number(vehicle.hire_daily_rate ?? 0).toLocaleString("en-KE")} / day
                         </p>
+                        {vehicle.hire_mode !== "self_drive" ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Chauffeur: KES{" "}
+                            {Number(vehicle.hire_chauffeur_daily_rate ?? 2500).toLocaleString(
+                              "en-KE",
+                            )}{" "}
+                            / day
+                          </p>
+                        ) : null}
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Insurance: {display(vehicle.hire_insurance_type?.replaceAll("_", " "))}
+                          {vehicle.hire_minimum_age
+                            ? ` · Minimum hirer age ${vehicle.hire_minimum_age}+`
+                            : " · No separate age limit listed"}
+                        </p>
                       </div>
                     </div>
 
@@ -199,6 +214,22 @@ export function AdminHireListingsBoard() {
                         <p className="text-[10px] font-semibold text-foreground">Rules</p>
                         <p className="whitespace-pre-wrap text-xs text-muted-foreground">
                           {display(vehicle.hire_rules)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-foreground">
+                          Cancellation policy
+                        </p>
+                        <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+                          {display(vehicle.hire_cancellation_policy)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-foreground">
+                          Insurance details
+                        </p>
+                        <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+                          {display(vehicle.hire_insurance_details)}
                         </p>
                       </div>
                       {vehicle.hire_rejection_reason ? (

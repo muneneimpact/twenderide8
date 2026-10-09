@@ -8,12 +8,18 @@ import { AddVehicleForHire } from "@/components/AddVehicleForHire";
 type HireMode = "self_drive" | "chauffeured" | "both";
 type Draft = {
   dailyRate: string;
+  chauffeurDailyRate: string;
   seats: string;
   hireMode: HireMode;
   paymentPolicy: "full" | "daily_flexible";
   description: string;
   features: string;
   rules: string;
+  cancellationPolicy: string;
+  applyCancellationPolicyToOwner: boolean;
+  insuranceType: string;
+  insuranceDetails: string;
+  minimumAge: string;
 };
 
 function PendingPhotoPreview({ file }: { file: File }) {
@@ -67,6 +73,14 @@ export function HireVehicleManager({
         description: vehicle.hire_description ?? "",
         features: vehicle.hire_features ?? "",
         rules: vehicle.hire_rules ?? "",
+        chauffeurDailyRate: String(vehicle.hire_chauffeur_daily_rate ?? 2500),
+        cancellationPolicy:
+          vehicle.hire_cancellation_policy ??
+          "Submit cancellation requests through Twende Meru Rides. Any refund or deduction is subject to platform review; do not settle cancellations off-platform.",
+        applyCancellationPolicyToOwner: false,
+        insuranceType: vehicle.hire_insurance_type ?? "",
+        insuranceDetails: vehicle.hire_insurance_details ?? "",
+        minimumAge: String(vehicle.hire_minimum_age ?? ""),
       };
       const paths: string[] = [];
       for (const file of pendingPhotos[vehicle.id] ?? []) {
@@ -91,23 +105,34 @@ export function HireVehicleManager({
         data: {
           vehicleId: vehicle.id,
           dailyRate: draft.dailyRate === "" ? null : Number(draft.dailyRate),
+          chauffeurDailyRate: Number(draft.chauffeurDailyRate || 0),
           seats: draft.seats === "" ? null : Number(draft.seats),
           hireMode: draft.hireMode,
           paymentPolicy: draft.paymentPolicy,
           description: draft.description.trim() || null,
           features: draft.features.trim() || null,
           rules: draft.rules.trim() || null,
+          cancellationPolicy: draft.cancellationPolicy.trim(),
+          applyCancellationPolicyToOwner: draft.applyCancellationPolicyToOwner,
+          insuranceType: draft.insuranceType
+            ? (draft.insuranceType as
+                "comprehensive" | "third_party_fire_theft" | "third_party_only" | "other")
+            : null,
+          insuranceDetails: draft.insuranceDetails.trim() || null,
+          minimumAge: draft.minimumAge === "" ? null : Number(draft.minimumAge),
           ...(paths.length ? { addPhotoPaths: paths } : {}),
           ...(submitForHireReview ? { submitForHireReview: true } : {}),
         },
       });
     },
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
       setPendingPhotos((current) => ({ ...current, [variables.vehicle.id]: [] }));
       setNotice(
         variables.submitForHireReview
           ? "Hire listing sent to Ops for vehicle inspection and approval."
-          : "Vehicle listing saved.",
+          : result.cancellationPolicyAppliedToOwner
+            ? "Vehicle listing saved. The cancellation policy was applied to your vehicles; approved hire listings are paused for review."
+            : "Vehicle listing saved.",
       );
       void queryClient.invalidateQueries({ queryKey: ["my-vehicles"] });
       void queryClient.invalidateQueries({ queryKey: ["hire-vehicles"] });
@@ -117,10 +142,10 @@ export function HireVehicleManager({
     onSettled: () => setBusyId(null),
   });
 
-  function updateDraft(
+  function updateDraft<K extends keyof Draft>(
     vehicle: NonNullable<typeof vehicles.data>[number],
-    key: keyof Draft,
-    value: string,
+    key: K,
+    value: Draft[K],
   ) {
     setDrafts((current) => ({
       ...current,
@@ -133,6 +158,14 @@ export function HireVehicleManager({
           description: vehicle.hire_description ?? "",
           features: vehicle.hire_features ?? "",
           rules: vehicle.hire_rules ?? "",
+          chauffeurDailyRate: String(vehicle.hire_chauffeur_daily_rate ?? 2500),
+          cancellationPolicy:
+            vehicle.hire_cancellation_policy ??
+            "Submit cancellation requests through Twende Meru Rides. Any refund or deduction is subject to platform review; do not settle cancellations off-platform.",
+          applyCancellationPolicyToOwner: false,
+          insuranceType: vehicle.hire_insurance_type ?? "",
+          insuranceDetails: vehicle.hire_insurance_details ?? "",
+          minimumAge: String(vehicle.hire_minimum_age ?? ""),
         }),
         [key]: value,
       },
@@ -197,6 +230,14 @@ export function HireVehicleManager({
             description: vehicle.hire_description ?? "",
             features: vehicle.hire_features ?? "",
             rules: vehicle.hire_rules ?? "",
+            chauffeurDailyRate: String(vehicle.hire_chauffeur_daily_rate ?? 2500),
+            cancellationPolicy:
+              vehicle.hire_cancellation_policy ??
+              "Submit cancellation requests through Twende Meru Rides. Any refund or deduction is subject to platform review; do not settle cancellations off-platform.",
+            applyCancellationPolicyToOwner: false,
+            insuranceType: vehicle.hire_insurance_type ?? "",
+            insuranceDetails: vehicle.hire_insurance_details ?? "",
+            minimumAge: String(vehicle.hire_minimum_age ?? ""),
           };
           const photos = pendingPhotos[vehicle.id] ?? [];
           const reviewing = vehicle.hire_approval_status === "pending";
@@ -214,7 +255,7 @@ export function HireVehicleManager({
                   {[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {vehicle.plate_number} · {vehicle.vehicle_class} · vehicle {vehicle.status} · hire{" "}
+                  {vehicle.plate_number} · vehicle {vehicle.status} · hire{" "}
                   {vehicle.hire_approval_status.replaceAll("_", " ")}
                 </p>
                 {listingLive ? (
@@ -306,7 +347,9 @@ export function HireVehicleManager({
                   <span className="text-[11px] text-muted-foreground">Hire type</span>
                   <select
                     value={draft.hireMode}
-                    onChange={(event) => updateDraft(vehicle, "hireMode", event.target.value)}
+                    onChange={(event) =>
+                      updateDraft(vehicle, "hireMode", event.target.value as HireMode)
+                    }
                     className="input-base"
                   >
                     <option value="self_drive">Customer drives</option>
@@ -318,7 +361,13 @@ export function HireVehicleManager({
                   <span className="text-[11px] text-muted-foreground">Payment terms</span>
                   <select
                     value={draft.paymentPolicy}
-                    onChange={(event) => updateDraft(vehicle, "paymentPolicy", event.target.value)}
+                    onChange={(event) =>
+                      updateDraft(
+                        vehicle,
+                        "paymentPolicy",
+                        event.target.value as Draft["paymentPolicy"],
+                      )
+                    }
                     className="input-base"
                   >
                     <option value="full">
@@ -328,6 +377,68 @@ export function HireVehicleManager({
                       First day upfront; remaining days can be paid daily or later via the system
                     </option>
                   </select>
+                </label>
+              </div>
+              {draft.hireMode !== "self_drive" ? (
+                <label className="mt-2 block">
+                  <span className="text-[11px] text-muted-foreground">
+                    Chauffeur fee per day (KES; added only when hired with a driver)
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={1000000}
+                    value={draft.chauffeurDailyRate}
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      updateDraft(vehicle, "chauffeurDailyRate", event.target.value)
+                    }
+                    className="input-base"
+                  />
+                </label>
+              ) : null}
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-[11px] text-muted-foreground">Insurance type</span>
+                  <select
+                    value={draft.insuranceType}
+                    onChange={(event) => updateDraft(vehicle, "insuranceType", event.target.value)}
+                    className="input-base"
+                  >
+                    <option value="">Not specified</option>
+                    <option value="comprehensive">Comprehensive</option>
+                    <option value="third_party_fire_theft">Third party, fire and theft</option>
+                    <option value="third_party_only">Third party only</option>
+                    <option value="other">Other</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-[11px] text-muted-foreground">
+                    Minimum hirer age (leave blank if none)
+                  </span>
+                  <input
+                    type="number"
+                    min={18}
+                    max={100}
+                    value={draft.minimumAge}
+                    inputMode="numeric"
+                    onChange={(event) => updateDraft(vehicle, "minimumAge", event.target.value)}
+                    className="input-base"
+                  />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="text-[11px] text-muted-foreground">
+                    Insurance notes or provider (optional)
+                  </span>
+                  <input
+                    value={draft.insuranceDetails}
+                    maxLength={200}
+                    placeholder="For example, insurer name or other coverage"
+                    onChange={(event) =>
+                      updateDraft(vehicle, "insuranceDetails", event.target.value)
+                    }
+                    className="input-base"
+                  />
                 </label>
               </div>
               <label className="mt-2 block">
@@ -364,6 +475,33 @@ export function HireVehicleManager({
                   onChange={(event) => updateDraft(vehicle, "rules", event.target.value)}
                   className="input-base"
                 />
+              </label>
+              <label className="mt-2 block">
+                <span className="text-[11px] text-muted-foreground">Cancellation policy</span>
+                <textarea
+                  value={draft.cancellationPolicy}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Explain how cancellations are handled. Keep all requests and refunds in the system."
+                  onChange={(event) =>
+                    updateDraft(vehicle, "cancellationPolicy", event.target.value)
+                  }
+                  className="input-base"
+                />
+              </label>
+              <label className="mt-2 flex items-start gap-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={draft.applyCancellationPolicyToOwner}
+                  onChange={(event) =>
+                    updateDraft(vehicle, "applyCancellationPolicyToOwner", event.target.checked)
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  Apply this cancellation policy to all vehicles I manage. Approved hire listings
+                  will be paused and sent for re-review so customers see the updated terms.
+                </span>
               </label>
 
               <button
