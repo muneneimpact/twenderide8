@@ -508,7 +508,7 @@ function HirePage() {
           {(
             [
               { key: "self_drive", label: "Drive it myself" },
-              { key: "chauffeured", label: "Fuelled and chauffeured" },
+              { key: "chauffeured", label: "Chauffeured" },
             ] as const
           ).map((o) => (
             <button
@@ -529,6 +529,13 @@ function HirePage() {
             </button>
           ))}
         </div>
+        {tab === "chauffeured" ? (
+          <p className="mx-4 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+            Chauffeured hire covers the car and chauffeur for each booked day. Fuel is not included:
+            the customer covers fuel for the agreed route/distance, either arranged for that
+            distance or purchased as needed while travelling.
+          </p>
+        ) : null}
 
         {bookingStep === "browse" ? (
           <section className="surface-card p-4">
@@ -953,7 +960,9 @@ function HirePage() {
                   <p className="text-xs font-semibold text-foreground">Owner's rules</p>
                   <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
                     {chosen.hire_rules ||
-                      "Return the car clean and with the same fuel level. No smoking."}
+                      (tab === "chauffeured"
+                        ? "Fuel is not included. The customer covers fuel for the agreed route/distance, either arranged for that distance or purchased as needed while travelling. No smoking."
+                        : "Return the car clean and with the same fuel level. No smoking.")}
                   </p>
                   <label className="mt-2 flex items-center gap-2 text-xs text-foreground">
                     <input
@@ -1178,6 +1187,13 @@ function HirePage() {
                 />
               ) : null}
             </dl>
+            {tab === "chauffeured" ? (
+              <p className="mt-2 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+                Fuel is not included in the daily hire or chauffeur fee. The customer covers fuel
+                for the agreed route/distance, either arranged for that distance or purchased as
+                needed while travelling.
+              </p>
+            ) : null}
             <div className="mt-3 grid gap-2 rounded-xl border border-border p-3 text-xs">
               <p className="font-semibold text-foreground">Hire terms</p>
               <p className="text-muted-foreground">
@@ -1205,7 +1221,9 @@ function HirePage() {
               <p className="text-xs font-semibold text-foreground">Owner's rules</p>
               <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
                 {opened.hire_rules ||
-                  "Return the car clean and with the same fuel level. No smoking."}
+                  (tab === "chauffeured"
+                    ? "Fuel is not included. The customer covers fuel for the agreed route/distance, either arranged for that distance or purchased as needed while travelling. No smoking."
+                    : "Return the car clean and with the same fuel level. No smoking.")}
               </p>
             </div>
 
@@ -1245,10 +1263,11 @@ function HirePage() {
 
             <div className="mt-3 rounded-xl border border-border p-3">
               <p className="text-xs font-semibold text-foreground">
-                Choose pickup and return times
+                Choose pickup and return days and times
               </p>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                Price is charged per 24-hour block, rounded up, with a one-day minimum.
+                Select both days, review the range and price, then confirm below. Price is charged
+                per 24-hour block, rounded up, with a one-day minimum.
               </p>
               <ScheduleFields
                 startAt={startAt}
@@ -1257,13 +1276,6 @@ function HirePage() {
                 onReturn={setReturnAt}
                 bookings={opened.bookings}
                 availabilityKnown
-                onRangeComplete={() => {
-                  setVehicleId(opened.id);
-                  setRulesAccepted(false);
-                  setBookingStep("details");
-                  setMessage(null);
-                  setOpenId(null);
-                }}
               />
               {openClash ? (
                 <p className="mt-2 text-xs text-destructive">
@@ -1293,7 +1305,7 @@ function HirePage() {
               disabled={!scheduleValid || openClash}
               className="mt-4 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
-              Continue to renter details
+              Confirm dates & continue to renter details
             </button>
           </div>
         </div>
@@ -1318,7 +1330,6 @@ function ScheduleFields({
   onReturn,
   bookings,
   availabilityKnown = false,
-  onRangeComplete,
 }: {
   startAt: string;
   returnAt: string;
@@ -1326,7 +1337,6 @@ function ScheduleFields({
   onReturn: (value: string) => void;
   bookings: Vehicle["bookings"];
   availabilityKnown?: boolean;
-  onRangeComplete?: () => void;
 }) {
   const pickupDate = calendarDay(startAt);
   const returnDate = calendarDay(returnAt);
@@ -1372,13 +1382,6 @@ function ScheduleFields({
       );
     }
     onReturn(returnValue);
-    const pickupMs = new Date(pickupValue).getTime();
-    const returnMs = new Date(returnValue).getTime();
-    const rangeConflicts = bookings.some(
-      (booking) =>
-        new Date(booking.start).getTime() < returnMs && new Date(booking.end).getTime() > pickupMs,
-    );
-    if (availabilityKnown && returnMs > pickupMs && !rangeConflicts) onRangeComplete?.();
   }
 
   function setPickupClock(clock: string) {
