@@ -31,11 +31,13 @@ export function gatewayConfigured(): boolean {
  * produces a correct `Authorization` header. The value is never logged.
  */
 function authHeader(): string {
-  const raw = (process.env["PALPLUSS_BASIC_AUTH"] ?? "").trim();
+  // Strip invisible characters (e.g. U+200E pasted with the secret) and any "Basic" prefix.
+  const raw = (process.env["PALPLUSS_BASIC_AUTH"] ?? "")
+    .replace(/[^\x21-\x7E]/g, "")
+    .replace(/^Basic/i, "");
   if (!raw) throw new Error("Twende Payments is not configured.");
-  if (/^Basic\s+/i.test(raw)) return raw;
-  const looksEncoded = /^[A-Za-z0-9+/=]+$/.test(raw) && !raw.startsWith("pk_") && raw.includes("=");
-  const token = looksEncoded ? raw : Buffer.from(`${raw}:`).toString("base64");
+  const isApiKey = /^p[pk]_/.test(raw) || raw.includes(":");
+  const token = isApiKey ? btoa(raw.includes(":") ? raw : `${raw}:`) : raw;
   return `Basic ${token}`;
 }
 
