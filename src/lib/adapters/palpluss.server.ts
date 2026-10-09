@@ -31,11 +31,13 @@ export function gatewayConfigured(): boolean {
  * produces a correct `Authorization` header. The value is never logged.
  */
 function authHeader(): string {
-  const raw = (process.env["PALPLUSS_BASIC_AUTH"] ?? "").trim();
+  // Strip invisible characters (e.g. U+200E pasted with the secret) and any "Basic" prefix.
+  const raw = (process.env["PALPLUSS_BASIC_AUTH"] ?? "")
+    .replace(/[^\x21-\x7E]/g, "")
+    .replace(/^Basic/i, "");
   if (!raw) throw new Error("Twende Payments is not configured.");
-  if (/^Basic\s+/i.test(raw)) return raw;
-  const looksEncoded = /^[A-Za-z0-9+/=]+$/.test(raw) && !raw.startsWith("pk_") && raw.includes("=");
-  const token = looksEncoded ? raw : Buffer.from(`${raw}:`).toString("base64");
+  const isApiKey = /^p[pk]_/.test(raw) || raw.includes(":");
+  const token = isApiKey ? btoa(raw.includes(":") ? raw : `${raw}:`) : raw;
   return `Basic ${token}`;
 }
 
@@ -44,7 +46,7 @@ export function callbackUrl(): string {
   const explicit = process.env["PALPLUSS_CALLBACK_URL"];
   const base =
     explicit ??
-    `${process.env["PUBLIC_APP_URL"] ?? "https://project--6d28af8e-6086-4ea3-8c91-a0ecdcf12a94.lovable.app"}/api/public/payments/callback`;
+    `${process.env["PUBLIC_APP_URL"] ?? "https://twendemeruride2.lovable.app"}/api/public/payments/callback`;
   const token = process.env["PALPLUSS_CALLBACK_TOKEN"];
   if (!token || base.includes("token=")) return base;
   return `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;

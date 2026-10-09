@@ -737,6 +737,33 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_customer_documents: {
+        Row: {
+          created_at: string
+          document_kind: string
+          file_path: string
+          id: string
+          requester_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_kind: string
+          file_path: string
+          id?: string
+          requester_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_kind?: string
+          file_path?: string
+          id?: string
+          requester_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       hire_offers: {
         Row: {
           created_at: string
@@ -811,33 +838,6 @@ export type Database = {
           owner_user_id?: string
           paid_out_total?: number
           platform_fee_total?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      hire_customer_documents: {
-        Row: {
-          created_at: string
-          document_kind: string
-          file_path: string
-          id: string
-          requester_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          document_kind: string
-          file_path: string
-          id?: string
-          requester_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          document_kind?: string
-          file_path?: string
-          id?: string
-          requester_id?: string
           updated_at?: string
         }
         Relationships: []
@@ -2397,8 +2397,8 @@ export type Database = {
           hire_features: string | null
           hire_insurance_details: string | null
           hire_insurance_type: string | null
-          hire_mode: string
           hire_minimum_age: number | null
+          hire_mode: string
           hire_notes: string | null
           hire_payment_policy: string
           hire_rejection_reason: string | null
@@ -2432,8 +2432,8 @@ export type Database = {
           hire_features?: string | null
           hire_insurance_details?: string | null
           hire_insurance_type?: string | null
-          hire_mode?: string
           hire_minimum_age?: number | null
+          hire_mode?: string
           hire_notes?: string | null
           hire_payment_policy?: string
           hire_rejection_reason?: string | null
@@ -2467,8 +2467,8 @@ export type Database = {
           hire_features?: string | null
           hire_insurance_details?: string | null
           hire_insurance_type?: string | null
-          hire_mode?: string
           hire_minimum_age?: number | null
+          hire_mode?: string
           hire_notes?: string | null
           hire_payment_policy?: string
           hire_rejection_reason?: string | null

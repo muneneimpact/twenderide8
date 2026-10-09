@@ -71,6 +71,13 @@
       "when": 1791537111161,
       "tag": "0009_hire_vehicle_terms_and_chauffeur_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791539182533,
+      "tag": "0010_hire_vehicle_details_and_customer_docs",
+      "breakpoints": true
     }
   ]
 }
