@@ -1,6 +1,6 @@
 # Twende Meru Rides — WhatsApp Template Review Pack
 
-**Status:** Drafts for internal review only. Nothing in this pack has been created in WhatsApp Manager, submitted to Meta, or enabled for sending.
+**Status:** Submitted to Meta on 10 October 2026. 22 of 23 templates are PENDING review (all utility + the marketing milestone message). The `verification_code` authentication template could not be created — Meta reports this WhatsApp Business account lacks permission to create authentication templates; enable that in WhatsApp Manager, then resubmit. Three drafts (driver_arrived, trip_completed, payment_confirmed) were adjusted with a closing sentence because Meta rejects templates ending in a variable.
 
 **Repository reviewed:** `muneneimpact/twendemeruride2` (`main`, clean at start of audit)
 
