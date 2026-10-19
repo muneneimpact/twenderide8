@@ -247,3 +247,60 @@ export const postDriverCaseMessage = createServerFn({ method: "POST" })
     await supabaseAdmin.from("support_cases").update({ last_message_at: new Date().toISOString() }).eq("id", c.id);
     return { ok: true };
   });
+
+/** Email the trip receipt to the customer's address (or one they type). */
+export const emailRideReceipt = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ rideId: z.string().uuid(), email: z.string().trim().email().optional() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ride } = await supabaseAdmin
+      .from("rides")
+      .select("id, reference, customer_id, driver_id, vehicle_id, quote_id, total_fare, payment_method, requested_at, completed_at")
+      .eq("id", data.rideId)
+      .maybeSingle();
+    if (!ride || ride.customer_id !== context.userId) throw new Error("Trip not found.");
+    const [{ data: me }, { data: quote }, { data: driver }, { data: vehicle }] = await Promise.all([
+      supabaseAdmin.from("profiles").select("full_name, email").eq("id", context.userId).maybeSingle(),
+      ride.quote_id
+        ? supabaseAdmin.from("route_quotes").select("pickup_address, dropoff_address, distance_km").eq("id", ride.quote_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      ride.driver_id
+        ? supabaseAdmin.from("profiles").select("full_name").eq("id", ride.driver_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      ride.vehicle_id
+        ? supabaseAdmin.from("vehicles").select("make, model, plate_number").eq("id", ride.vehicle_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    const to = data.email ?? me?.email;
+    if (!to) throw new Error("Add an email address to receive the receipt.");
+    const q = quote as { pickup_address?: string | null; dropoff_address?: string | null; distance_km?: number | null } | null;
+    const v = vehicle as { make?: string | null; model?: string | null; plate_number?: string | null } | null;
+    const { sendTransactionalEmail } = await import("./comms.server");
+    const result = await sendTransactionalEmail({
+      to,
+      template: {
+        code: "trip_receipt",
+        data: {
+          customerName: me?.full_name ?? "Customer",
+          reference: ride.reference,
+          when: new Date(ride.completed_at ?? ride.requested_at).toLocaleString("en-KE"),
+          pickup: q?.pickup_address ?? "—",
+          dropoff: q?.dropoff_address ?? "—",
+          distanceKm: Number(q?.distance_km ?? 0),
+          fare: `KES ${Number(ride.total_fare ?? 0).toFixed(2)}`,
+          paymentMethod: ride.payment_method === "cash" ? "Cash" : "M-Pesa",
+          driverName: (driver as { full_name?: string | null } | null)?.full_name ?? null,
+          vehicle: v ? [v.make, v.model].filter(Boolean).join(" ") : null,
+          plate: v?.plate_number ?? null,
+        },
+      },
+      eventType: "trip_receipt_manual",
+      idempotencyKey: `receipt:${ride.id}:${to}:${Date.now()}`,
+      context: { userId: context.userId, rideId: ride.id },
+    });
+    if (!result.sent) throw new Error(result.detail ?? "Email could not be sent.");
+    return { to };
+  });
