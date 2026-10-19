@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { PeriodSummary } from "@/components/PeriodSummary";
 import { getMyHirePortfolioFinance, requestHirePayout } from "@/lib/hire.functions";
+import { getBranding } from "@/lib/documents.functions";
+import { buildStatementPdf, downloadPdf, type Branding } from "@/lib/pdf-docs";
 
 const money = (value: unknown) =>
   `KES ${Number(value ?? 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -175,6 +177,7 @@ export function HirePortfolioFinance() {
             </button>
           </div>
 
+          <StatementButton data={data} available={available} />
           <div className="mt-4">
             <h4 className="text-xs font-semibold text-foreground">Your withdrawal requests</h4>
             {data.payoutRequests.length === 0 ? (
@@ -238,5 +241,40 @@ function SmallMetric({ label, value, strong }: { label: string; value: unknown; 
       <p className={`text-[10px] ${strong ? "font-bold text-primary" : "text-muted-foreground"}`}>{label}</p>
       <p className={`truncate text-xs ${strong ? "font-extrabold" : "font-semibold"} text-foreground`}>{money(value)}</p>
     </div>
+  );
+}
+
+type FinanceData = Awaited<ReturnType<typeof getMyHirePortfolioFinance>>;
+function StatementButton({ data, available }: { data: FinanceData; available: number }) {
+  const brandFn = useServerFn(getBranding);
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    setBusy(true);
+    try {
+      const brand = (await brandFn().catch(() => null)) as Branding | null;
+      const paid = data.payoutRequests.filter((p) => p.status === "paid").reduce((a, p) => a + Number(p.amount), 0);
+      const bytes = await buildStatementPdf(brand, {
+        owner: "Vehicle owner",
+        phone: data.profilePhone || null,
+        totals: [
+          ["Total hire income", money(data.ownerBalance.gross_paid_total)],
+          ["Twende commission", money(data.ownerBalance.platform_fee_total)],
+          ["Total requested", money(data.payoutRequests.reduce((a, p) => a + Number(p.amount), 0))],
+          ["Total paid to you", money(paid)],
+          ["Pending payouts", money(data.reservedPayoutTotal)],
+          ["Balance available", money(available)],
+        ],
+        earnings: data.settlements,
+        payouts: data.payoutRequests.map((p) => ({ at: p.requested_at, amount: Number(p.amount), status: p.status, ref: p.payout_reference })),
+      });
+      downloadPdf(bytes, `Twende-statement-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button type="button" onClick={() => void go()} disabled={busy} className="mt-3 w-full rounded-full border border-primary px-4 py-2 text-xs font-semibold text-primary disabled:opacity-60">
+      {busy ? "Preparing…" : "Download statement (PDF)"}
+    </button>
   );
 }

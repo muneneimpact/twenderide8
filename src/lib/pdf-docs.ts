@@ -295,6 +295,36 @@ export async function buildAgreementPdf(brandIn: Branding | null, a: AgreementPd
   return w.doc.save();
 }
 
+export type StatementData = {
+  owner: string;
+  phone: string | null;
+  totals: [string, string][];
+  earnings: Array<{ at: string; gross: number; net: number }>;
+  payouts: Array<{ at: string; amount: number; status: string; ref: string | null }>;
+};
+
+/** Owner hire statement: totals, earnings and every payout request. */
+export async function buildStatementPdf(brandIn: Branding | null, st: StatementData) {
+  const brand = brandIn ?? DEFAULT_BRANDING;
+  const ref = `ST-${new Date().toISOString().slice(0, 10)}`;
+  const w = await setup(brand, "Earnings Statement", ref);
+  const accent = hex(brand.accent_color);
+  w.text("HIRE EARNINGS STATEMENT", { size: 16, bold: true, color: accent, gap: 6 });
+  w.rows([["Owner", st.owner], ["Phone", st.phone ?? "-"], ["Issued", new Date().toLocaleString("en-KE")]]);
+  w.y -= 6;
+  w.text("Summary", { size: 12, bold: true, gap: 4 });
+  w.rows(st.totals);
+  w.y -= 6;
+  w.text("Payouts", { size: 12, bold: true, gap: 4 });
+  if (!st.payouts.length) w.text("No payout requests yet.", { size: 9.5 });
+  for (const p of st.payouts) w.rows([[`${new Date(p.at).toLocaleDateString("en-KE")} - ${p.status}`, `${kes(p.amount)}${p.ref ? ` (ref ${p.ref})` : ""}`]]);
+  w.y -= 6;
+  w.text("Earnings (paid hires)", { size: 12, bold: true, gap: 4 });
+  if (!st.earnings.length) w.text("No paid hires yet.", { size: 9.5 });
+  for (const e of st.earnings) w.rows([[new Date(e.at).toLocaleString("en-KE"), `Paid ${kes(e.gross)} - yours ${kes(e.net)}`]]);
+  return w.doc.save();
+}
+
 export function downloadPdf(bytes: Uint8Array, filename: string) {
   const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);

@@ -54,8 +54,10 @@ export const getHireAgreement = createServerFn({ method: "GET" })
       const { data: p } = await supabaseAdmin.from("profiles").select("full_name, phone").eq("id", v.owner_driver_id as string).maybeSingle();
       owner = p ?? null;
     }
-    const photos = (q.inspection_photos ?? {}) as Record<string, string>;
-    const paths = Object.values(photos).filter(Boolean);
+    const rawPhotos = (q.inspection_photos ?? {}) as Record<string, unknown>;
+    const rawExtras = (Array.isArray(rawPhotos["extras"]) ? rawPhotos["extras"] : []) as Array<{ name: string; path: string }>;
+    const photos = Object.fromEntries(Object.entries(rawPhotos).filter(([, v]) => typeof v === "string")) as Record<string, string>;
+    const paths = [...Object.values(photos), ...rawExtras.map((e) => e.path)].filter(Boolean);
     const signed = paths.length
       ? (await supabaseAdmin.storage.from("hire-documents").createSignedUrls(paths, 1800)).data ?? []
       : [];
@@ -130,6 +132,7 @@ export const getHireAgreement = createServerFn({ method: "GET" })
       owner,
       receipts: (settlements ?? []).map((s) => ({ code: s.mpesa_receipt, amount: Number(s.gross_amount), at: s.created_at })),
       photos: Object.fromEntries(Object.entries(photos).map(([k, p]) => [k, urlOf(p)])) as Partial<Record<InspectionSide, string | null>>,
+      extraPhotos: rawExtras.map((e) => ({ name: e.name, url: urlOf(e.path) })),
     };
   });
 
@@ -141,6 +144,7 @@ export const saveHireInspection = createServerFn({ method: "POST" })
       .object({
         quoteId: z.string().uuid(),
         photos: z.object({ front: z.string(), back: z.string(), left: z.string(), right: z.string() }),
+        extras: z.array(z.object({ name: z.string().trim().min(1).max(60), path: z.string() })).max(20).default([]),
         odometer: z.number().int().min(0).max(5_000_000).nullable(),
         fuel: z.string().max(40).nullable(),
         notes: z.string().max(1000).nullable(),
@@ -150,13 +154,13 @@ export const saveHireInspection = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { q, supabaseAdmin, isOwner } = await loadAccessible(data.quoteId, context.userId);
     if (!isOwner) throw new Error("Only the vehicle owner or driver can record the inspection.");
-    for (const p of Object.values(data.photos)) {
+    for (const p of [...Object.values(data.photos), ...data.extras.map((e) => e.path)]) {
       if (!p.startsWith(`${context.userId}/inspection-`) || p.includes("..")) throw new Error("Invalid photo upload.");
     }
     const { error } = await supabaseAdmin
       .from("hire_quotes")
       .update({
-        inspection_photos: data.photos,
+        inspection_photos: { ...data.photos, extras: data.extras },
         inspection_at: new Date().toISOString(),
         inspection_odometer: data.odometer,
         inspection_fuel: data.fuel,
