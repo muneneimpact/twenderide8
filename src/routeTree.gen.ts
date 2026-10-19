@@ -35,6 +35,7 @@ import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authent
 import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authenticated/rides/index'
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
 import { Route as ApiPublicBootstrapSuperAdminRouteImport } from './routes/api/public/bootstrap-super-admin'
+import { Route as AuthenticatedHireAgreementQuoteIdRouteImport } from './routes/_authenticated/hire_.agreement.$quoteId'
 import { Route as ApiPublicPaymentsCallbackRouteImport } from './routes/api/public/payments/callback'
 import { Route as ApiPublicPaymentsReconcileRouteImport } from './routes/api/public/payments/reconcile'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
@@ -179,6 +180,12 @@ const ApiPublicBootstrapSuperAdminRoute =
     path: '/api/public/bootstrap-super-admin',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedHireAgreementQuoteIdRoute =
+  AuthenticatedHireAgreementQuoteIdRouteImport.update({
+    id: '/hire_/agreement/$quoteId',
+    path: '/hire/agreement/$quoteId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicPaymentsCallbackRoute =
   ApiPublicPaymentsCallbackRouteImport.update({
     id: '/api/public/payments/callback',
@@ -224,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/driver/': typeof AuthenticatedDriverIndexRoute
   '/rides/': typeof AuthenticatedRidesIndexRoute
+  '/hire/agreement/$quoteId': typeof AuthenticatedHireAgreementQuoteIdRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
   '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -254,6 +262,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/driver': typeof AuthenticatedDriverIndexRoute
   '/rides': typeof AuthenticatedRidesIndexRoute
+  '/hire/agreement/$quoteId': typeof AuthenticatedHireAgreementQuoteIdRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
   '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -286,6 +295,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/driver/': typeof AuthenticatedDriverIndexRoute
   '/_authenticated/rides/': typeof AuthenticatedRidesIndexRoute
+  '/_authenticated/hire_/agreement/$quoteId': typeof AuthenticatedHireAgreementQuoteIdRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
   '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -318,6 +328,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/driver/'
     | '/rides/'
+    | '/hire/agreement/$quoteId'
     | '/api/public/payments/callback'
     | '/api/public/payments/reconcile'
     | '/api/public/whatsapp/webhook'
@@ -348,6 +359,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/driver'
     | '/rides'
+    | '/hire/agreement/$quoteId'
     | '/api/public/payments/callback'
     | '/api/public/payments/reconcile'
     | '/api/public/whatsapp/webhook'
@@ -379,6 +391,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/'
     | '/_authenticated/driver/'
     | '/_authenticated/rides/'
+    | '/_authenticated/hire_/agreement/$quoteId'
     | '/api/public/payments/callback'
     | '/api/public/payments/reconcile'
     | '/api/public/whatsapp/webhook'
@@ -580,6 +593,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicBootstrapSuperAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/hire_/agreement/$quoteId': {
+      id: '/_authenticated/hire_/agreement/$quoteId'
+      path: '/hire/agreement/$quoteId'
+      fullPath: '/hire/agreement/$quoteId'
+      preLoaderRoute: typeof AuthenticatedHireAgreementQuoteIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/payments/callback': {
       id: '/api/public/payments/callback'
       path: '/api/public/payments/callback'
@@ -625,6 +645,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedDriverIndexRoute: typeof AuthenticatedDriverIndexRoute
   AuthenticatedRidesIndexRoute: typeof AuthenticatedRidesIndexRoute
+  AuthenticatedHireAgreementQuoteIdRoute: typeof AuthenticatedHireAgreementQuoteIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -648,6 +669,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedDriverIndexRoute: AuthenticatedDriverIndexRoute,
   AuthenticatedRidesIndexRoute: AuthenticatedRidesIndexRoute,
+  AuthenticatedHireAgreementQuoteIdRoute:
+    AuthenticatedHireAgreementQuoteIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

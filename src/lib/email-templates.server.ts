@@ -112,6 +112,18 @@ export type EmailTemplate =
       data: { name: string; reference: string; amount: string; dueDate: string };
     }
   | { code: "phone_verification"; data: { code: string; phone: string; minutes: number } }
+  | {
+      code: "hire_agreement";
+      data: {
+        name: string;
+        reference: string;
+        vehicle: string;
+        period: string;
+        total: string;
+        mpesaReceipt?: string | null;
+        link: string;
+      };
+    }
   | { code: "milestone_thanks"; data: { name: string; trips: number } };
 
 export function renderEmail(template: EmailTemplate): RenderedEmail {
@@ -231,6 +243,28 @@ export function renderEmail(template: EmailTemplate): RenderedEmail {
             (d.note ? para(d.note) : ""),
         ),
         text: `Your driver application status is now: ${d.status}.${d.note ? `\n\n${d.note}` : ""}\n\nSupport: ${SUPPORT}`,
+      };
+    }
+    case "hire_agreement": {
+      const d = template.data;
+      const pairs: [string, string | null | undefined][] = [
+        ["Booking reference", d.reference],
+        ["Hirer", d.name],
+        ["Vehicle", d.vehicle],
+        ["Hire period", d.period],
+        ["Total", d.total],
+        ["M-PESA receipt", d.mpesaReceipt ?? null],
+      ];
+      return {
+        subject: `Your vehicle hire agreement - ${d.reference}`,
+        html: shell(
+          "Vehicle hire agreement",
+          heading("Your hire agreement") +
+            para(`Hi ${d.name}, here is a copy of your Twende Ride vehicle hire agreement.`) +
+            rows(pairs) +
+            para(`Open and download the full agreement here: <a href="${d.link}">${d.link}</a>`),
+        ),
+        text: `Your hire agreement ${d.reference}.\n\n${textRows(pairs)}\n\nFull agreement: ${d.link}\n\nSupport: ${SUPPORT}`,
       };
     }
     case "hire_payment_reminder": {

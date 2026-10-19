@@ -71,6 +71,15 @@ function RidesPage() {
                   {new Date(ride.requested_at).toLocaleString("en-KE")}
                 </p>
               </Link>
+              {ride.status === "trip_completed" ? (
+                <Link
+                  to="/rides/$rideId"
+                  params={{ rideId: ride.id }}
+                  className="mt-1 inline-block text-xs font-semibold text-primary"
+                >
+                  Download receipt
+                </Link>
+              ) : null}
             </li>
           ))}
         </ul>

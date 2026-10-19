@@ -22,6 +22,13 @@
       "when": 1792446705677,
       "tag": "0002_hire_handover_decline_corporate_agreement",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792447314518,
+      "tag": "0003_hire_inspection",
+      "breakpoints": true
     }
   ]
 }

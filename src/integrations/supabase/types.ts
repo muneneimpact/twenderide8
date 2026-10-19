@@ -984,6 +984,7 @@ export type Database = {
         Row: {
           accepted_offer_id: string | null
           admin_notes: string | null
+          agreement_emailed_at: string | null
           agreement_signature: string | null
           agreement_signed_at: string | null
           agreement_signer_name: string | null
@@ -1006,6 +1007,11 @@ export type Database = {
           hirer_type: string
           id: string
           id_document_path: string | null
+          inspection_at: string | null
+          inspection_fuel: string | null
+          inspection_notes: string | null
+          inspection_odometer: number | null
+          inspection_photos: Json
           kind: string
           license_document_path: string | null
           notes: string | null
@@ -1042,6 +1048,7 @@ export type Database = {
         Insert: {
           accepted_offer_id?: string | null
           admin_notes?: string | null
+          agreement_emailed_at?: string | null
           agreement_signature?: string | null
           agreement_signed_at?: string | null
           agreement_signer_name?: string | null
@@ -1064,6 +1071,11 @@ export type Database = {
           hirer_type?: string
           id?: string
           id_document_path?: string | null
+          inspection_at?: string | null
+          inspection_fuel?: string | null
+          inspection_notes?: string | null
+          inspection_odometer?: number | null
+          inspection_photos?: Json
           kind?: string
           license_document_path?: string | null
           notes?: string | null
@@ -1100,6 +1112,7 @@ export type Database = {
         Update: {
           accepted_offer_id?: string | null
           admin_notes?: string | null
+          agreement_emailed_at?: string | null
           agreement_signature?: string | null
           agreement_signed_at?: string | null
           agreement_signer_name?: string | null
@@ -1122,6 +1135,11 @@ export type Database = {
           hirer_type?: string
           id?: string
           id_document_path?: string | null
+          inspection_at?: string | null
+          inspection_fuel?: string | null
+          inspection_notes?: string | null
+          inspection_odometer?: number | null
+          inspection_photos?: Json
           kind?: string
           license_document_path?: string | null
           notes?: string | null
