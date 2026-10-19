@@ -54,9 +54,9 @@ export function AdminSubjectDetail({ kind, id, onClose }: { kind: "driver" | "ve
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vehicles</h4>
               {q.data.vehicles.map((v) => (
                 <div key={v.id} className="mt-2 flex items-center justify-between gap-2 rounded-2xl border border-border p-3">
-                  <CarBadge colour={v.colour as string} plate={v.plate_number as string} vehicleClass={v.vehicle_class as string}
+                  <CarBadge colour={v.colour} plate={v.plate_number} vehicleClass={v.vehicle_class}
                     detail={[v.make, v.model, v.year, v.seats ? `${v.seats} seats` : null].filter(Boolean).join(" · ")} />
-                  <StatusPill status={String(v.status)} />
+                  <StatusPill status={v.status} />
                 </div>
               ))}
             </section>

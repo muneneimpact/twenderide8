@@ -684,7 +684,7 @@ export const getRide = createServerFn({ method: "POST" })
     if (ride.vehicle_id) {
       const { data: v } = await supabase
         .from("vehicles")
-        .select("plate_number, make, model, colour")
+        .select("plate_number, make, model, colour, vehicle_class")
         .eq("id", ride.vehicle_id)
         .maybeSingle();
       vehicle = v ?? null;

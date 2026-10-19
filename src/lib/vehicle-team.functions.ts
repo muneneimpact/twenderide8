@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { Database } from "@/integrations/supabase/types";
+
+type VehicleRow = Database["public"]["Tables"]["vehicles"]["Row"];
 
 async function signDocs(paths: string[]) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -23,7 +26,7 @@ export const getAdminSubjectDetail = createServerFn({ method: "POST" })
       .from("document_types")
       .select("id, label, applies_to, required, expires");
 
-    let vehicles: Array<Record<string, unknown> & { id: string }> = [];
+    let vehicles: VehicleRow[] = [];
     let driverIds: string[] = [];
     if (data.kind === "vehicle") {
       const { data: v } = await supabaseAdmin.from("vehicles").select("*").eq("id", data.id).maybeSingle();
