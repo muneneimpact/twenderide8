@@ -1,4 +1,5 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -217,6 +218,10 @@ function HirePage() {
 
   // Hirer details and needs
   const [hirerType, setHirerType] = useState<"individual" | "company">("individual");
+  const [companyPayNow, setCompanyPayNow] = useState(true);
+  const [payCard, setPayCard] = useState<{ quoteId: string; amount?: number | null } | null>(null);
+  const navigate = useNavigate();
+  const usePayLater = hirerType === "company" && !companyPayNow;
   const [renterName, setRenterName] = useState("");
   const [renterIdNumber, setRenterIdNumber] = useState("");
   const [paymentPhone, setPaymentPhone] = useState("");
@@ -450,7 +455,7 @@ function HirePage() {
           idDocumentPath: idPath ?? undefined,
           licenseDocumentPath: licensePath ?? undefined,
           rulesAccepted,
-          corporate: hirerType === "company" && corporateTerms ? corporateTerms : undefined,
+          corporate: usePayLater && corporateTerms ? corporateTerms : undefined,
         },
       }),
     onSuccess: (row) => {
@@ -465,7 +470,7 @@ function HirePage() {
           .eq("id", accountId);
       }
       setMessage(
-        hirerType === "company" && corporateTerms
+        usePayLater && corporateTerms
           ? `Booking ${row.reference} confirmed. Agreement signed; please pay by ${corporateTerms.payLaterMethod.replace("_", " ")} on ${corporateTerms.payLaterDueDate}.`
           : row.payment
           ? row.payment.accepted
@@ -473,6 +478,7 @@ function HirePage() {
             : `Request ${row.reference} saved, but payment did not start: ${row.payment.message}. Retry from Your requests.`
           : `Request ${row.reference} sent. Estimate KES ${Number(row.estimated_total).toLocaleString("en-KE")} — a provider will respond.`,
       );
+      if (row.payment?.accepted) setPayCard({ quoteId: row.id, amount: Number(row.payment.amount) });
       setStops([]);
       setNotes("");
       queryClient.invalidateQueries({ queryKey: ["hire-quotes"] });
@@ -490,7 +496,8 @@ function HirePage() {
   const pay = useMutation({
     mutationFn: (vars: { quoteId: string; amount?: number }) =>
       payFn({ data: { ...vars, phone: paymentPhone.trim() || undefined } }),
-    onSuccess: (result) => {
+    onSuccess: (result, vars) => {
+      if (result.accepted) setPayCard({ quoteId: vars.quoteId, amount: vars.amount ?? null });
       setMessage(
         result.accepted
           ? "M-Pesa prompt sent. Approve it on your phone; the booking updates after payment clears."
@@ -507,10 +514,10 @@ function HirePage() {
   if (!scheduleValid) missing.push("choose a future pickup and return time within 90 days");
   if (!pickup) missing.push("set where the car is brought");
   if (!renterName.trim()) missing.push("enter your name");
-  if (chosen && hirerType !== "company" && !paymentPhone.trim())
+  if (chosen && !usePayLater && !paymentPhone.trim())
     missing.push("enter your M-Pesa phone number");
   if (hirerType === "company" && !organisation.trim()) missing.push("enter the company name");
-  if (hirerType === "company" && !corporateTerms)
+  if (usePayLater && !corporateTerms)
     missing.push("verify the business email, pick a payment date and sign the agreement");
   if (!idPath && !savedDocuments.isPending) missing.push("upload your ID");
   if (tab === "self_drive" && !licensePath && !savedDocuments.isPending)
@@ -1001,6 +1008,24 @@ function HirePage() {
               ) : null}
 
               {hirerType === "company" && chosen ? (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {[
+                    { k: true, t: "Pay now (M-PESA)", d: "No email check needed" },
+                    { k: false, t: "Pay later", d: "Invoice, cheque or bank" },
+                  ].map((o) => (
+                    <button
+                      key={String(o.k)}
+                      type="button"
+                      onClick={() => setCompanyPayNow(o.k)}
+                      className={`rounded-xl border p-3 text-left ${companyPayNow === o.k ? "border-primary bg-primary/10" : "border-border"}`}
+                    >
+                      <p className="font-semibold text-foreground">{o.t}</p>
+                      <p className="text-muted-foreground">{o.d}</p>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {usePayLater && chosen ? (
                 <CorporateHireTerms
                   organisation={organisation}
                   summary={`${[chosen.make, chosen.model].filter(Boolean).join(" ")} ${chosen.plate_number} for ${days} day(s)${estimatedTotal !== null ? ` at KES ${estimatedTotal.toLocaleString("en-KE")}` : ""}`}
@@ -1015,7 +1040,7 @@ function HirePage() {
               >
                 {submit.isPending
                   ? "Sending…"
-                  : hirerType === "company"
+                  : usePayLater
                     ? "Sign and book (pay later)"
                     : "Continue and pay by M-Pesa"}
               </button>
@@ -1372,6 +1397,28 @@ function HirePage() {
           </div>
         </div>
       ) : null}
+      <PaymentProgressCard
+        open={!!payCard}
+        amount={payCard?.amount}
+        phone={paymentPhone || null}
+        check={async (): Promise<PayState> => {
+          if (!payCard) return "pending";
+          const { data } = await supabase.from("hire_quotes").select("payment_status").eq("id", payCard.quoteId).maybeSingle();
+          const st = String(data?.payment_status ?? "pending");
+          if (["paid", "partial", "partially_paid"].includes(st)) return "paid";
+          if (["failed", "timed_out", "cancelled"].includes(st)) return "failed";
+          return "pending";
+        }}
+        onSuccess={() => {
+          const id = payCard?.quoteId;
+          setPayCard(null);
+          void queryClient.invalidateQueries({ queryKey: ["hire-quotes"] });
+          if (id) void navigate({ to: "/hire/agreement/$quoteId", params: { quoteId: id }, hash: "sign" });
+        }}
+        onRetry={() => { if (payCard) pay.mutate({ quoteId: payCard.quoteId }); }}
+        onClose={() => setPayCard(null)}
+        successLabel="Sign your agreement"
+      />
     </AppShell>
   );
 }

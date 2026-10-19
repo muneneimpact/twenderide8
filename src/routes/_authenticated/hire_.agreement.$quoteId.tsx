@@ -169,9 +169,6 @@ function AgreementPage() {
             </div>
           ) : null}
         </div>
-        {role.canSignAsHirer || role.canSignAsOwner ? (
-          <SignBox quoteId={quoteId} as={role.canSignAsHirer ? "hirer" : "owner"} defaultName={role.canSignAsHirer ? renter.name : owner?.full_name ?? ""} />
-        ) : null}
         {canInspect ? <InspectionForm quoteId={quoteId} done={Boolean(b.inspection_at)} /> : null}
       </div>
 
@@ -217,6 +214,9 @@ function AgreementPage() {
           <SigView label="Hirer signature" sig={b.signature} name={b.signer ?? renter.name} at={b.signed_at} />
           <SigView label="Owner / Twende signature" sig={b.owner_signature} name={b.owner_signer ?? owner?.full_name ?? "Owner"} at={b.owner_signed_at} />
         </div>
+        {role.canSignAsHirer || role.canSignAsOwner ? (
+          <SignBox quoteId={quoteId} as={role.canSignAsHirer ? "hirer" : "owner"} defaultName={role.canSignAsHirer ? renter.name : owner?.full_name ?? ""} />
+        ) : null}
         {d.logs.length ? (
           <details className="mt-6 text-xs text-muted-foreground">
             <summary className="cursor-pointer font-semibold">Signing log ({d.logs.length})</summary>
