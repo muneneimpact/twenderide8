@@ -26,6 +26,13 @@ export const getHireAgreement = createServerFn({ method: "GET" })
   .inputValidator((i) => z.object({ quoteId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
     const { q, supabaseAdmin, isOwner } = await loadAccessible(data.quoteId, context.userId);
+    const booked =
+      Number(q.payment_paid_total ?? 0) > 0 ||
+      q.payment_status === "paid" ||
+      (q.status === "confirmed" && !!q.pay_later_method);
+    if (!booked && !isOwner) {
+      throw new Error("Your agreement is ready once you pay and your booking is confirmed.");
+    }
     const [{ data: renter }, { data: vehicle }, { data: settlements }] = await Promise.all([
       supabaseAdmin.from("profiles").select("full_name, phone, email, id_number").eq("id", q.requester_id).maybeSingle(),
       q.vehicle_id
