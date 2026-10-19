@@ -130,6 +130,7 @@ export const driverTabs: Tab[] = [
   { to: "/driver/wallet", label: "Wallet" },
   { to: "/driver/hire", label: "Hire cars" },
   { to: "/driver/apply", label: "Onboarding" },
+  { to: "/lost-found", label: "Lost & found" },
 ];
 
 export const adminTabs: Tab[] = [
