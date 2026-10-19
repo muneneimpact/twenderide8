@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { RoleGate } from "@/components/RoleGate";
 import { AppShell } from "@/components/AppShell";
+import { AdminSubjectDetail, StatusPill } from "@/components/AdminSubjectDetail";
 import { getOpsBoard, opsCancelRide, resolveIncident, reviewApproval } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -41,6 +42,7 @@ function AdminBoard() {
   const reviewFn = useServerFn(reviewApproval);
   const cancelFn = useServerFn(opsCancelRide);
   const incidentFn = useServerFn(resolveIncident);
+  const [detail, setDetail] = useState<{ kind: "driver" | "vehicle"; id: string } | null>(null);
 
   const board = useQuery({
     queryKey: ["ops-board"],
@@ -75,6 +77,7 @@ function AdminBoard() {
   if (board.isPending) {
     return (
       <AppShell title="Operations" eyebrow="Twende Ops">
+      {detail ? <AdminSubjectDetail kind={detail.kind} id={detail.id} onClose={() => setDetail(null)} /> : null}
         <p className="px-4 py-6 text-sm text-muted-foreground">Loading the board…</p>
       </AppShell>
     );
@@ -352,7 +355,10 @@ function AdminBoard() {
             <ul className="mt-2 divide-y divide-border">
               {b.allDrivers.map((driver) => (
                 <li key={driver.id} className="py-3">
-                  <p className="text-sm font-medium text-foreground">{who(driver.id)}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <button onClick={() => setDetail({ kind: "driver", id: driver.id })} className="text-left text-sm font-medium text-foreground underline-offset-2 hover:underline">{who(driver.id)}</button>
+                    <StatusPill status={driver.status} />
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {driver.status} · {driver.is_online ? "online" : "offline"} ·{" "}
                     {driver.completed_rides} trips · rating {Number(driver.rating ?? 5).toFixed(1)}
@@ -380,9 +386,12 @@ function AdminBoard() {
             <ul className="mt-2 divide-y divide-border">
               {b.allVehicles.map((vehicle) => (
                 <li key={vehicle.id} className="py-3">
-                  <p className="text-sm font-medium text-foreground">
-                    {vehicle.plate_number} · {vehicle.vehicle_class}
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <button onClick={() => setDetail({ kind: "vehicle", id: vehicle.id })} className="text-left text-sm font-medium text-foreground underline-offset-2 hover:underline">
+                      {vehicle.plate_number} · {vehicle.vehicle_class === "boda" || vehicle.vehicle_class === "e_boda" ? "🏍 " : ""}{vehicle.vehicle_class}
+                    </button>
+                    <StatusPill status={vehicle.status} />
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {vehicle.status} ·{" "}
                     {[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
