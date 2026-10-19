@@ -1,0 +1,71 @@
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { assignDriverToVehicle, getMyVehicleTeam, revokeDriverFromVehicle } from "@/lib/vehicle-team.functions";
+import { CarBadge } from "@/components/CarBadge";
+
+/** Owners assign drivers to their vehicles and follow what each driver has handled. */
+export function VehicleTeamBoard() {
+  const qc = useQueryClient();
+  const fetchTeam = useServerFn(getMyVehicleTeam);
+  const assignFn = useServerFn(assignDriverToVehicle);
+  const revokeFn = useServerFn(revokeDriverFromVehicle);
+  const team = useQuery({ queryKey: ["vehicle-team"], queryFn: () => fetchTeam() });
+  const [phone, setPhone] = useState<Record<string, string>>({});
+  const assign = useMutation({
+    mutationFn: (vehicleId: string) => assignFn({ data: { vehicleId, phone: phone[vehicleId] ?? "" } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vehicle-team"] }),
+  });
+  const revoke = useMutation({
+    mutationFn: (assignmentId: string) => revokeFn({ data: { assignmentId } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vehicle-team"] }),
+  });
+  if (!team.data || team.data.vehicles.length === 0) return null;
+
+  return (
+    <section className="surface-card p-4">
+      <h3 className="text-sm font-semibold text-foreground">My drivers</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Assign a driver to a vehicle by their phone number. They'll get ride requests in that vehicle, and you'll see
+        every trip they handle. Their licence and ID stay on their own profile, so they don't resubmit them.
+      </p>
+      <div className="mt-3 space-y-4">
+        {team.data.vehicles.map((v) => {
+          const rows = team.data!.assignments.filter((a) => a.vehicle_id === v.id);
+          return (
+            <div key={v.id} className="rounded-2xl border border-border p-3">
+              <CarBadge colour={v.colour} plate={v.plate_number} vehicleClass={v.vehicle_class}
+                detail={[v.make, v.model].filter(Boolean).join(" ") || v.vehicle_class} />
+              {rows.map((a) => (
+                <div key={a.id} className="mt-3 rounded-xl bg-muted p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-foreground">{a.name}{a.phone ? ` · ${a.phone}` : ""}</p>
+                    <button onClick={() => revoke.mutate(a.id)} className="text-xs font-semibold text-destructive">Remove</button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {a.completed} trips done · KES {a.earned.toFixed(0)} total (KES {a.cash.toFixed(0)} cash) · {a.cancelled} cancelled
+                  </p>
+                  {a.recent.length ? (
+                    <ul className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
+                      {a.recent.map((r) => (
+                        <li key={r.id}>{r.reference} · {r.status.replace(/_/g, " ")} · KES {Number(r.total_fare ?? 0).toFixed(0)}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ))}
+              <div className="mt-3 flex gap-2">
+                <input value={phone[v.id] ?? ""} onChange={(e) => setPhone({ ...phone, [v.id]: e.target.value })}
+                  placeholder="Driver phone e.g. 0712 345678" inputMode="tel"
+                  className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-3 py-2 text-sm" />
+                <button onClick={() => assign.mutate(v.id)} disabled={assign.isPending}
+                  className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60">Assign</button>
+              </div>
+            </div>
+          );
+        })}
+        {assign.isError ? <p className="text-xs text-destructive">{(assign.error as Error).message}</p> : null}
+      </div>
+    </section>
+  );
+}
