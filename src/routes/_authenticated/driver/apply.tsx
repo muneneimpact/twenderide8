@@ -236,7 +236,7 @@ function DriverApply() {
             <input
               value={plate}
               onChange={(e) => setPlate(formatKenyanPlate(e.target.value))}
-              placeholder="Number plate e.g. KDG 568T"
+              placeholder="Number plate e.g. KDG 568T or KMGT 156X"
               maxLength={16}
               className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm uppercase tracking-wide"
             />
@@ -303,6 +303,7 @@ function DriverApply() {
                   <CarBadge
                     colour={v.colour}
                     plate={v.plate_number}
+ vehicleClass={v.vehicle_class}
                     detail={[v.colour, v.make, v.model].filter(Boolean).join(" ") || v.vehicle_class}
                   />
 

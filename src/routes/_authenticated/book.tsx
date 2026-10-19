@@ -808,7 +808,10 @@ function BookPage() {
                     onClick={() => setVehicleClass(option)}
                     className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-colors ${selected ? "border-primary bg-accent" : "border-border bg-card"} disabled:opacity-60`}
                   >
-                    <span className="min-w-0">
+                    <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-foreground">
+                      {option === "boda" || option === "e_boda" ? <Bike className="h-5 w-5" /> : <Car className="h-5 w-5" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold text-foreground">
                         {naming.name}
                       </span>

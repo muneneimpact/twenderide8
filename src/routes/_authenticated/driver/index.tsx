@@ -381,6 +381,7 @@ function DriverHome() {
                     <CarBadge
                       colour={vehicle.colour}
                       plate={vehicle.plate_number}
+ vehicleClass={vehicle.vehicle_class}
                       detail={[vehicle.colour, vehicle.make, vehicle.model].filter(Boolean).join(" ") || null}
                     />
 
