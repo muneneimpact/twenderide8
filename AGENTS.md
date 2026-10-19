@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Provision founding administrators only through privileged maintenance; the public bootstrap route stays disabled to prevent unauthorized account creation and credential resets.
+- Driver applications must record acceptance of the current DRIVER_AGREEMENT_VERSION server-side (driver_agreement_acceptances); bump the version when agreement text changes so drivers re-accept.
