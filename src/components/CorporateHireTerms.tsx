@@ -45,7 +45,7 @@ export function CorporateHireTerms({
   const signature = mode === "type" ? (typed.trim().length >= 3 ? `typed:${typed.trim()}` : "") : drawn ?? "";
   useEffect(() => {
     onChange(
-      verified && due && signer.trim().length >= 3 && signature.length >= 20 - (mode === "type" ? 14 : 0)
+      verified && due && signer.trim().length >= 3 && signature.length > 0
         ? {
             payLaterMethod: method,
             payLaterDueDate: due,
