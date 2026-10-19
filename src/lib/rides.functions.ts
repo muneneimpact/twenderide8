@@ -130,6 +130,9 @@ export const estimateClasses = createServerFn({ method: "POST" })
 
     const classes = ["go", "plus", "comfort", "xl", "boda", "e_boda"] as const;
     const day = nairobiDayKey();
+    const { nearestDriverKmByClass } = await import("./approach-fee.server");
+    const { computeApproachFee } = await import("./approach-fee");
+    const nearest = await nearestDriverKmByClass(data.pickup);
     const options: {
       vehicleClass: (typeof classes)[number];
       total: number;
@@ -137,6 +140,8 @@ export const estimateClasses = createServerFn({ method: "POST" })
       discount_percent: number;
       discount_label: string | null;
       available: boolean;
+      approach_fee: number;
+      approach_distance_km: number;
     }[] = [];
 
     for (const vehicleClass of classes) {
