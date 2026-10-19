@@ -36,12 +36,8 @@ export const getHireAgreement = createServerFn({ method: "GET" })
     const v = vehicle as Record<string, unknown> | null;
     let owner: { full_name: string | null; phone: string | null } | null = null;
     if (v?.owner_driver_id) {
-      const { data: d } = await supabaseAdmin.from("drivers").select("user_id").eq("id", v.owner_driver_id as string).maybeSingle();
-      const uid = (d as { user_id?: string } | null)?.user_id;
-      if (uid) {
-        const { data: p } = await supabaseAdmin.from("profiles").select("full_name, phone").eq("id", uid).maybeSingle();
-        owner = p ?? null;
-      }
+      const { data: p } = await supabaseAdmin.from("profiles").select("full_name, phone").eq("id", v.owner_driver_id as string).maybeSingle();
+      owner = p ?? null;
     }
     const photos = (q.inspection_photos ?? {}) as Record<string, string>;
     const paths = Object.values(photos).filter(Boolean);
