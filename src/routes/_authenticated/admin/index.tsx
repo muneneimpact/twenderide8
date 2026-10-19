@@ -42,6 +42,7 @@ function AdminBoard() {
   const reviewFn = useServerFn(reviewApproval);
   const cancelFn = useServerFn(opsCancelRide);
   const incidentFn = useServerFn(resolveIncident);
+  const [detail, setDetail] = useState<{ kind: "driver" | "vehicle"; id: string } | null>(null);
 
   const board = useQuery({
     queryKey: ["ops-board"],
@@ -76,6 +77,7 @@ function AdminBoard() {
   if (board.isPending) {
     return (
       <AppShell title="Operations" eyebrow="Twende Ops">
+      {detail ? <AdminSubjectDetail kind={detail.kind} id={detail.id} onClose={() => setDetail(null)} /> : null}
         <p className="px-4 py-6 text-sm text-muted-foreground">Loading the board…</p>
       </AppShell>
     );
