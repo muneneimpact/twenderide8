@@ -86,7 +86,7 @@ export const getRideReceipt = createServerFn({ method: "GET" })
       ride.driver_id ? supabaseAdmin.from("profiles").select("full_name").eq("id", ride.driver_id).maybeSingle() : Promise.resolve({ data: null }),
       ride.vehicle_id ? supabaseAdmin.from("vehicles").select("make, model, plate_number").eq("id", ride.vehicle_id).maybeSingle() : Promise.resolve({ data: null }),
       supabaseAdmin.from("document_branding").select("*").eq("key", "default").maybeSingle(),
-      supabaseAdmin.from("payment_intents").select("provider_reference, amount, status, updated_at").eq("ride_id", ride.id).eq("status", "succeeded"),
+      supabaseAdmin.from("payment_intents").select("provider_reference, amount, status, updated_at").eq("ride_id", ride.id).eq("status", "paid"),
     ]);
     const q = quote as { pickup_address?: string | null; dropoff_address?: string | null; distance_km?: number | null } | null;
     const v = vehicle as { make?: string | null; model?: string | null; plate_number?: string | null } | null;

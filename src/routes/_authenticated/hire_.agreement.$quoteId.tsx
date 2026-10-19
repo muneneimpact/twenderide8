@@ -130,7 +130,7 @@ function AgreementPage() {
         sections,
         hirer: { name: b.signer ?? renter.name, signature: b.signature, at: b.signed_at },
         owner: { name: b.owner_signer ?? owner?.full_name ?? "Owner", signature: b.owner_signature, at: b.owner_signed_at },
-        photos: INSPECTION_SIDES.map((s) => ({ label: s[0].toUpperCase() + s.slice(1), url: photos[s] ?? null })),
+        photos: INSPECTION_SIDES.map((s) => ({ label: s.charAt(0).toUpperCase() + s.slice(1), url: photos[s] ?? null })),
       });
       downloadPdf(bytes, `Twende-hire-agreement-${b.reference}.pdf`);
     } catch (e) {

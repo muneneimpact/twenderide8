@@ -268,10 +268,12 @@ export async function buildAgreementPdf(brandIn: Branding | null, a: AgreementPd
   w.text("Execution", { size: 11.5, bold: true, gap: 6 });
   const boxW = (w.width - 16) / 2;
   const top = w.y;
-  for (const [i, party] of [["Hirer", a.hirer], ["Owner / Twende", a.owner]] as const) {
+  const parties = [{ title: "Hirer", p: a.hirer }, { title: "Owner / Twende", p: a.owner }];
+  for (let i = 0; i < parties.length; i++) {
+    const party = parties[i]!.p;
     const x = M + i * (boxW + 16);
     w.page.drawRectangle({ x, y: top - 110, width: boxW, height: 110, borderColor: rgb(0.7, 0.7, 0.7), borderWidth: 1 });
-    w.page.drawText(clean(`${party === a.hirer ? "Hirer" : "Owner / Twende"} signature`), { x: x + 8, y: top - 14, size: 8, font: w.font, color: rgb(0.4, 0.4, 0.4) });
+    w.page.drawText(clean(`${parties[i]!.title} signature`), { x: x + 8, y: top - 14, size: 8, font: w.font, color: rgb(0.4, 0.4, 0.4) });
     if (party.signature?.startsWith("data:image")) {
       const img = await embedDataImage(w.doc, party.signature);
       if (img) {

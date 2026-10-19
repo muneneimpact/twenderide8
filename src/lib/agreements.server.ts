@@ -91,7 +91,7 @@ export async function completeIfBothSigned(quoteId: string) {
       template: { code: "hire_agreement", data: { ...base, name: r.name } },
       eventType: "hire_agreement_email",
       idempotencyKey: `agreement-complete:${q.id}:${r.role}`,
-      context: { userId: r.uid ?? undefined },
+      context: { userId: r.uid ?? null },
     }).catch((e) => ({ sent: false, detail: (e as Error).message }));
     await logAgreement(quoteId, null, result.sent ? "emailed" : "email_failed", { to: r.to, role: r.role });
   }
