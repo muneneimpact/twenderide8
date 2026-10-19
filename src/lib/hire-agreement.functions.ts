@@ -55,7 +55,7 @@ export const getHireAgreement = createServerFn({ method: "GET" })
       owner = p ?? null;
     }
     const rawPhotos = (q.inspection_photos ?? {}) as Record<string, unknown>;
-    const rawExtras = (Array.isArray(rawPhotos.extras) ? rawPhotos.extras : []) as Array<{ name: string; path: string }>;
+    const rawExtras = (Array.isArray(rawPhotos["extras"]) ? rawPhotos["extras"] : []) as Array<{ name: string; path: string }>;
     const photos = Object.fromEntries(Object.entries(rawPhotos).filter(([, v]) => typeof v === "string")) as Record<string, string>;
     const paths = [...Object.values(photos), ...rawExtras.map((e) => e.path)].filter(Boolean);
     const signed = paths.length
