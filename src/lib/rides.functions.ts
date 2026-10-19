@@ -660,6 +660,7 @@ export const getRide = createServerFn({ method: "POST" })
       make: string | null;
       model: string | null;
       colour: string | null;
+      vehicle_class: string | null;
     } | null = null;
     if (ride.driver_id) {
       const { data: profile } = await supabase
