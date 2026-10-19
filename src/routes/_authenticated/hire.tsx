@@ -9,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
+import { ReceiptDownload } from "@/components/ReceiptDownload";
 import {
   estimateHireTotal,
   getMyHireDocuments,
@@ -1063,13 +1064,24 @@ function HirePage() {
                     q.payment_status === "partially_paid" ||
                     Number(q.payment_paid_total ?? 0) > 0 ||
                     (q.status === "confirmed" && !!q.pay_later_method)) ? (
-                    <Link
-                      to="/hire/agreement/$quoteId"
-                      params={{ quoteId: q.id }}
-                      className="mt-2 inline-block rounded-full border border-primary px-3 py-1.5 text-xs font-semibold text-primary"
-                    >
-                      Download agreement
-                    </Link>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Link
+                        to="/hire/agreement/$quoteId"
+                        params={{ quoteId: q.id }}
+                        hash="sign"
+                        className="inline-block rounded-full border border-primary px-3 py-1.5 text-xs font-semibold text-primary"
+                      >
+                        Sign & download agreement
+                      </Link>
+                      {Number(q.payment_paid_total ?? 0) > 0 ? (
+                        <ReceiptDownload
+                          kind="hire"
+                          id={q.id}
+                          label="Receipt (PDF)"
+                          className="rounded-full border border-input px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-50"
+                        />
+                      ) : null}
+                    </div>
                   ) : null}
                   {q.vehicle_id && q.payment_policy !== "legacy"
                     ? (() => {

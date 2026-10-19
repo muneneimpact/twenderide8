@@ -20,6 +20,7 @@ import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AuthAdminRouteImport } from './routes/auth.admin'
 import { Route as AuthDriversRouteImport } from './routes/auth.drivers'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as AuthenticatedAdminDocumentsRouteImport } from './routes/_authenticated/admin/documents'
 import { Route as AuthenticatedAdminFinanceRouteImport } from './routes/_authenticated/admin/finance'
 import { Route as AuthenticatedAdminHireRouteImport } from './routes/_authenticated/admin/hire'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin/pricing'
@@ -94,6 +95,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminDocumentsRoute =
+  AuthenticatedAdminDocumentsRouteImport.update({
+    id: '/admin/documents',
+    path: '/admin/documents',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminFinanceRoute =
   AuthenticatedAdminFinanceRouteImport.update({
     id: '/admin/finance',
@@ -215,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
   '/auth/': typeof AuthIndexRoute
+  '/admin/documents': typeof AuthenticatedAdminDocumentsRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
   '/admin/hire': typeof AuthenticatedAdminHireRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
@@ -246,6 +254,7 @@ export interface FileRoutesByTo {
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
   '/auth': typeof AuthIndexRoute
+  '/admin/documents': typeof AuthenticatedAdminDocumentsRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
   '/admin/hire': typeof AuthenticatedAdminHireRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
@@ -279,6 +288,7 @@ export interface FileRoutesById {
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
   '/auth/': typeof AuthIndexRoute
+  '/_authenticated/admin/documents': typeof AuthenticatedAdminDocumentsRoute
   '/_authenticated/admin/finance': typeof AuthenticatedAdminFinanceRoute
   '/_authenticated/admin/hire': typeof AuthenticatedAdminHireRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/auth/admin'
     | '/auth/drivers'
     | '/auth/'
+    | '/admin/documents'
     | '/admin/finance'
     | '/admin/hire'
     | '/admin/pricing'
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/auth/admin'
     | '/auth/drivers'
     | '/auth'
+    | '/admin/documents'
     | '/admin/finance'
     | '/admin/hire'
     | '/admin/pricing'
@@ -375,6 +387,7 @@ export interface FileRouteTypes {
     | '/auth/admin'
     | '/auth/drivers'
     | '/auth/'
+    | '/_authenticated/admin/documents'
     | '/_authenticated/admin/finance'
     | '/_authenticated/admin/hire'
     | '/_authenticated/admin/pricing'
@@ -486,6 +499,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/documents': {
+      id: '/_authenticated/admin/documents'
+      path: '/admin/documents'
+      fullPath: '/admin/documents'
+      preLoaderRoute: typeof AuthenticatedAdminDocumentsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/finance': {
@@ -630,6 +650,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
   AuthenticatedHireRoute: typeof AuthenticatedHireRoute
   AuthenticatedLostFoundRoute: typeof AuthenticatedLostFoundRoute
+  AuthenticatedAdminDocumentsRoute: typeof AuthenticatedAdminDocumentsRoute
   AuthenticatedAdminFinanceRoute: typeof AuthenticatedAdminFinanceRoute
   AuthenticatedAdminHireRoute: typeof AuthenticatedAdminHireRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
@@ -654,6 +675,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFleetRoute: AuthenticatedFleetRoute,
   AuthenticatedHireRoute: AuthenticatedHireRoute,
   AuthenticatedLostFoundRoute: AuthenticatedLostFoundRoute,
+  AuthenticatedAdminDocumentsRoute: AuthenticatedAdminDocumentsRoute,
   AuthenticatedAdminFinanceRoute: AuthenticatedAdminFinanceRoute,
   AuthenticatedAdminHireRoute: AuthenticatedAdminHireRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,

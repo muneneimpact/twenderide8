@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { emailRideReceipt } from "@/lib/lost-found.functions";
+import { ReceiptDownload } from "./ReceiptDownload";
 
 /** Download (print to PDF) or email the receipt of a completed trip. */
 export function ReceiptActions({ rideId }: { rideId: string }) {
@@ -14,12 +15,7 @@ export function ReceiptActions({ rideId }: { rideId: string }) {
     <section className="mt-4 rounded-xl border border-border bg-card p-4 print:hidden">
       <h3 className="text-sm font-semibold text-foreground">Receipt</h3>
       <div className="mt-2 flex flex-wrap gap-2">
-        <button
-          onClick={() => window.print()}
-          className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
-        >
-          Download receipt
-        </button>
+        <ReceiptDownload kind="ride" id={rideId} />
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}

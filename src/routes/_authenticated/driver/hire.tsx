@@ -8,6 +8,7 @@ import { HireRequestsBoard } from "@/components/HireRequestsBoard";
 import { HireVehicleManager } from "@/components/HireVehicleManager";
 import { RoleGate } from "@/components/RoleGate";
 import { OwnerHireBookings } from "@/components/OwnerHireBookings";
+import { OwnerSignatureSettings } from "@/components/OwnerSignatureSettings";
 
 export const Route = createFileRoute("/_authenticated/driver/hire")({
   head: () => ({
@@ -85,6 +86,7 @@ function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
       {section === "bookings" && (
         <>
           <OwnerHireBookings />
+          <OwnerSignatureSettings />
           <HireRequestsBoard />
           <Link to="/hire" className="inline-flex text-sm font-semibold text-primary">
             View the customer Hire page →

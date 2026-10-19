@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      agreement_logs: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          detail: Json
+          hire_quote_id: string
+          id: string
+          ip: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json
+          hire_quote_id: string
+          id?: string
+          ip?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json
+          hire_quote_id?: string
+          id?: string
+          ip?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -269,6 +302,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      document_branding: {
+        Row: {
+          accent_color: string
+          address: string | null
+          agreement_extra_terms: string | null
+          agreement_footer: string | null
+          company_name: string
+          email: string | null
+          extra_logos: Json
+          key: string
+          kra_pin: string | null
+          logo_data_url: string | null
+          phone: string | null
+          receipt_footer: string | null
+          tagline: string | null
+          updated_at: string
+          updated_by: string | null
+          website: string | null
+        }
+        Insert: {
+          accent_color?: string
+          address?: string | null
+          agreement_extra_terms?: string | null
+          agreement_footer?: string | null
+          company_name?: string
+          email?: string | null
+          extra_logos?: Json
+          key?: string
+          kra_pin?: string | null
+          logo_data_url?: string | null
+          phone?: string | null
+          receipt_footer?: string | null
+          tagline?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          website?: string | null
+        }
+        Update: {
+          accent_color?: string
+          address?: string | null
+          agreement_extra_terms?: string | null
+          agreement_footer?: string | null
+          company_name?: string
+          email?: string | null
+          extra_logos?: Json
+          key?: string
+          kra_pin?: string | null
+          logo_data_url?: string | null
+          phone?: string | null
+          receipt_footer?: string | null
+          tagline?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          website?: string | null
+        }
+        Relationships: []
       }
       document_types: {
         Row: {
@@ -984,6 +1074,7 @@ export type Database = {
         Row: {
           accepted_offer_id: string | null
           admin_notes: string | null
+          agreement_completed_at: string | null
           agreement_emailed_at: string | null
           agreement_signature: string | null
           agreement_signed_at: string | null
@@ -1018,6 +1109,10 @@ export type Database = {
           organisation: string | null
           owner_decline_reason: string | null
           owner_declined_at: string | null
+          owner_signature: string | null
+          owner_signed_at: string | null
+          owner_signed_by: string | null
+          owner_signer_name: string | null
           passengers: number
           pay_later_due_date: string | null
           pay_later_method: string | null
@@ -1048,6 +1143,7 @@ export type Database = {
         Insert: {
           accepted_offer_id?: string | null
           admin_notes?: string | null
+          agreement_completed_at?: string | null
           agreement_emailed_at?: string | null
           agreement_signature?: string | null
           agreement_signed_at?: string | null
@@ -1082,6 +1178,10 @@ export type Database = {
           organisation?: string | null
           owner_decline_reason?: string | null
           owner_declined_at?: string | null
+          owner_signature?: string | null
+          owner_signed_at?: string | null
+          owner_signed_by?: string | null
+          owner_signer_name?: string | null
           passengers?: number
           pay_later_due_date?: string | null
           pay_later_method?: string | null
@@ -1112,6 +1212,7 @@ export type Database = {
         Update: {
           accepted_offer_id?: string | null
           admin_notes?: string | null
+          agreement_completed_at?: string | null
           agreement_emailed_at?: string | null
           agreement_signature?: string | null
           agreement_signed_at?: string | null
@@ -1146,6 +1247,10 @@ export type Database = {
           organisation?: string | null
           owner_decline_reason?: string | null
           owner_declined_at?: string | null
+          owner_signature?: string | null
+          owner_signed_at?: string | null
+          owner_signed_by?: string | null
+          owner_signer_name?: string | null
           passengers?: number
           pay_later_due_date?: string | null
           pay_later_method?: string | null
@@ -1364,6 +1469,30 @@ export type Database = {
           whatsapp_enabled?: boolean
           whatsapp_opt_in_source?: string | null
           whatsapp_opted_in_at?: string | null
+        }
+        Relationships: []
+      }
+      owner_signatures: {
+        Row: {
+          auto_sign: boolean
+          signature: string
+          signer_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_sign?: boolean
+          signature: string
+          signer_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_sign?: boolean
+          signature?: string
+          signer_name?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

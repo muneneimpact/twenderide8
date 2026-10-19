@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { listMyRides } from "@/lib/rides.functions";
+import { ReceiptDownload } from "@/components/ReceiptDownload";
 
 export const Route = createFileRoute("/_authenticated/rides/")({
   head: () => ({
@@ -72,13 +73,11 @@ function RidesPage() {
                 </p>
               </Link>
               {ride.status === "trip_completed" ? (
-                <Link
-                  to="/rides/$rideId"
-                  params={{ rideId: ride.id }}
-                  className="mt-1 inline-block text-xs font-semibold text-primary"
-                >
-                  Download receipt
-                </Link>
+                <ReceiptDownload
+                  kind="ride"
+                  id={ride.id}
+                  className="mt-1 text-xs font-semibold text-primary disabled:opacity-50"
+                />
               ) : null}
             </li>
           ))}

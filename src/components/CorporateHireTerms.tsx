@@ -119,7 +119,7 @@ export function CorporateHireTerms({
       </div>
 
       <label className="block space-y-1">
-        <span className="text-muted-foreground">Business email (name@company.co.ke, .com, .org, .ac.ke, .go.ke…)</span>
+        <span className="text-muted-foreground">Your company email, or a company email you have access to (e.g. name@company.co.ke). A code will be sent there.</span>
         <div className="flex gap-2">
           <input
             value={email}
