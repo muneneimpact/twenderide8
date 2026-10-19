@@ -251,10 +251,12 @@ function HirePage() {
       if (live) setAccountId(data.user.id);
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, phone")
+        .select("full_name, phone, id_number, company_name")
         .eq("id", data.user.id)
         .maybeSingle();
       if (live && profile) {
+        if (profile.id_number) setRenterIdNumber((current) => current || profile.id_number || "");
+        if (profile.company_name) setOrganisation((current) => current || profile.company_name || "");
         if (profile.full_name) setRenterName((current) => current || profile.full_name || "");
         if (profile.phone) setPaymentPhone((current) => current || profile.phone || "");
       }
@@ -447,6 +449,16 @@ function HirePage() {
         },
       }),
     onSuccess: (row) => {
+      // Remember ID and company so repeat bookings are pre-filled.
+      if (accountId) {
+        void supabase
+          .from("profiles")
+          .update({
+            id_number: renterIdNumber.trim() || null,
+            ...(hirerType === "company" && organisation.trim() ? { company_name: organisation.trim() } : {}),
+          })
+          .eq("id", accountId);
+      }
       setMessage(
         row.payment
           ? row.payment.accepted
@@ -514,10 +526,12 @@ function HirePage() {
             <button
               key={o.key}
               onClick={() => {
+                // Switching mode only re-prices: keep the car, dates and details.
                 setTab(o.key);
-                setVehicleId(null);
-                setBookingStep("browse");
-                setRulesAccepted(false);
+                if (chosen && chosen.hire_mode && chosen.hire_mode !== "both" && chosen.hire_mode !== o.key) {
+                  setVehicleId(null);
+                  setBookingStep("browse");
+                }
               }}
               className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold ${
                 tab === o.key
@@ -1171,6 +1185,36 @@ function HirePage() {
               </div>
             )}
 
+            <div className="mt-3 rounded-xl border border-border p-3">
+              <p className="text-xs font-semibold text-foreground">
+                Choose pickup and return days and times
+              </p>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Select both days, review the range and price, then confirm below. Price is charged
+                per 24-hour block, rounded up, with a one-day minimum.
+              </p>
+              <ScheduleFields
+                startAt={startAt}
+                returnAt={returnAt}
+                onPickup={updatePickupTime}
+                onReturn={setReturnAt}
+                bookings={opened.bookings}
+                availabilityKnown
+              />
+              {openClash ? (
+                <p className="mt-2 text-xs text-destructive">
+                  This car is reserved during part of that period. Choose a different time window.
+                </p>
+              ) : null}
+              {openedTotal !== null && scheduleValid ? (
+                <p className="mt-3 font-display text-base font-bold text-foreground">
+                  Estimated total: KES {openedTotal.toLocaleString("en-KE")} · {days} day(s)
+                </p>
+              ) : (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Set both times to see the full rental estimate.
+                </p>
+              )}
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <Detail k="Plate" v={opened.plate_number} />
               <Detail k="Seats" v={opened.seats ? String(opened.seats) : "—"} />
@@ -1261,36 +1305,6 @@ function HirePage() {
               </div>
             ) : null}
 
-            <div className="mt-3 rounded-xl border border-border p-3">
-              <p className="text-xs font-semibold text-foreground">
-                Choose pickup and return days and times
-              </p>
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                Select both days, review the range and price, then confirm below. Price is charged
-                per 24-hour block, rounded up, with a one-day minimum.
-              </p>
-              <ScheduleFields
-                startAt={startAt}
-                returnAt={returnAt}
-                onPickup={updatePickupTime}
-                onReturn={setReturnAt}
-                bookings={opened.bookings}
-                availabilityKnown
-              />
-              {openClash ? (
-                <p className="mt-2 text-xs text-destructive">
-                  This car is reserved during part of that period. Choose a different time window.
-                </p>
-              ) : null}
-              {openedTotal !== null && scheduleValid ? (
-                <p className="mt-3 font-display text-base font-bold text-foreground">
-                  Estimated total: KES {openedTotal.toLocaleString("en-KE")} · {days} day(s)
-                </p>
-              ) : (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Set both times to see the full rental estimate.
-                </p>
-              )}
             </div>
 
             <button
@@ -1301,6 +1315,7 @@ function HirePage() {
                 setBookingStep("details");
                 setMessage(null);
                 setOpenId(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
               disabled={!scheduleValid || openClash}
               className="mt-4 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
