@@ -8,6 +8,7 @@ import { MapPanel } from "@/components/MapPanel";
 import { RideChat } from "@/components/RideChat";
 import { CarBadge } from "@/components/CarBadge";
 import { PushSettings } from "@/components/PushSettings";
+import { VehicleTeamBoard } from "@/components/VehicleTeamBoard";
 import { HireRequestsBoard } from "@/components/HireRequestsBoard";
 import { HireVehicleManager } from "@/components/HireVehicleManager";
 import { HirePortfolioFinance } from "@/components/HirePortfolioFinance";
@@ -639,6 +640,7 @@ function DriverHome() {
 
 
 
+        <VehicleTeamBoard />
         <PushSettings />
 
         {/* Recent */}
