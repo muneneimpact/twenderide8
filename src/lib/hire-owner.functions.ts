@@ -220,6 +220,9 @@ export const ownerApplySavedSignature = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const q = await loadBookingFor(context.userId, data.quoteId);
     if (q.owner_signed_at) return { ok: true, already: true };
+    const { ownedVehicleIds } = await import("./hire-owner.server");
+    if (!q.vehicle_id || !(await ownedVehicleIds(context.userId)).includes(q.vehicle_id))
+      throw new Error("Only the vehicle owner can sign the agreement.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: sig } = await supabaseAdmin.from("owner_signatures").select("signer_name, signature").eq("user_id", context.userId).maybeSingle();
     if (!sig?.signature) throw new Error("Create your signature first (Bookings → My signature).");

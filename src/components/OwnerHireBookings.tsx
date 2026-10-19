@@ -6,6 +6,7 @@ import {
   listOwnerBookings,
   markHireHandover,
   ownerDeclineHire,
+  ownerApplySavedSignature,
   type OwnerBooking,
 } from "@/lib/hire-owner.functions";
 
@@ -25,6 +26,7 @@ export function OwnerHireBookings() {
   const listFn = useServerFn(listOwnerBookings);
   const handFn = useServerFn(markHireHandover);
   const declineFn = useServerFn(ownerDeclineHire);
+  const signFn = useServerFn(ownerApplySavedSignature);
   const q = useQuery({ queryKey: ["owner-hire-bookings"], queryFn: () => listFn(), refetchInterval: 30_000 });
   const [declining, setDeclining] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -44,6 +46,29 @@ export function OwnerHireBookings() {
     },
     onError: (e) => setErr((e as Error).message),
   });
+
+  const sign = useMutation({
+    mutationFn: (quoteId: string) => signFn({ data: { quoteId } }),
+    onSuccess: refresh,
+    onError: (e) => setErr((e as Error).message),
+  });
+  const SignTick = ({ b }: { b: OwnerBooking }) => (
+    <label className="mt-2 flex items-center gap-2 rounded-lg bg-secondary/50 p-2">
+      <input
+        type="checkbox"
+        checked={b.owner_signed}
+        disabled={b.owner_signed || sign.isPending}
+        onChange={() => sign.mutate(b.id)}
+        className="h-4 w-4 accent-primary"
+      />
+      <span className="font-medium text-foreground">
+        {b.owner_signed ? "✓ Your signature is on the agreement" : "Tick to add your saved signature"}
+      </span>
+      <span className="ml-auto text-muted-foreground">
+        Hirer {b.hirer_signed ? "✓" : "—"}{b.agreement_completed ? " · Complete" : ""}
+      </span>
+    </label>
+  );
 
   const rows = q.data ?? [];
   const upcoming = rows.filter((b) => !b.returned_at);
@@ -84,6 +109,7 @@ export function OwnerHireBookings() {
               {b.renter_phone ? (
                 <a href={`tel:${b.renter_phone}`} className="mt-1 inline-block font-semibold text-primary">Call renter {b.renter_phone}</a>
               ) : null}
+              <SignTick b={b} />
               <div className="mt-2 flex flex-wrap gap-2">
                 <Link to="/hire/agreement/$quoteId" params={{ quoteId: b.id }} hash="sign" className="rounded-full border border-primary px-3 py-2 font-semibold text-primary">
                   {b.status === "confirmed" && !b.handed_over_at ? "Walkaround, sign & agreement" : "Sign / agreement"}
@@ -117,11 +143,15 @@ export function OwnerHireBookings() {
         })}
       </ul>
       {past.length ? (
-        <details className="mt-3 text-xs">
+        <details open className="mt-3 text-xs">
           <summary className="cursor-pointer font-semibold text-foreground">Completed hires ({past.length})</summary>
-          <ul className="mt-2 space-y-1 text-muted-foreground">
+          <ul className="mt-2 space-y-2 text-muted-foreground">
             {past.map((b) => (
-              <li key={b.id}>{b.vehicle} · {b.renter} · {fmt(b.start_at)} · KES {b.total.toLocaleString("en-KE")}</li>
+              <li key={b.id} className="rounded-lg border border-border p-2">
+                <p>{b.vehicle} · {b.renter} · {fmt(b.start_at)} · KES {b.total.toLocaleString("en-KE")}</p>
+                <SignTick b={b} />
+                <Link to="/hire/agreement/$quoteId" params={{ quoteId: b.id }} className="mt-1 inline-block font-semibold text-primary">Open agreement</Link>
+              </li>
             ))}
           </ul>
         </details>
