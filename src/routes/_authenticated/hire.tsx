@@ -1415,7 +1415,7 @@ function HirePage() {
           void queryClient.invalidateQueries({ queryKey: ["hire-quotes"] });
           if (id) void navigate({ to: "/hire/agreement/$quoteId", params: { quoteId: id }, hash: "sign" });
         }}
-        onRetry={() => payCard && pay.mutate({ quoteId: payCard.quoteId })}
+        onRetry={() => { if (payCard) pay.mutate({ quoteId: payCard.quoteId }); }}
         onClose={() => setPayCard(null)}
         successLabel="Sign your agreement"
       />

@@ -17,12 +17,12 @@ export function PaymentProgressCard({
   successLabel = "Continue",
 }: {
   open: boolean;
-  amount?: number | null;
-  phone?: string | null;
+  amount?: number | null | undefined;
+  phone?: string | null | undefined;
   check: () => Promise<PayState>;
   onSuccess: () => void;
   onClose: () => void;
-  onRetry?: () => void;
+  onRetry?: (() => void) | undefined;
   successLabel?: string;
 }) {
   const [state, setState] = useState<PayState>("pending");
@@ -61,6 +61,7 @@ export function PaymentProgressCard({
       const t = setTimeout(onSuccess, 1500);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, [state, onSuccess]);
 
   if (!open) return null;
