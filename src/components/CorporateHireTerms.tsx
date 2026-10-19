@@ -7,8 +7,8 @@ export interface CorporateTerms {
   payLaterMethod: "cheque" | "bank_transfer" | "mpesa" | "invoice";
   payLaterDueDate: string;
   businessEmail: string;
-  registrationNumber?: string;
-  businessAddress?: string;
+  registrationNumber?: string | undefined;
+  businessAddress?: string | undefined;
   signerName: string;
   signature: string;
 }
