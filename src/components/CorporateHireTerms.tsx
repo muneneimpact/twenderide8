@@ -144,6 +144,24 @@ export function CorporateHireTerms({
           </button>
         </div>
       ) : null}
+      {sent || verified || busy ? (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-2">
+          <ol className="space-y-1">
+            {[
+              { t: `Code sent to ${email || "your company email"}`, done: sent || verified },
+              { t: "Open the email and type the 6-digit code here", done: verified },
+              { t: "Email verified", done: verified },
+            ].map((s2, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${s2.done ? "bg-success text-success-foreground" : "bg-secondary text-muted-foreground"}`}>{s2.done ? "✓" : i + 1}</span>
+                <span className={s2.done ? "text-foreground" : "text-muted-foreground"}>{s2.t}</span>
+              </li>
+            ))}
+          </ol>
+          {busy ? <p className="mt-1 text-muted-foreground">Working…</p> : null}
+          {sent && !verified ? <p className="mt-1 text-muted-foreground">Not there? Check spam or tap Resend.</p> : null}
+        </div>
+      ) : null}
       {verified ? <p className="font-semibold text-success">✓ {email} verified</p> : null}
 
       <div className="rounded-lg bg-secondary/50 p-2 text-muted-foreground">

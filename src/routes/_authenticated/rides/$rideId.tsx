@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
 import { MapPanel } from "@/components/MapPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { cancelRide, getRide, rateRide } from "@/lib/rides.functions";
@@ -559,6 +560,23 @@ function RideDetail() {
           </ol>
         </section>
       </div>
+      <PaymentProgressCard
+        open={showPayCard}
+        amount={Number(ride.total_fare)}
+        phone={intent?.msisdn ?? null}
+        check={async (): Promise<PayState> => {
+          const r = await fetchPayment({ data: { rideId } });
+          void queryClient.invalidateQueries({ queryKey: ["ride-payment", rideId] });
+          const st = String(r?.ride?.payment_status ?? r?.intent?.status ?? "pending");
+          if (st === "paid") return "paid";
+          if (["failed", "cancelled", "timed_out"].includes(st)) return "failed";
+          return "pending";
+        }}
+        onSuccess={() => setShowPayCard(false)}
+        onRetry={() => paying.mutate()}
+        onClose={() => setShowPayCard(false)}
+        successLabel="Done"
+      />
     </AppShell>
   );
 }
