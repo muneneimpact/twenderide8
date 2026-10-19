@@ -75,7 +75,6 @@ function RidesPage() {
                 <Link
                   to="/rides/$rideId"
                   params={{ rideId: ride.id }}
-                  search={{ receipt: 1 } as never}
                   className="mt-1 inline-block text-xs font-semibold text-primary"
                 >
                   Download receipt
