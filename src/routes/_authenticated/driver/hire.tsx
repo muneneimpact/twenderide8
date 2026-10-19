@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { AddVehicleForHire } from "@/components/AddVehicleForHire";
@@ -51,42 +52,68 @@ function HireOwnerPage() {
   );
 }
 
+const SECTIONS = [
+  { key: "bookings", label: "Bookings" },
+  { key: "finances", label: "Finances" },
+  { key: "vehicles", label: "Vehicles" },
+  { key: "documents", label: "Documents" },
+] as const;
+type SectionKey = (typeof SECTIONS)[number]["key"];
+
 function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
+  const [section, setSection] = useState<SectionKey>("bookings");
   return (
-    <div className="mx-auto max-w-md space-y-4 px-4 py-5">
-      <section className="surface-card p-4">
-        <h2 className="font-display text-lg font-semibold text-foreground">
-          Manage your hire cars
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Complete the steps below. Driver and vehicle approval are separate from the hire-listing
-          inspection. Once Ops approves the hire listing, it is published on the customer Hire page
-          automatically.
-        </p>
-        <Link to="/hire" className="mt-3 inline-flex text-sm font-semibold text-primary">
-          View the customer Hire page →
-        </Link>
-      </section>
-      <OwnerHireBookings />
-      <section className="surface-card p-4">
-        <h2 className="text-sm font-semibold text-foreground">Step 1 · Register your vehicle</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Use a vehicle you own or add one here. Operations must approve the vehicle before a hire
-          listing can go live.
-        </p>
-        <AddVehicleForHire hireOnly={hireOnly} label="Add a car for hire" />
-      </section>
-      <DriverComplianceDocuments
-        {...(hireOnly ? { heading: "Step 2 · Owner and vehicle compliance" } : {})}
-        includeDriverDocuments={!hireOnly}
-      />
-      <HireVehicleManager
-        hireOnly={hireOnly}
-        showAddVehicle={false}
-        heading="Step 3 · Photos, listing details and payment terms"
-      />
-      <HireRequestsBoard />
-      <HirePortfolioFinance />
+    <div className="mx-auto w-full max-w-md space-y-4 px-3 py-4 sm:px-4">
+      <div className="sticky top-[60px] z-30 -mx-3 bg-background/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:px-4">
+        <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl border border-border bg-card p-1">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.key}
+              role="tab"
+              aria-selected={section === s.key}
+              onClick={() => setSection(s.key)}
+              className={`min-h-10 rounded-xl px-1 text-xs font-semibold ${
+                section === s.key ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {section === "bookings" && (
+        <>
+          <OwnerHireBookings />
+          <HireRequestsBoard />
+          <Link to="/hire" className="inline-flex text-sm font-semibold text-primary">
+            View the customer Hire page →
+          </Link>
+        </>
+      )}
+      {section === "finances" && <HirePortfolioFinance />}
+      {section === "vehicles" && (
+        <>
+          <section className="surface-card p-4">
+            <h2 className="text-sm font-semibold text-foreground">Add a vehicle</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Operations approve the vehicle before its hire listing goes live.
+            </p>
+            <AddVehicleForHire hireOnly={hireOnly} label="Add a car for hire" />
+          </section>
+          <HireVehicleManager
+            hireOnly={hireOnly}
+            showAddVehicle={false}
+            heading="Your cars · photos, prices and terms"
+          />
+        </>
+      )}
+      {section === "documents" && (
+        <DriverComplianceDocuments
+          heading="Owner and vehicle documents"
+          includeDriverDocuments={!hireOnly}
+        />
+      )}
     </div>
   );
 }

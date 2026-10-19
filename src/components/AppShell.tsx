@@ -77,12 +77,12 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="glass-bar sticky top-0 z-40 flex items-center justify-between border-b border-border/60 px-4 py-3">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+      <header className="glass-bar sticky top-0 z-40 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="min-w-0">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             {eyebrow}
           </p>
-          <h1 className="font-display text-base font-semibold text-foreground">{title}</h1>
+          <h1 className="truncate font-display text-base font-semibold text-foreground">{title}</h1>
         </div>
         <button
           onClick={signOut}
@@ -92,7 +92,7 @@ export function AppShell({
         </button>
       </header>
 
-      <div className={hideNav ? "flex-1" : "flex-1 pb-28"}>
+      <div className={`mx-auto w-full max-w-2xl min-w-0 overflow-x-hidden ${hideNav ? "flex-1" : "flex-1 pb-28"}`}>
         <PhoneVerifyGate>{children}</PhoneVerifyGate>
       </div>
 
