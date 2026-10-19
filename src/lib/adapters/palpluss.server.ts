@@ -46,7 +46,7 @@ export function callbackUrl(): string {
   const explicit = process.env["PALPLUSS_CALLBACK_URL"];
   const base =
     explicit ??
-    `${process.env["PUBLIC_APP_URL"] ?? "https://twendemeruride2.lovable.app"}/api/public/payments/callback`;
+    `${process.env["PUBLIC_APP_URL"] ?? "https://twenderides.lovable.app"}/api/public/payments/callback`;
   const token = process.env["PALPLUSS_CALLBACK_TOKEN"];
   if (!token || base.includes("token=")) return base;
   return `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;

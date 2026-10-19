@@ -371,6 +371,24 @@ export async function settleHirePayment(paymentIntentId: string, receipt: string
         },
       });
     }
+    // Instant SMS to the owner/assigned driver so they can prepare the car.
+    if (result.owner_user_id) {
+      const { data: owner } = await supabaseAdmin
+        .from("profiles")
+        .select("phone")
+        .eq("id", result.owner_user_id)
+        .maybeSingle();
+      if (owner?.phone) {
+        const { sendTransactionalSms } = await import("./comms.server");
+        await sendTransactionalSms({
+          to: owner.phone,
+          message: `Twende Meru: hire ${quote.reference} is paid (KES ${paidTotal.toLocaleString("en-KE")}). Open the app > Hire cars to prepare the handover.`,
+          eventType: "hire_owner_paid_sms",
+          idempotencyKey: `hire-owner-sms:${paymentIntentId}`,
+          context: { userId: result.owner_user_id, paymentIntentId },
+        }).catch((error) => console.error("owner hire sms failed", error));
+      }
+    }
     await audit(null, "hire_payment_settled", "hire_quote", quote.id, {
       payment_intent_id: paymentIntentId,
       mpesa_receipt: receipt,

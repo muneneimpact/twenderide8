@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
+import { CorporateHireTerms, type CorporateTerms } from "@/components/CorporateHireTerms";
 import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { Calendar } from "@/components/ui/calendar";
@@ -230,6 +231,7 @@ function HirePage() {
   const [licensePath, setLicensePath] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [corporateTerms, setCorporateTerms] = useState<CorporateTerms | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -446,6 +448,7 @@ function HirePage() {
           idDocumentPath: idPath ?? undefined,
           licenseDocumentPath: licensePath ?? undefined,
           rulesAccepted,
+          corporate: hirerType === "company" && corporateTerms ? corporateTerms : undefined,
         },
       }),
     onSuccess: (row) => {
@@ -460,7 +463,9 @@ function HirePage() {
           .eq("id", accountId);
       }
       setMessage(
-        row.payment
+        hirerType === "company" && corporateTerms
+          ? `Booking ${row.reference} confirmed. Agreement signed; please pay by ${corporateTerms.payLaterMethod.replace("_", " ")} on ${corporateTerms.payLaterDueDate}.`
+          : row.payment
           ? row.payment.accepted
             ? `Request ${row.reference} saved. Approve the M-Pesa prompt for KES ${Number(row.payment.amount).toLocaleString("en-KE")}; the owner sees it after the required payment clears.`
             : `Request ${row.reference} saved, but payment did not start: ${row.payment.message}. Retry from Your requests.`
@@ -500,7 +505,11 @@ function HirePage() {
   if (!scheduleValid) missing.push("choose a future pickup and return time within 90 days");
   if (!pickup) missing.push("set where the car is brought");
   if (!renterName.trim()) missing.push("enter your name");
-  if (chosen && !paymentPhone.trim()) missing.push("enter your M-Pesa phone number");
+  if (chosen && hirerType !== "company" && !paymentPhone.trim())
+    missing.push("enter your M-Pesa phone number");
+  if (hirerType === "company" && !organisation.trim()) missing.push("enter the company name");
+  if (hirerType === "company" && !corporateTerms)
+    missing.push("verify the business email, pick a payment date and sign the agreement");
   if (!idPath && !savedDocuments.isPending) missing.push("upload your ID");
   if (tab === "self_drive" && !licensePath && !savedDocuments.isPending)
     missing.push("upload your driving licence");
@@ -989,12 +998,24 @@ function HirePage() {
                 </div>
               ) : null}
 
+              {hirerType === "company" && chosen ? (
+                <CorporateHireTerms
+                  organisation={organisation}
+                  summary={`${[chosen.make, chosen.model].filter(Boolean).join(" ")} ${chosen.plate_number} for ${days} day(s)${estimatedTotal !== null ? ` at KES ${estimatedTotal.toLocaleString("en-KE")}` : ""}`}
+                  onChange={setCorporateTerms}
+                />
+              ) : null}
+
               <button
                 onClick={() => submit.mutate()}
                 disabled={!canSubmit}
                 className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
               >
-                {submit.isPending ? "Sending…" : "Continue and pay by M-Pesa"}
+                {submit.isPending
+                  ? "Sending…"
+                  : hirerType === "company"
+                    ? "Sign and book (pay later)"
+                    : "Continue and pay by M-Pesa"}
               </button>
               {missing.length && !submit.isPending ? (
                 <p className="text-[11px] text-muted-foreground">

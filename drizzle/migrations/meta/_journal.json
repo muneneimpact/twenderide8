@@ -15,6 +15,13 @@
       "when": 1792446427169,
       "tag": "0001_profile_memory_lost_found_complaint_driver",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792446705677,
+      "tag": "0002_hire_handover_decline_corporate_agreement",
+      "breakpoints": true
     }
   ]
 }

@@ -47,6 +47,39 @@ export type Database = {
         }
         Relationships: []
       }
+      business_email_otps: {
+        Row: {
+          attempts: number
+          code_hash: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          user_id?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       comms_log: {
         Row: {
           attempts: number
@@ -951,7 +984,14 @@ export type Database = {
         Row: {
           accepted_offer_id: string | null
           admin_notes: string | null
+          agreement_signature: string | null
+          agreement_signed_at: string | null
+          agreement_signer_name: string | null
           assigned_driver_id: string | null
+          business_address: string | null
+          business_email: string | null
+          business_email_verified_at: string | null
+          business_registration_number: string | null
           commission_percent_snapshot: number | null
           contact_email: string | null
           contact_name: string | null
@@ -962,6 +1002,7 @@ export type Database = {
           drive_mode: string
           end_at: string | null
           estimated_total: number
+          handed_over_at: string | null
           hirer_type: string
           id: string
           id_document_path: string | null
@@ -969,7 +1010,11 @@ export type Database = {
           license_document_path: string | null
           notes: string | null
           organisation: string | null
+          owner_decline_reason: string | null
+          owner_declined_at: string | null
           passengers: number
+          pay_later_due_date: string | null
+          pay_later_method: string | null
           payment_hold_expires_at: string | null
           payment_minimum_amount: number | null
           payment_paid_total: number
@@ -983,6 +1028,7 @@ export type Database = {
           renter_id_number: string | null
           renter_name: string | null
           requester_id: string
+          returned_at: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           rules_accepted_at: string | null
@@ -996,7 +1042,14 @@ export type Database = {
         Insert: {
           accepted_offer_id?: string | null
           admin_notes?: string | null
+          agreement_signature?: string | null
+          agreement_signed_at?: string | null
+          agreement_signer_name?: string | null
           assigned_driver_id?: string | null
+          business_address?: string | null
+          business_email?: string | null
+          business_email_verified_at?: string | null
+          business_registration_number?: string | null
           commission_percent_snapshot?: number | null
           contact_email?: string | null
           contact_name?: string | null
@@ -1007,6 +1060,7 @@ export type Database = {
           drive_mode?: string
           end_at?: string | null
           estimated_total?: number
+          handed_over_at?: string | null
           hirer_type?: string
           id?: string
           id_document_path?: string | null
@@ -1014,7 +1068,11 @@ export type Database = {
           license_document_path?: string | null
           notes?: string | null
           organisation?: string | null
+          owner_decline_reason?: string | null
+          owner_declined_at?: string | null
           passengers?: number
+          pay_later_due_date?: string | null
+          pay_later_method?: string | null
           payment_hold_expires_at?: string | null
           payment_minimum_amount?: number | null
           payment_paid_total?: number
@@ -1028,6 +1086,7 @@ export type Database = {
           renter_id_number?: string | null
           renter_name?: string | null
           requester_id: string
+          returned_at?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           rules_accepted_at?: string | null
@@ -1041,7 +1100,14 @@ export type Database = {
         Update: {
           accepted_offer_id?: string | null
           admin_notes?: string | null
+          agreement_signature?: string | null
+          agreement_signed_at?: string | null
+          agreement_signer_name?: string | null
           assigned_driver_id?: string | null
+          business_address?: string | null
+          business_email?: string | null
+          business_email_verified_at?: string | null
+          business_registration_number?: string | null
           commission_percent_snapshot?: number | null
           contact_email?: string | null
           contact_name?: string | null
@@ -1052,6 +1118,7 @@ export type Database = {
           drive_mode?: string
           end_at?: string | null
           estimated_total?: number
+          handed_over_at?: string | null
           hirer_type?: string
           id?: string
           id_document_path?: string | null
@@ -1059,7 +1126,11 @@ export type Database = {
           license_document_path?: string | null
           notes?: string | null
           organisation?: string | null
+          owner_decline_reason?: string | null
+          owner_declined_at?: string | null
           passengers?: number
+          pay_later_due_date?: string | null
+          pay_later_method?: string | null
           payment_hold_expires_at?: string | null
           payment_minimum_amount?: number | null
           payment_paid_total?: number
@@ -1073,6 +1144,7 @@ export type Database = {
           renter_id_number?: string | null
           renter_name?: string | null
           requester_id?: string
+          returned_at?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           rules_accepted_at?: string | null

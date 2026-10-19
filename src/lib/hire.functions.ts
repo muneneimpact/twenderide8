@@ -458,12 +458,40 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         idDocumentPath: z.string().max(400).optional(),
         licenseDocumentPath: z.string().max(400).optional(),
         rulesAccepted: z.boolean().optional(),
+        corporate: z
+          .object({
+            payLaterMethod: z.enum(["cheque", "bank_transfer", "mpesa", "invoice"]),
+            payLaterDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+            businessEmail: z.string().trim().email().max(160),
+            registrationNumber: z.string().trim().max(60).optional(),
+            businessAddress: z.string().trim().max(200).optional(),
+            signerName: z.string().trim().min(3).max(120),
+            signature: z.string().min(20).max(200_000),
+          })
+          .optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { normaliseKenyanPhone } = await import("./phone");
+    const corporate = data.hirerType === "company" ? data.corporate : undefined;
+    if (corporate) {
+      const { isBusinessEmail } = await import("./hire-rules");
+      if (!isBusinessEmail(corporate.businessEmail))
+        throw new Error("Use a business email like name@company.co.ke.");
+      const { data: verified } = await supabaseAdmin
+        .from("business_email_otps")
+        .select("id")
+        .eq("user_id", context.userId)
+        .eq("email", corporate.businessEmail.toLowerCase())
+        .not("verified_at", "is", null)
+        .gte("verified_at", new Date(Date.now() - 24 * 3_600_000).toISOString())
+        .limit(1);
+      if (!verified?.length) throw new Error("Verify the business email with the code we sent first.");
+      if (new Date(corporate.payLaterDueDate).getTime() < Date.now() - 86_400_000)
+        throw new Error("Choose a payment date from today onwards.");
+    }
     for (const path of [data.idDocumentPath, data.licenseDocumentPath]) {
       if (path && !path.startsWith(`${context.userId}/`))
         throw new Error("Upload your documents again.");
@@ -572,8 +600,23 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         payment_status: data.vehicleId ? "pending" : "legacy",
         payment_paid_total: 0,
         payment_minimum_amount: data.vehicleId ? minimum : null,
-        payment_hold_expires_at: holdUntil,
+        payment_hold_expires_at: corporate ? null : holdUntil,
         commission_percent_snapshot: commissionPercent,
+        ...(corporate
+          ? {
+              status: data.vehicleId ? "confirmed" : "submitted",
+              pay_later_method: corporate.payLaterMethod,
+              pay_later_due_date: corporate.payLaterDueDate,
+              business_email: corporate.businessEmail.toLowerCase(),
+              business_email_verified_at: new Date().toISOString(),
+              business_registration_number: corporate.registrationNumber ?? null,
+              business_address: corporate.businessAddress ?? null,
+              agreement_signer_name: corporate.signerName,
+              agreement_signature: corporate.signature,
+              agreement_signed_at: new Date().toISOString(),
+              contact_email: corporate.businessEmail.toLowerCase(),
+            }
+          : {}),
       } as never)
       .select(
         "id, reference, estimated_total, status, payment_policy, payment_status, payment_minimum_amount",
@@ -591,7 +634,10 @@ export const submitHireQuote = createServerFn({ method: "POST" })
     let payment: Awaited<
       ReturnType<typeof import("./hire-payments.server").startHirePayment>
     > | null = null;
-    if (data.vehicleId && paymentPhone) {
+    if (corporate && data.vehicleId) {
+      const { notifyOwnerOfBooking } = await import("./hire-owner.server");
+      await notifyOwnerOfBooking(row.id, `pay later by ${corporate.payLaterMethod.replace("_", " ")} on ${corporate.payLaterDueDate}`);
+    } else if (data.vehicleId && paymentPhone) {
       try {
         const payments = await import("./hire-payments.server");
         payment = await payments.startHirePayment({
