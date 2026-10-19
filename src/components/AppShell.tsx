@@ -39,6 +39,7 @@ export function tabsForRoles(roles: AppRole[]): Tab[] {
   if (has("finance_admin", "super_admin")) tabs.push({ to: "/admin/finance", label: "Finance" });
   if (has("super_admin")) tabs.push({ to: "/admin/pricing", label: "Pricing" });
   if (has("super_admin")) tabs.push({ to: "/admin/staff", label: "People" });
+  if (has("super_admin")) tabs.push({ to: "/admin/documents", label: "Letterhead" });
   return tabs;
 }
 
@@ -143,4 +144,5 @@ export const adminTabs: Tab[] = [
   { to: "/admin/finance", label: "Finance" },
   { to: "/admin/pricing", label: "Pricing" },
   { to: "/admin/staff", label: "People" },
+  { to: "/admin/documents", label: "Letterhead" },
 ];

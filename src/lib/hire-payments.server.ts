@@ -389,6 +389,8 @@ export async function settleHirePayment(paymentIntentId: string, receipt: string
         }).catch((error) => console.error("owner hire sms failed", error));
       }
     }
+    const { autoSignOwner } = await import("./agreements.server");
+    await autoSignOwner(quote.id).catch((error) => console.error("owner auto-sign failed", error));
     await audit(null, "hire_payment_settled", "hire_quote", quote.id, {
       payment_intent_id: paymentIntentId,
       mpesa_receipt: receipt,
