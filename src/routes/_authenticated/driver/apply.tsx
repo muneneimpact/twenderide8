@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatKenyanPlate } from "@/lib/plate";
 import { CarBadge } from "@/components/CarBadge";
 import { DriverComplianceDocuments } from "@/components/DriverComplianceDocuments";
+import { DriverAgreementCard } from "@/components/DriverAgreementCard";
+import { DRIVER_AGREEMENT_VERSION } from "@/lib/driver-agreement";
 
 export const Route = createFileRoute("/_authenticated/driver/apply")({
   head: () => ({
@@ -62,6 +64,8 @@ function DriverApply() {
   const [colour, setColour] = useState("");
   const [year, setYear] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [agreed, setAgreed] = useState(false);
+  const [signer, setSigner] = useState("");
 
   /** Riders see this photo once they are matched, so it is stored on the profile. */
   const savePhoto = useMutation({
@@ -106,6 +110,8 @@ function DriverApply() {
           ...(model.trim() ? { model: model.trim() } : {}),
           ...(colour.trim() ? { colour: colour.trim() } : {}),
           ...(year.trim() ? { year: Number(year) } : {}),
+          agreement_version: DRIVER_AGREEMENT_VERSION,
+          agreement_signer_name: signer.trim(),
         },
       }),
     onSuccess: () => {
@@ -286,9 +292,15 @@ function DriverApply() {
                 className="rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
               />
             </div>
+            <DriverAgreementCard
+              accepted={agreed}
+              onAcceptedChange={setAgreed}
+              signer={signer}
+              onSignerChange={setSigner}
+            />
             <button
               onClick={() => apply.mutate()}
-              disabled={apply.isPending || plate.trim().length < 4}
+              disabled={apply.isPending || plate.trim().length < 4 || !agreed || signer.trim().length < 2}
               className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               {apply.isPending ? "Submitting…" : "Submit vehicle for review"}
