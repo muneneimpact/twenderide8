@@ -132,6 +132,7 @@ export const getHireAgreement = createServerFn({ method: "GET" })
       owner,
       receipts: (settlements ?? []).map((s) => ({ code: s.mpesa_receipt, amount: Number(s.gross_amount), at: s.created_at })),
       photos: Object.fromEntries(Object.entries(photos).map(([k, p]) => [k, urlOf(p)])) as Partial<Record<InspectionSide, string | null>>,
+      extraPhotos: rawExtras.map((e) => ({ name: e.name, url: urlOf(e.path) })),
     };
   });
 

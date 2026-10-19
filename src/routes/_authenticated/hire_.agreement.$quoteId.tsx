@@ -115,6 +115,7 @@ function AgreementPage() {
   if (q.isError) return <p className="p-6 text-sm text-destructive">{(q.error as Error).message}</p>;
   const d = q.data;
   const { quote: b, renter, owner, photos, canInspect, role } = d;
+  const extraPhotos = d.extraPhotos ?? [];
   const brand = (d.branding as Branding | null) ?? DEFAULT_BRANDING;
   const chauffeured = b.drive_mode !== "self_drive";
   const complete = Boolean(b.completed_at);
@@ -130,7 +131,7 @@ function AgreementPage() {
         sections,
         hirer: { name: b.signer ?? renter.name, signature: b.signature, at: b.signed_at },
         owner: { name: b.owner_signer ?? owner?.full_name ?? "Owner", signature: b.owner_signature, at: b.owner_signed_at },
-        photos: INSPECTION_SIDES.map((s) => ({ label: s.charAt(0).toUpperCase() + s.slice(1), url: photos[s] ?? null })),
+        photos: [...INSPECTION_SIDES.map((s) => ({ label: s.charAt(0).toUpperCase() + s.slice(1), url: photos[s] ?? null })), ...extraPhotos.map((e) => ({ label: e.name, url: e.url }))],
       });
       downloadPdf(bytes, `Twende-hire-agreement-${b.reference}.pdf`);
     } catch (e) {
@@ -199,6 +200,12 @@ function AgreementPage() {
                   <figure key={side} className="text-center text-xs">
                     {photos[side] ? <img src={photos[side]!} alt={`${side} of vehicle`} className="aspect-[4/3] w-full rounded border border-border object-cover" /> : <div className="flex aspect-[4/3] items-center justify-center rounded border border-dashed border-border text-muted-foreground">No photo</div>}
                     <figcaption className="mt-1 capitalize">{side}</figcaption>
+                  </figure>
+                ))}
+                {extraPhotos.map((e, k) => (
+                  <figure key={`x${k}`} className="text-center text-xs">
+                    {e.url ? <img src={e.url} alt={e.name} className="aspect-[4/3] w-full rounded border border-border object-cover" /> : null}
+                    <figcaption className="mt-1">{e.name}</figcaption>
                   </figure>
                 ))}
               </div>
@@ -303,8 +310,24 @@ function InspectionForm({ quoteId, done }: { quoteId: string; done: boolean }) {
   const [fuel, setFuel] = useState("Full");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [extras, setExtras] = useState<Array<{ name: string; path: string }>>([]);
+  const [extraName, setExtraName] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
+  async function uploadExtra(file: File) {
+    const name = extraName.trim();
+    if (!name) return setMsg("Name the photo first, e.g. \"Rear bumper scratch\".");
+    setBusy("extra");
+    setMsg(null);
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return setBusy(null);
+    const path = `${auth.user.id}/inspection-${quoteId}-extra-${Date.now()}.${file.name.split(".").pop() ?? "jpg"}`;
+    const { error } = await supabase.storage.from("hire-documents").upload(path, file, { upsert: true, contentType: file.type });
+    setBusy(null);
+    if (error) return setMsg(error.message);
+    setExtras((x) => [...x, { name, path }]);
+    setExtraName("");
+  }
   async function upload(side: InspectionSide, file: File) {
     setBusy(side);
     setMsg(null);
@@ -318,7 +341,7 @@ function InspectionForm({ quoteId, done }: { quoteId: string; done: boolean }) {
   }
   const save = useMutation({
     mutationFn: () =>
-      saveFn({ data: { quoteId, photos: paths as Record<InspectionSide, string>, odometer: odo ? Number(odo) : null, fuel, notes: notes.trim() || null } }),
+      saveFn({ data: { quoteId, photos: paths as Record<InspectionSide, string>, extras, odometer: odo ? Number(odo) : null, fuel, notes: notes.trim() || null } }),
     onSuccess: () => {
       setOpen(false);
       void qc.invalidateQueries({ queryKey: ["hire-agreement", quoteId] });
@@ -343,6 +366,27 @@ function InspectionForm({ quoteId, done }: { quoteId: string; done: boolean }) {
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && void upload(s, e.target.files[0])} />
               </label>
             ))}
+          </div>
+          <div className="mt-3 rounded-lg border border-border p-2">
+            <p className="font-semibold text-foreground">More photos (optional)</p>
+            <p className="text-muted-foreground">Add close-ups of scratches, interior, tyres, etc. Name each one.</p>
+            {extras.length ? (
+              <ul className="mt-1 space-y-1">
+                {extras.map((e, k) => (
+                  <li key={k} className="flex items-center justify-between text-success">
+                    <span>✓ {e.name}</span>
+                    <button type="button" onClick={() => setExtras((x) => x.filter((_, j) => j !== k))} className="text-destructive">Remove</button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="mt-2 flex gap-2">
+              <input value={extraName} onChange={(e) => setExtraName(e.target.value)} maxLength={60} placeholder="Photo name, e.g. Dashboard" className="input-base min-w-0 flex-1" />
+              <label className={`shrink-0 cursor-pointer rounded-lg border px-3 py-2 font-semibold ${extraName.trim() ? "border-primary text-primary" : "border-border text-muted-foreground"}`}>
+                {busy === "extra" ? "Uploading…" : "📷 Add"}
+                <input type="file" accept="image/*" capture="environment" className="hidden" disabled={!extraName.trim()} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadExtra(f); }} />
+              </label>
+            </div>
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <input value={odo} onChange={(e) => setOdo(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Odometer (km)" className="input-base" />
