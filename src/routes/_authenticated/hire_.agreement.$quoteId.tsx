@@ -124,7 +124,7 @@ function AgreementPage() {
               <tbody>{receipts.map((r, i) => <tr key={i} className="border-b border-border"><td className="py-1 font-mono">{r.code ?? "—"}</td><td>{kes(r.amount)}</td><td>{dt(r.at)}</td></tr>)}</tbody>
             </table>
           ) : null}
-          <p>Each day includes 250 km. Extra distance is charged at KES 30 per km. {chauffeured ? "Fuel is provided by the Owner as quoted." : "The Hirer fuels the vehicle and must return it at the same fuel level; any shortfall is refuelled at pump price plus a 15% surcharge."}</p>
+          <p>The hire includes a maximum of 300 km. Extra distance is charged at KES 30 per km. {chauffeured ? "Fuel is provided by the Owner as quoted." : "The Hirer fuels the vehicle and should return it at the same fuel level; any shortfall is charged at the pump price of the missing fuel only."}</p>
         </Section>
 
         <Section n={5} title="Security Deposit & Deductions">

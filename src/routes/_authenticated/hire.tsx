@@ -1058,7 +1058,11 @@ function HirePage() {
                   {q.admin_notes ? (
                     <p className="mt-1 text-xs text-muted-foreground">{q.admin_notes}</p>
                   ) : null}
-                  {q.vehicle_id ? (
+                  {q.vehicle_id &&
+                  (q.payment_status === "paid" ||
+                    q.payment_status === "partially_paid" ||
+                    Number(q.payment_paid_total ?? 0) > 0 ||
+                    (q.status === "confirmed" && !!q.pay_later_method)) ? (
                     <Link
                       to="/hire/agreement/$quoteId"
                       params={{ quoteId: q.id }}
