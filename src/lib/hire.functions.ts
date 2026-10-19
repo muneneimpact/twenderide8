@@ -1363,12 +1363,38 @@ export const requestHirePayout = createServerFn({ method: "POST" })
     } catch (auditError) {
       console.error("hire payout request audit failed", auditError);
     }
+    await smsPayoutSummary(context.userId, `payout-req:${payload.request_id}`, "Payout request received.", Number(payload.amount ?? data.amount));
     return {
       requestId: payload.request_id,
       amount: payload.amount ?? data.amount,
       availableBalance: payload.available_balance ?? 0,
     };
   });
+
+/** Text the owner a payout summary: requested, paid out, balance. */
+async function smsPayoutSummary(ownerId: string, key: string, headline: string, requested: number) {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: bal }, { data: prof }, { data: open }] = await Promise.all([
+      supabaseAdmin.from("hire_owner_balances").select("owner_balance, paid_out_total").eq("owner_user_id", ownerId).maybeSingle(),
+      supabaseAdmin.from("profiles").select("phone").eq("id", ownerId).maybeSingle(),
+      supabaseAdmin.from("hire_payout_requests").select("amount").eq("owner_user_id", ownerId).in("status", ["requested", "approved"]),
+    ]);
+    if (!prof?.phone) return;
+    const pending = (open ?? []).reduce((a, r) => a + Number(r.amount), 0);
+    const balance = Number(bal?.owner_balance ?? 0);
+    const k = (n: number) => `KES ${Math.round(n).toLocaleString("en-KE")}`;
+    const { sendTransactionalSms } = await import("./comms.server");
+    await sendTransactionalSms({
+      to: prof.phone,
+      eventType: "hire_payout_summary",
+      idempotencyKey: key,
+      message: `Twende: ${headline} Requested: ${k(requested)}. Total paid to you: ${k(Number(bal?.paid_out_total ?? 0))}. Pending: ${k(pending)}. Balance available: ${k(Math.max(0, balance - pending))}.`,
+    });
+  } catch (e) {
+    console.error("payout sms failed", e);
+  }
+}
 
 /** Finance staff approves/rejects requests or records a completed manual transfer. */
 export const reviewHirePayoutRequest = createServerFn({ method: "POST" })
@@ -1431,6 +1457,12 @@ export const reviewHirePayoutRequest = createServerFn({ method: "POST" })
     } catch (notifyError) {
       console.error("hire payout status notification failed", notifyError);
     }
+    await smsPayoutSummary(
+      payload.owner_user_id,
+      `payout-${data.decision}:${data.id}`,
+      { approved: "Payout approved.", paid: `Payout sent${payload.payout_reference ? ` (ref ${payload.payout_reference})` : ""}.`, rejected: "Payout request declined." }[data.decision],
+      Number(payload.amount ?? 0),
+    );
     return { ok: true, status: payload.status ?? data.decision };
   });
 
