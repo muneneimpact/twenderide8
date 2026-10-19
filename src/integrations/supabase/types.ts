@@ -475,6 +475,36 @@ export type Database = {
           },
         ]
       }
+      driver_agreement_acceptances: {
+        Row: {
+          accepted_at: string
+          agreement_version: string
+          id: string
+          ip: string | null
+          signer_name: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          agreement_version: string
+          id?: string
+          ip?: string | null
+          signer_name?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          agreement_version?: string
+          id?: string
+          ip?: string | null
+          signer_name?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       driver_offers: {
         Row: {
           created_at: string

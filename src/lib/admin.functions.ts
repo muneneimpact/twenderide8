@@ -482,7 +482,26 @@ export const getFinanceBoard = createServerFn({ method: "POST" })
     ]);
 
     const ledger = entries ?? [];
+    const since = new Date(Date.now() - 400 * 86_400_000).toISOString();
+    const [{ data: paidIntents }, { data: commissionRows }] = await Promise.all([
+      supabaseAdmin
+        .from("payment_intents")
+        .select("amount, created_at")
+        .eq("status", "paid")
+        .gte("created_at", since)
+        .limit(5000),
+      supabaseAdmin
+        .from("wallet_ledger")
+        .select("amount, created_at")
+        .eq("entry_type", "platform_commission")
+        .gte("created_at", since)
+        .limit(5000),
+    ]);
     return {
+      periodRows: {
+        collected: (paidIntents ?? []).map((r) => ({ amount: Number(r.amount), at: r.created_at })),
+        commission: (commissionRows ?? []).map((r) => ({ amount: Math.abs(Number(r.amount)), at: r.created_at })),
+      },
       wallets: wallets ?? [],
       withdrawals: withdrawals ?? [],
       refunds: refunds ?? [],

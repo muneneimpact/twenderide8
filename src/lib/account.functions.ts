@@ -61,13 +61,32 @@ export const applyAsDriver = createServerFn({ method: "POST" })
         model: z.string().max(40).optional(),
         colour: z.string().max(24).optional(),
         year: z.number().int().min(1980).max(2100).optional(),
+        agreement_version: z.string().min(1).max(40),
+        agreement_signer_name: z.string().trim().min(2).max(120),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { audit } = await import("./notifications.server");
+    const { getRequestHeader } = await import("@tanstack/react-start/server");
+    const { DRIVER_AGREEMENT_VERSION } = await import("./driver-agreement");
     const userId = context.userId;
+
+    if (data.agreement_version !== DRIVER_AGREEMENT_VERSION) {
+      throw new Error("Please read and accept the latest Driver Partner Agreement.");
+    }
+    const { error: agreementError } = await supabaseAdmin.from("driver_agreement_acceptances").upsert(
+      {
+        user_id: userId,
+        agreement_version: data.agreement_version,
+        signer_name: data.agreement_signer_name,
+        user_agent: getRequestHeader("user-agent")?.slice(0, 300) ?? null,
+        ip: (getRequestHeader("cf-connecting-ip") ?? getRequestHeader("x-forwarded-for") ?? "").slice(0, 80) || null,
+      },
+      { onConflict: "user_id,agreement_version", ignoreDuplicates: true },
+    );
+    if (agreementError) throw new Error(agreementError.message);
 
     await supabaseAdmin
       .from("drivers")
