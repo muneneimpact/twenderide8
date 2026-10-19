@@ -17,7 +17,7 @@ async function loadAccessible(quoteId: string, userId: string) {
   if (!isRenter && !owned && q.assigned_driver_id !== userId && !isStaff) {
     throw new Error("You cannot view this agreement.");
   }
-  return { q, supabaseAdmin, isRenter, isOwner: owned || isStaff };
+  return { q, supabaseAdmin, isRenter, isOwner: owned || isStaff, isVehicleOwner: owned, isStaff };
 }
 
 /** Everything the printable hire agreement needs, auto-filled from the booking. */
@@ -25,7 +25,12 @@ export const getHireAgreement = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ quoteId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
-    const { q, supabaseAdmin, isOwner } = await loadAccessible(data.quoteId, context.userId);
+    const acc = await loadAccessible(data.quoteId, context.userId);
+    const { supabaseAdmin, isOwner, isRenter } = acc;
+    const { autoSignOwner } = await import("./agreements.server");
+    await autoSignOwner(acc.q.id).catch(() => undefined);
+    const { data: fresh } = await supabaseAdmin.from("hire_quotes").select("*").eq("id", acc.q.id).maybeSingle();
+    const q = fresh ?? acc.q;
     const booked =
       Number(q.payment_paid_total ?? 0) > 0 ||
       q.payment_status === "paid" ||
@@ -56,7 +61,21 @@ export const getHireAgreement = createServerFn({ method: "GET" })
       : [];
     const urlOf = (p: string) => signed.find((s) => s.path === p)?.signedUrl ?? null;
     const sig = q.agreement_signature?.trim() ?? null;
+    const { data: brand } = await supabaseAdmin.from("document_branding").select("*").eq("key", "default").maybeSingle();
+    const { data: logs } = await supabaseAdmin
+      .from("agreement_logs")
+      .select("action, created_at, detail")
+      .eq("hire_quote_id", q.id)
+      .order("created_at");
+    const hasOwner = Boolean(v?.owner_driver_id);
     return {
+      branding: brand,
+      logs: logs ?? [],
+      role: {
+        isRenter,
+        canSignAsHirer: isRenter && !sig,
+        canSignAsOwner: (acc.isVehicleOwner || (acc.isStaff && !hasOwner)) && !q.owner_signed_at,
+      },
       canInspect: isOwner && !q.returned_at,
       quote: {
         id: q.id,
@@ -80,7 +99,11 @@ export const getHireAgreement = createServerFn({ method: "GET" })
         business_address: q.business_address,
         signer: q.agreement_signer_name,
         signature: sig,
-        signed_at: q.agreement_signed_at ?? q.rules_accepted_at,
+        signed_at: q.agreement_signed_at ?? (sig ? q.rules_accepted_at : null),
+        owner_signer: q.owner_signer_name,
+        owner_signature: q.owner_signature,
+        owner_signed_at: q.owner_signed_at,
+        completed_at: q.agreement_completed_at,
         handed_over_at: q.handed_over_at,
         returned_at: q.returned_at,
         inspection_at: q.inspection_at,
@@ -180,4 +203,81 @@ export const emailHireAgreement = createServerFn({ method: "POST" })
     if (!result.sent) throw new Error(result.detail ?? "Email could not be sent.");
     await supabaseAdmin.from("hire_quotes").update({ agreement_emailed_at: new Date().toISOString() }).eq("id", q.id);
     return { to };
+  });
+
+/** Hirer or owner signs the agreement (drawn image or typed name). */
+export const signHireAgreement = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        quoteId: z.string().uuid(),
+        as: z.enum(["hirer", "owner"]),
+        signerName: z.string().trim().min(2).max(120),
+        signature: z.string().min(3).max(400_000),
+        saveForLater: z.boolean().optional(),
+        autoSign: z.boolean().optional(),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const acc = await loadAccessible(data.quoteId, context.userId);
+    const { q, supabaseAdmin } = acc;
+    if (!data.signature.startsWith("data:image/png") && !data.signature.startsWith("typed:")) throw new Error("Invalid signature.");
+    const { getRequestHeader } = await import("@tanstack/react-start/server");
+    const meta = { userAgent: getRequestHeader("user-agent") ?? null, ip: getRequestHeader("cf-connecting-ip") ?? getRequestHeader("x-forwarded-for") ?? null };
+    const now = new Date().toISOString();
+    const { logAgreement, completeIfBothSigned } = await import("./agreements.server");
+    if (data.as === "hirer") {
+      if (!acc.isRenter) throw new Error("Only the hirer can sign here.");
+      if (q.agreement_signature) throw new Error("You already signed.");
+      await supabaseAdmin.from("hire_quotes").update({ agreement_signature: data.signature, agreement_signer_name: data.signerName, agreement_signed_at: now }).eq("id", q.id);
+    } else {
+      const { data: v } = q.vehicle_id ? await supabaseAdmin.from("vehicles").select("owner_driver_id").eq("id", q.vehicle_id).maybeSingle() : { data: null };
+      const allowed = acc.isVehicleOwner || (acc.isStaff && !v?.owner_driver_id);
+      if (!allowed) throw new Error("Only the vehicle owner can sign here.");
+      if (q.owner_signed_at) throw new Error("Already signed by the owner.");
+      await supabaseAdmin.from("hire_quotes").update({ owner_signature: data.signature, owner_signer_name: data.signerName, owner_signed_at: now, owner_signed_by: context.userId }).eq("id", q.id);
+      if (data.saveForLater) {
+        await supabaseAdmin.from("owner_signatures").upsert({ user_id: context.userId, signer_name: data.signerName, signature: data.signature, auto_sign: Boolean(data.autoSign), updated_at: now });
+      }
+    }
+    await logAgreement(q.id, context.userId, `${data.as}_signed`, { signer: data.signerName, kind: data.signature.startsWith("typed:") ? "typed" : "drawn" }, meta);
+    await completeIfBothSigned(q.id);
+    return { ok: true };
+  });
+
+/** Hire payment receipt data (every settled payment on the booking). */
+export const getHireReceipt = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ quoteId: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { q, supabaseAdmin } = await loadAccessible(data.quoteId, context.userId);
+    const [{ data: s }, { data: brand }, { data: vehicle }, { data: renter }] = await Promise.all([
+      supabaseAdmin.from("hire_payment_settlements").select("mpesa_receipt, gross_amount, created_at").eq("hire_quote_id", q.id).order("created_at"),
+      supabaseAdmin.from("document_branding").select("*").eq("key", "default").maybeSingle(),
+      q.vehicle_id ? supabaseAdmin.from("vehicles").select("make, model, plate_number").eq("id", q.vehicle_id).maybeSingle() : Promise.resolve({ data: null }),
+      supabaseAdmin.from("profiles").select("full_name, phone").eq("id", q.requester_id).maybeSingle(),
+    ]);
+    const end = q.end_at ?? new Date(new Date(q.start_at).getTime() + q.days * 86_400_000).toISOString();
+    return {
+      branding: brand,
+      receipt: {
+        kind: "hire" as const,
+        reference: q.reference,
+        customer: q.renter_name ?? renter?.full_name ?? "Customer",
+        phone: q.contact_phone ?? renter?.phone ?? null,
+        lines: [
+          ["Vehicle", vehicle ? `${[vehicle.make, vehicle.model].filter(Boolean).join(" ")} (${vehicle.plate_number})` : "Vehicle"],
+          ["Mode", q.drive_mode === "self_drive" ? "Self drive" : "Chauffeured"],
+          ["Period", `${new Date(q.start_at).toLocaleString("en-KE")} - ${new Date(end).toLocaleString("en-KE")}`],
+          ["Days", String(q.days)],
+          ["Pick-up point", q.pickup_label ?? "-"],
+        ] as [string, string][],
+        total: Number(q.quoted_total ?? q.estimated_total),
+        paid: Number(q.payment_paid_total ?? 0),
+        payments: (s ?? []).map((p) => ({ code: p.mpesa_receipt, amount: Number(p.gross_amount), at: p.created_at, method: "M-PESA" })),
+        issuedAt: new Date().toISOString(),
+      },
+    };
   });
