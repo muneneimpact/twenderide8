@@ -85,8 +85,8 @@ export function OwnerHireBookings() {
                 <a href={`tel:${b.renter_phone}`} className="mt-1 inline-block font-semibold text-primary">Call renter {b.renter_phone}</a>
               ) : null}
               <div className="mt-2 flex flex-wrap gap-2">
-                <Link to="/hire/agreement/$quoteId" params={{ quoteId: b.id }} className="rounded-full border border-primary px-3 py-2 font-semibold text-primary">
-                  {b.status === "confirmed" && !b.handed_over_at ? "Walkaround photos & agreement" : "Agreement"}
+                <Link to="/hire/agreement/$quoteId" params={{ quoteId: b.id }} hash="sign" className="rounded-full border border-primary px-3 py-2 font-semibold text-primary">
+                  {b.status === "confirmed" && !b.handed_over_at ? "Walkaround, sign & agreement" : "Sign / agreement"}
                 </Link>
                 {b.status === "confirmed" && !b.handed_over_at ? (
                   <button onClick={() => hand.mutate({ quoteId: b.id, step: "handed_over" })} disabled={hand.isPending} className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">

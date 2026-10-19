@@ -9,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
+import { ReceiptDownload } from "@/components/ReceiptDownload";
 import {
   estimateHireTotal,
   getMyHireDocuments,
