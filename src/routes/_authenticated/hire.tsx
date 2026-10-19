@@ -1057,6 +1057,15 @@ function HirePage() {
                   {q.admin_notes ? (
                     <p className="mt-1 text-xs text-muted-foreground">{q.admin_notes}</p>
                   ) : null}
+                  {q.vehicle_id ? (
+                    <Link
+                      to="/hire/agreement/$quoteId"
+                      params={{ quoteId: q.id }}
+                      className="mt-2 inline-block rounded-full border border-primary px-3 py-1.5 text-xs font-semibold text-primary"
+                    >
+                      Download agreement
+                    </Link>
+                  ) : null}
                   {q.vehicle_id && q.payment_policy !== "legacy"
                     ? (() => {
                         const total = Number(q.quoted_total ?? q.estimated_total);
