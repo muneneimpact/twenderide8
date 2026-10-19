@@ -45,7 +45,10 @@ function ReportCard({ r }: { r: LostFoundView }) {
 
 function LostFoundPage() {
   const qc = useQueryClient();
-  const [as, setAs] = useState<"customer" | "driver">("customer");
+  const { has } = useMe();
+  const isDriver = has("driver");
+  const [asRaw, setAs] = useState<"customer" | "driver">("customer");
+  const as = isDriver ? asRaw : "customer";
   const [picked, setPicked] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -87,7 +90,7 @@ function LostFoundPage() {
     <AppShell title="Lost & found">
       <div className="space-y-4 pb-24">
         <section className="surface-card p-4">
-          <div className="flex gap-2">
+          {isDriver ? <div className="flex gap-2">
             {(
               [
                 { key: "customer", label: "I lost something" },
@@ -107,7 +110,7 @@ function LostFoundPage() {
                 {o.label}
               </button>
             ))}
-          </div>
+          </div> : <h2 className="text-sm font-semibold text-foreground">Report something you lost</h2>}
           <p className="mt-3 text-xs text-muted-foreground">
             {as === "customer"
               ? "Pick the trip, then describe the item clearly (type, colour, brand, what was inside) so the driver can verify it is yours."
