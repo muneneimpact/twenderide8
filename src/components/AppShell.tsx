@@ -92,7 +92,7 @@ export function AppShell({
         </button>
       </header>
 
-      <div className={`mx-auto w-full max-w-2xl min-w-0 overflow-x-hidden ${hideNav ? "flex-1" : "flex-1 pb-28"}`}>
+      <div className={`mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden ${hideNav ? "flex-1" : "flex-1 pb-28"}`}>
         <PhoneVerifyGate>{children}</PhoneVerifyGate>
       </div>
 
