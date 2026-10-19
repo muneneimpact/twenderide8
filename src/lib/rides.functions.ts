@@ -179,6 +179,8 @@ export const estimateClasses = createServerFn({ method: "POST" })
           discount_percent: 0,
           discount_label: null,
           available: false,
+          approach_fee: 0,
+          approach_distance_km: 0,
         });
       }
     }
