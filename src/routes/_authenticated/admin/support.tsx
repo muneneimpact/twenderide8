@@ -1,3 +1,4 @@
+import { addDriverToCase } from "@/lib/lost-found.functions";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -99,6 +100,12 @@ function SupportOps() {
       void casesQuery.refetch();
       void audit.refetch();
     },
+  });
+
+  const addDriverFn = useServerFn(addDriverToCase);
+  const addDriver = useMutation({
+    mutationFn: (caseId: string) => addDriverFn({ data: { caseId } }),
+    onSuccess: () => void casesQuery.refetch(),
   });
 
   const assignToMe = useMutation({
@@ -271,6 +278,18 @@ function SupportOps() {
                 >
                   Assign to me
                 </button>
+              ) : null}
+              {selected.trip_reference ? (
+                <button
+                  onClick={() => addDriver.mutate(selected.id)}
+                  disabled={addDriver.isPending}
+                  className="rounded-full border border-input px-3.5 py-2 text-xs font-semibold text-foreground disabled:opacity-60"
+                >
+                  {addDriver.isSuccess ? "Driver added" : "Add driver to complaint"}
+                </button>
+              ) : null}
+              {addDriver.isError ? (
+                <span className="text-xs text-destructive">{(addDriver.error as Error).message}</span>
               ) : null}
               {selected.status !== "resolved" ? (
                 <button

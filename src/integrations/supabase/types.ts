@@ -1140,6 +1140,42 @@ export type Database = {
           },
         ]
       }
+      lost_found_reports: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          kind: string
+          reporter_id: string
+          reporter_role: string
+          ride_ids: string[]
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          kind: string
+          reporter_id: string
+          reporter_role: string
+          ride_ids?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          kind?: string
+          reporter_id?: string
+          reporter_role?: string
+          ride_ids?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notification_outbox: {
         Row: {
           attempts: number
@@ -1509,10 +1545,12 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          company_name: string | null
           created_at: string
           email: string | null
           full_name: string | null
           id: string
+          id_number: string | null
           locale: string
           password_set_at: string | null
           payment_preference: string
@@ -1523,10 +1561,12 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          company_name?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id: string
+          id_number?: string | null
           locale?: string
           password_set_at?: string | null
           payment_preference?: string
@@ -1537,10 +1577,12 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          company_name?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
+          id_number?: string | null
           locale?: string
           password_set_at?: string | null
           payment_preference?: string
@@ -2253,6 +2295,7 @@ export type Database = {
           created_at: string
           customer_id: string
           id: string
+          involved_driver_id: string | null
           last_message_at: string
           priority: string
           ride_id: string | null
@@ -2266,6 +2309,7 @@ export type Database = {
           created_at?: string
           customer_id: string
           id?: string
+          involved_driver_id?: string | null
           last_message_at?: string
           priority?: string
           ride_id?: string | null
@@ -2279,6 +2323,7 @@ export type Database = {
           created_at?: string
           customer_id?: string
           id?: string
+          involved_driver_id?: string | null
           last_message_at?: string
           priority?: string
           ride_id?: string | null

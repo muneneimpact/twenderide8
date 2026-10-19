@@ -10,6 +10,7 @@ type Tab = { to: string; label: string };
 const customerTabs: Tab[] = [
   { to: "/book", label: "Book" },
   { to: "/rides", label: "My rides" },
+  { to: "/lost-found", label: "Lost & found" },
   { to: "/hire", label: "Hire" },
   { to: "/account", label: "Account" },
 ];
@@ -24,6 +25,7 @@ export function tabsForRoles(roles: AppRole[]): Tab[] {
       { to: "/book", label: "Book" },
       { to: "/account", label: "Account" },
       { to: "/driver", label: "Drive" },
+      { to: "/lost-found", label: "Lost & found" },
     ];
     if (has("fleet_owner")) tabs.push({ to: "/fleet", label: "Fleet" });
     return tabs;
@@ -130,6 +132,7 @@ export const driverTabs: Tab[] = [
   { to: "/driver/wallet", label: "Wallet" },
   { to: "/driver/hire", label: "Hire cars" },
   { to: "/driver/apply", label: "Onboarding" },
+  { to: "/lost-found", label: "Lost & found" },
 ];
 
 export const adminTabs: Tab[] = [
