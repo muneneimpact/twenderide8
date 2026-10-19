@@ -25,6 +25,7 @@ export function tabsForRoles(roles: AppRole[]): Tab[] {
       { to: "/book", label: "Book" },
       { to: "/account", label: "Account" },
       { to: "/driver", label: "Drive" },
+      { to: "/lost-found", label: "Lost & found" },
     ];
     if (has("fleet_owner")) tabs.push({ to: "/fleet", label: "Fleet" });
     return tabs;
