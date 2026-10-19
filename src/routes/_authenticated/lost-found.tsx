@@ -151,7 +151,7 @@ function LostFoundPage() {
           {msg ? <p className="mt-2 text-xs text-muted-foreground">{msg}</p> : null}
         </section>
 
-        {reports.data?.toVerify.length ? (
+        {isDriver && reports.data?.toVerify.length ? (
           <section className="surface-card p-4">
             <h2 className="font-display text-base font-bold text-foreground">Customers looking for items from your trips</h2>
             <p className="text-xs text-muted-foreground">Compare their description with what you found.</p>
@@ -169,7 +169,7 @@ function LostFoundPage() {
           </ul>
         </section>
 
-        {cases.data?.length ? (
+        {isDriver && cases.data?.length ? (
           <section className="surface-card p-4">
             <h2 className="font-display text-base font-bold text-foreground">Complaints you were added to</h2>
             {cases.data.map((c) => (
