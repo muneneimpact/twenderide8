@@ -83,7 +83,7 @@ export function HireRequestsBoard() {
 
       {balance ? (
         <div className="mt-3 grid grid-cols-3 gap-2 rounded-2xl border border-border p-3">
-          <Balance label="Owner balance" value={balance.owner_balance} />
+          <Balance label="Your balance" value={balance.owner_balance} />
           <Balance label="Platform fee total" value={balance.platform_fee_total} />
           <Balance label="Gross paid" value={balance.gross_paid_total} />
         </div>

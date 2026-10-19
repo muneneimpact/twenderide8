@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
+import { PeriodSummary } from "@/components/PeriodSummary";
 import { getDriverWallet, requestWithdrawal, payPlatformDues } from "@/lib/driver.functions";
 
 export const Route = createFileRoute("/_authenticated/driver/wallet")({
@@ -46,7 +47,7 @@ function DriverWallet() {
   const [amount, setAmount] = useState("");
   const [msisdn, setMsisdn] = useState("");
   const [duesMsisdn, setDuesMsisdn] = useState("");
-  const [period, setPeriod] = useState<"today" | "week" | "month" | "custom">("today");
+  const [period, setPeriod] = useState<"today" | "week" | "month" | "custom">("month");
   const [source, setSource] = useState<"all" | "cash" | "system">("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -107,6 +108,15 @@ function DriverWallet() {
       </div>
 
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
+        <PeriodSummary
+          title="Your earnings at a glance"
+          highlight="Your total earnings"
+          series={[
+            { label: "Your total earnings", rows: trips.map((t) => ({ amount: Number(t.net), at: t.completed_at })) },
+            { label: "Cash you collected", rows: trips.filter((t) => t.source === "cash").map((t) => ({ amount: Number(t.net), at: t.completed_at })) },
+            { label: "Paid to you via Twende", rows: trips.filter((t) => t.source === "system").map((t) => ({ amount: Number(t.net), at: t.completed_at })) },
+          ]}
+        />
         {/* Earnings by period */}
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Your take-home</h3>

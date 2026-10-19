@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { AdminHireFinanceBoard } from "@/components/AdminHireFinanceBoard";
+import { PeriodSummary } from "@/components/PeriodSummary";
 import { adjustWallet, getFinanceBoard, reviewWithdrawal } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/finance")({
@@ -103,6 +104,14 @@ function FinanceBoard() {
       </div>
 
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
+        <PeriodSummary
+          title="Platform statistics"
+          highlight="Platform commission earned"
+          series={[
+            { label: "Platform commission earned", rows: b.periodRows.commission },
+            { label: "Customer payments collected", rows: b.periodRows.collected },
+          ]}
+        />
         <AdminHireFinanceBoard />
 
         <section className="surface-card p-4">

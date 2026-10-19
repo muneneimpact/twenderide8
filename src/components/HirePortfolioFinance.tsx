@@ -1,6 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { PeriodSummary } from "@/components/PeriodSummary";
 import { getMyHirePortfolioFinance, requestHirePayout } from "@/lib/hire.functions";
 
 const money = (value: unknown) =>
@@ -43,7 +44,7 @@ export function HirePortfolioFinance() {
   return (
     <section className="surface-card p-4">
       <div>
-        <h3 className="text-sm font-semibold text-foreground">Hire portfolio & wallet</h3>
+        <h3 className="text-sm font-semibold text-foreground">Your car-hire earnings</h3>
         <p className="mt-1 text-xs text-muted-foreground">
           Verified hire payments are grouped by car. Hire earnings stay separate from ride-driver
           wallets.
@@ -58,17 +59,38 @@ export function HirePortfolioFinance() {
       ) : null}
       {data ? (
         <>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <WalletMetric label="Hire gross paid" value={balance?.gross_paid_total} />
-            <WalletMetric label="Platform commission" value={balance?.platform_fee_total} />
-            <WalletMetric label="Owner balance" value={balance?.owner_balance} />
-            <WalletMetric label="Paid out" value={balance?.paid_out_total} />
-            <WalletMetric label="Reserved requests" value={data.reservedPayoutTotal} />
-            <WalletMetric label="Available to request" value={available} />
+          <div className="mt-3 rounded-2xl border-2 border-primary bg-primary/10 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-primary">Your money</p>
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[10px] text-muted-foreground">Your balance</p>
+                <p className="text-lg font-extrabold text-foreground">{money(balance?.owner_balance)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Ready for you to withdraw</p>
+                <p className="text-lg font-extrabold text-foreground">{money(available)}</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3">
+            <PeriodSummary
+              title="Your hire earnings by period"
+              highlight="Your earnings"
+              series={[
+                { label: "Your earnings", rows: data.settlements.map((r) => ({ amount: r.net, at: r.at })) },
+                { label: "Total paid by hirers", rows: data.settlements.map((r) => ({ amount: r.gross, at: r.at })) },
+              ]}
+            />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <WalletMetric label="Total paid by hirers" value={balance?.gross_paid_total} />
+            <WalletMetric label="Twende service fee" value={balance?.platform_fee_total} />
+            <WalletMetric label="Already paid to you" value={balance?.paid_out_total} />
+            <WalletMetric label="Your pending withdrawals" value={data.reservedPayoutTotal} />
           </div>
 
           <div className="mt-4">
-            <h4 className="text-xs font-semibold text-foreground">My hire listings and earnings</h4>
+            <h4 className="text-xs font-semibold text-foreground">Your cars and what each earned</h4>
             {data.vehicles.length === 0 ? (
               <p className="mt-2 text-xs text-muted-foreground">
                 No hire vehicles are linked to this account yet. Add or manage listings above;
@@ -95,9 +117,9 @@ export function HirePortfolioFinance() {
                       </p>
                     </div>
                     <div className="mt-2 grid grid-cols-3 gap-2 border-t border-border pt-2">
-                      <SmallMetric label="Gross" value={vehicle.finance.gross_paid_total} />
-                      <SmallMetric label="System gets" value={vehicle.finance.platform_fee_total} />
-                      <SmallMetric label="Owner gets" value={vehicle.finance.owner_net_total} />
+                      <SmallMetric label="Hirers paid" value={vehicle.finance.gross_paid_total} />
+                      <SmallMetric label="Twende fee" value={vehicle.finance.platform_fee_total} />
+                      <SmallMetric label="You earned" value={vehicle.finance.owner_net_total} strong />
                     </div>
                     <p className="mt-1 text-[10px] text-muted-foreground">
                       {vehicle.finance.settlement_count} settled payment(s). Account wallet and
@@ -110,7 +132,7 @@ export function HirePortfolioFinance() {
           </div>
 
           <div className="mt-4 rounded-xl border border-border p-3">
-            <h4 className="text-xs font-semibold text-foreground">Request hire funds</h4>
+            <h4 className="text-xs font-semibold text-foreground">Withdraw your hire earnings</h4>
             <p className="mt-1 text-[11px] text-muted-foreground">
               Finance reviews requests and sends approved payouts manually. A request reserves the
               amount; it does not mark money as paid.
@@ -149,12 +171,12 @@ export function HirePortfolioFinance() {
               }
               className="mt-2 w-full rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
             >
-              {request.isPending ? "Submitting…" : "Request payout from hire wallet"}
+              {request.isPending ? "Submitting…" : "Withdraw to my M-Pesa"}
             </button>
           </div>
 
           <div className="mt-4">
-            <h4 className="text-xs font-semibold text-foreground">My hire payout requests</h4>
+            <h4 className="text-xs font-semibold text-foreground">Your withdrawal requests</h4>
             {data.payoutRequests.length === 0 ? (
               <p className="mt-2 text-xs text-muted-foreground">No hire payout requests yet.</p>
             ) : (
@@ -210,11 +232,11 @@ function WalletMetric({ label, value }: { label: string; value: unknown }) {
   );
 }
 
-function SmallMetric({ label, value }: { label: string; value: unknown }) {
+function SmallMetric({ label, value, strong }: { label: string; value: unknown; strong?: boolean }) {
   return (
-    <div className="min-w-0">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="truncate text-xs font-semibold text-foreground">{money(value)}</p>
+    <div className={`min-w-0 ${strong ? "rounded-lg bg-primary/10 px-1.5 py-0.5" : ""}`}>
+      <p className={`text-[10px] ${strong ? "font-bold text-primary" : "text-muted-foreground"}`}>{label}</p>
+      <p className={`truncate text-xs ${strong ? "font-extrabold" : "font-semibold"} text-foreground`}>{money(value)}</p>
     </div>
   );
 }
