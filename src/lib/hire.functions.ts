@@ -1079,7 +1079,20 @@ export const getMyHirePortfolioFinance = createServerFn({ method: "GET" })
       paid_out_total: 0,
       updated_at: null,
     };
+    const since = new Date(Date.now() - 400 * 86_400_000).toISOString();
+    const { data: settlementRows } = await supabaseAdmin
+      .from("hire_payment_settlements")
+      .select("gross_amount, owner_net_amount, created_at")
+      .eq("owner_user_id", context.userId)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(2000);
     return {
+      settlements: (settlementRows ?? []).map((r) => ({
+        gross: Number(r.gross_amount),
+        net: Number(r.owner_net_amount),
+        at: r.created_at,
+      })),
       vehicles: vehicles.map((vehicle) => ({
         ...vehicle,
         finance: totals.get(vehicle.id) ?? {
