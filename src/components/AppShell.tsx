@@ -10,6 +10,7 @@ type Tab = { to: string; label: string };
 const customerTabs: Tab[] = [
   { to: "/book", label: "Book" },
   { to: "/rides", label: "My rides" },
+  { to: "/lost-found", label: "Lost & found" },
   { to: "/hire", label: "Hire" },
   { to: "/account", label: "Account" },
 ];
