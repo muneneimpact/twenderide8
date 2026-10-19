@@ -33,7 +33,10 @@ export const getHireAgreement = createServerFn({ method: "GET" })
         : Promise.resolve({ data: null }),
       supabaseAdmin.from("hire_payment_settlements").select("mpesa_receipt, gross_amount, created_at").eq("hire_quote_id", q.id).order("created_at"),
     ]);
-    const v = vehicle as Record<string, unknown> | null;
+    const v = vehicle as {
+      make: string | null; model: string | null; plate_number: string; colour: string | null; seats: number | null;
+      vehicle_class: string | null; owner_driver_id: string | null; hire_rules: string | null; hire_insurance_details: string | null;
+    } | null;
     let owner: { full_name: string | null; phone: string | null } | null = null;
     if (v?.owner_driver_id) {
       const { data: p } = await supabaseAdmin.from("profiles").select("full_name, phone").eq("id", v.owner_driver_id as string).maybeSingle();
