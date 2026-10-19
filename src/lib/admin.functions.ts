@@ -1338,3 +1338,43 @@ export const updateFleetSettlement = createServerFn({ method: "POST" })
     await audit(context.userId, "fleet_settlement_updated", "fleet", fleet.id, data);
     return { ok: true };
   });
+
+/** Ride requests that never got a driver (or are still waiting too long). */
+export const getUnattendedRides = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ days: z.number().int().min(1).max(90).default(7) }).parse(input ?? {}))
+  .handler(async ({ data, context }) => {
+    const { requireRole, STAFF } = await import("./authz.server");
+    await requireRole(context.userId, STAFF);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const since = new Date(Date.now() - data.days * 86400000).toISOString();
+    const stale = new Date(Date.now() - 2 * 60000).toISOString();
+    const { data: rides, error } = await supabaseAdmin
+      .from("rides")
+      .select("id, reference, status, requested_at, total_fare, payment_method, customer_id, quote_id")
+      .gte("requested_at", since)
+      .or(`status.in.(no_driver_found,expired),and(status.eq.searching,requested_at.lt.${stale})`)
+      .order("requested_at", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    const list = rides ?? [];
+    const qIds = [...new Set(list.map((r) => r.quote_id).filter(Boolean))];
+    const cIds = [...new Set(list.map((r) => r.customer_id))];
+    const [{ data: quotes }, { data: people }] = await Promise.all([
+      qIds.length
+        ? supabaseAdmin.from("route_quotes").select("id, pickup_address, dropoff_address").in("id", qIds)
+        : Promise.resolve({ data: [] as { id: string; pickup_address: string | null; dropoff_address: string | null }[] }),
+      cIds.length
+        ? supabaseAdmin.from("profiles").select("id, full_name, phone").in("id", cIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string | null; phone: string | null }[] }),
+    ]);
+    const qm = new Map((quotes ?? []).map((q) => [q.id, q]));
+    const pm = new Map((people ?? []).map((p) => [p.id, p]));
+    return list.map((r) => ({
+      ...r,
+      pickup: qm.get(r.quote_id)?.pickup_address ?? null,
+      dropoff: qm.get(r.quote_id)?.dropoff_address ?? null,
+      customer_name: pm.get(r.customer_id)?.full_name ?? null,
+      customer_phone: pm.get(r.customer_id)?.phone ?? null,
+    }));
+  });
