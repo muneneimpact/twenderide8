@@ -820,6 +820,12 @@ function BookPage() {
                           {priced.discount_label ?? `${priced.discount_percent}% off`}
                         </span>
                       ) : null}
+                      {priced && priced.available && priced.approach_fee > 0 ? (
+                        <span className="mt-1 block text-[11px] font-medium text-primary">
+                          Nearest car is {priced.approach_distance_km.toFixed(1)} km away · +KES{" "}
+                          {priced.approach_fee} pickup fee
+                        </span>
+                      ) : null}
                     </span>
                     <span className="shrink-0 text-right">
                       {priced && priced.available ? (
