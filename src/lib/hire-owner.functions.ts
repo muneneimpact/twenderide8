@@ -28,6 +28,9 @@ export interface OwnerBooking {
   returned_at: string | null;
   can_decline: boolean;
   has_documents: boolean;
+  owner_signed: boolean;
+  hirer_signed: boolean;
+  agreement_completed: boolean;
 }
 
 async function loadBookingFor(userId: string, quoteId: string) {
@@ -55,9 +58,8 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
       .select("*")
       .or(filter)
       .in("status", ["confirmed", "submitted", "quoted"])
-      .gte("start_at", new Date(Date.now() - 60 * 86_400_000).toISOString())
       .order("start_at", { ascending: true })
-      .limit(100);
+      .limit(300);
     const list = (rows ?? []).filter(
       (r) => r.status === "confirmed" || ["paid", "partial"].includes(r.payment_status ?? ""),
     );
@@ -88,6 +90,9 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
         !r.handed_over_at &&
         canOwnerDecline({ startAt: new Date(r.start_at), bookedAt: new Date(r.created_at) }),
       has_documents: Boolean(r.id_document_path),
+      owner_signed: Boolean(r.owner_signed_at),
+      hirer_signed: Boolean(r.agreement_signed_at),
+      agreement_completed: Boolean(r.agreement_completed_at),
     }));
   });
 
@@ -206,4 +211,22 @@ export const verifyBusinessEmailCode = createServerFn({ method: "POST" })
     }
     await supabaseAdmin.from("business_email_otps").update({ verified_at: new Date().toISOString() }).eq("id", row.id);
     return { ok: true };
+  });
+
+/** Owner applies their saved signature to a booked hire (works for earlier hires too). */
+export const ownerApplySavedSignature = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ quoteId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const q = await loadBookingFor(context.userId, data.quoteId);
+    if (q.owner_signed_at) return { ok: true, already: true };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: sig } = await supabaseAdmin.from("owner_signatures").select("signer_name, signature").eq("user_id", context.userId).maybeSingle();
+    if (!sig?.signature) throw new Error("Create your signature first (Bookings → My signature).");
+    const now = new Date().toISOString();
+    await supabaseAdmin.from("hire_quotes").update({ owner_signature: sig.signature, owner_signer_name: sig.signer_name, owner_signed_at: now, owner_signed_by: context.userId }).eq("id", q.id);
+    const { logAgreement, completeIfBothSigned } = await import("./agreements.server");
+    await logAgreement(q.id, context.userId, "owner_signed", { signer: sig.signer_name, kind: "saved", via: "bookings_list" }, { userAgent: null, ip: null });
+    await completeIfBothSigned(q.id);
+    return { ok: true, already: false };
   });
