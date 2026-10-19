@@ -155,13 +155,16 @@ export const estimateClasses = createServerFn({ method: "POST" })
           settingNumber(pricing.settings, "random_discount_chance_percent", 35),
         );
         const priced = applyDiscount(breakdown.total_fare, discount?.percent ?? 0);
+        const approach = computeApproachFee(nearest.get(vehicleClass) ?? null, pricing.config.per_km);
         options.push({
           vehicleClass,
-          total: priced.total_fare,
-          total_before_discount: priced.total_before_discount,
+          total: priced.total_fare + approach.fee,
+          total_before_discount: priced.total_before_discount + approach.fee,
           discount_percent: priced.discount_percent,
           discount_label: discount?.label ?? null,
           available: true,
+          approach_fee: approach.fee,
+          approach_distance_km: approach.distance_km,
         });
       } catch {
         options.push({
@@ -244,13 +247,22 @@ export const createQuote = createServerFn({ method: "POST" })
     }
 
     const priced = applyDiscount(computed.total_fare, discountPercent);
+    const { nearestDriverKmByClass } = await import("./approach-fee.server");
+    const { computeApproachFee } = await import("./approach-fee");
+    const nearest = (await nearestDriverKmByClass(data.pickup)).get(data.vehicleClass) ?? null;
+    const approach = computeApproachFee(nearest, pricing.config.per_km);
     const breakdown = {
       ...computed,
-      total_fare: priced.total_fare,
+      total_fare: priced.total_fare + approach.fee,
+      // The whole approach fee goes to the driver to cover the empty drive.
+      net_provider_earning: computed.net_provider_earning + approach.fee,
+      approach_fee: approach.fee,
+      approach_percent: approach.percent,
+      approach_distance_km: approach.distance_km,
       discount_percent: priced.discount_percent,
       discount_amount: priced.discount_amount,
       discount_label: discountLabel,
-      total_before_discount: priced.total_before_discount,
+      total_before_discount: priced.total_before_discount + approach.fee,
       ...(promoInfo ? { promo: promoInfo } : {}),
     };
 
