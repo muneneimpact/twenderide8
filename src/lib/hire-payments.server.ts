@@ -357,6 +357,35 @@ export async function settleHirePayment(paymentIntentId: string, receipt: string
         paymentStatus: result.payment_status ?? quote.payment_status,
       },
     });
+    const paidInFull =
+      (result.payment_status ?? quote.payment_status) === "paid" || paidTotal >= fullTotal;
+    if (paidInFull) {
+      const message = `Twende Meru: hire ${quote.reference} is PAID IN FULL - KES ${paidTotal.toLocaleString("en-KE")}.${receiptText} Download your full receipt with every payment in the app > Hire > Your requests.`;
+      await notify({
+        userId: quote.requester_id,
+        templateCode: "hire_paid_in_full",
+        title: "Hire paid in full",
+        body: message,
+        critical: true,
+        dedupeKey: `hire-paid-in-full:${quote.id}`,
+        payload: { hireQuoteId: quote.id, paymentStatus: "paid" },
+      });
+      const { data: renter } = await supabaseAdmin
+        .from("profiles")
+        .select("phone")
+        .eq("id", quote.requester_id)
+        .maybeSingle();
+      if (renter?.phone) {
+        const { sendTransactionalSms } = await import("./comms.server");
+        await sendTransactionalSms({
+          to: renter.phone,
+          message,
+          eventType: "hire_paid_in_full_sms",
+          idempotencyKey: `hire-paid-in-full-sms:${quote.id}`,
+          context: { userId: quote.requester_id, paymentIntentId },
+        }).catch((error) => console.error("paid in full sms failed", error));
+      }
+    }
     if (result.owner_user_id) {
       await notify({
         userId: result.owner_user_id,
