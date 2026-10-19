@@ -6,6 +6,7 @@ import { HirePortfolioFinance } from "@/components/HirePortfolioFinance";
 import { HireRequestsBoard } from "@/components/HireRequestsBoard";
 import { HireVehicleManager } from "@/components/HireVehicleManager";
 import { RoleGate } from "@/components/RoleGate";
+import { OwnerHireBookings } from "@/components/OwnerHireBookings";
 
 export const Route = createFileRoute("/_authenticated/driver/hire")({
   head: () => ({
@@ -66,6 +67,7 @@ function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
           View the customer Hire page →
         </Link>
       </section>
+      <OwnerHireBookings />
       <section className="surface-card p-4">
         <h2 className="text-sm font-semibold text-foreground">Step 1 · Register your vehicle</h2>
         <p className="mt-1 text-xs text-muted-foreground">
