@@ -65,7 +65,7 @@ function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
   const [section, setSection] = useState<SectionKey>("bookings");
   return (
     <div className="mx-auto w-full max-w-md space-y-4 px-3 py-4 sm:px-4">
-      <div className="sticky top-[60px] z-30 -mx-3 bg-background/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:px-4">
+      <div className="py-1">
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl border border-border bg-card p-1">
           {SECTIONS.map((s) => (
             <button

@@ -54,6 +54,7 @@ export function HireVehicleManager({
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [pendingPhotos, setPendingPhotos] = useState<Record<string, File[]>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const save = useMutation({
@@ -250,7 +251,16 @@ export function HireVehicleManager({
             vehicle.photo_links.length + photos.length > 0;
           return (
             <article key={vehicle.id} className="rounded-2xl border border-border p-3">
-              <div>
+              <button
+                type="button"
+                onClick={() => setEditingId((id) => (id === vehicle.id ? null : vehicle.id))}
+                aria-expanded={editingId === vehicle.id}
+                className="flex w-full items-start gap-3 text-left"
+              >
+                {vehicle.photo_links[0] ? (
+                  <img src={vehicle.photo_links[0]} alt="" className="h-14 w-20 shrink-0 rounded-lg object-cover" />
+                ) : null}
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-foreground">
                   {[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"}
                 </p>
@@ -286,7 +296,12 @@ export function HireVehicleManager({
                   </p>
                 ) : null}
               </div>
+                <span className="shrink-0 rounded-full border border-input px-3 py-1 text-xs font-semibold text-primary">
+                  {editingId === vehicle.id ? "Close" : "Edit"}
+                </span>
+              </button>
 
+              {editingId === vehicle.id ? (<>
               <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
                 {vehicle.photo_links.map((src, index) => (
                   <img
@@ -543,6 +558,7 @@ export function HireVehicleManager({
                     ? "Listed for hire — turn off"
                     : "Approved — make available for hire"}
               </button>
+              </>) : null}
             </article>
           );
         })}
