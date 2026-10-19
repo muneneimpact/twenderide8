@@ -137,9 +137,13 @@ function RideDetail() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ride", rideId] }),
   });
 
+  const [showPayCard, setShowPayCard] = useState(false);
   const paying = useMutation({
     mutationFn: () => pushFn({ data: { rideId } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ride-payment", rideId] }),
+    onSuccess: () => {
+      setShowPayCard(true);
+      void queryClient.invalidateQueries({ queryKey: ["ride-payment", rideId] });
+    },
   });
 
   const rating = useMutation({
