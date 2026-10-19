@@ -157,8 +157,8 @@ export const assignDriverToVehicle = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertOwner(context.userId, data.vehicleId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { normalizeKenyanPhone } = await import("./phone");
-    const phone = normalizeKenyanPhone(data.phone);
+    const { normaliseKenyanPhone } = await import("./phone");
+    const phone = normaliseKenyanPhone(data.phone);
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("id")
