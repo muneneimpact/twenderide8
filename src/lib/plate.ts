@@ -10,6 +10,9 @@ export function formatKenyanPlate(raw: string): string {
   // Standard civilian plate: three letters, three digits, one letter.
   const civilian = /^([A-Z]{3})(\d{1,3})([A-Z]?)$/.exec(cleaned);
   if (civilian) return `${civilian[1]} ${civilian[2]}${civilian[3]}`.trim();
+  // Motorcycle plate: four letters, three digits, one letter (e.g. "KMGT 156X").
+  const moto = /^(K[A-Z]{3})(\d{1,3})([A-Z]?)$/.exec(cleaned);
+  if (moto) return `${moto[1]} ${moto[2]}${moto[3]}`.trim();
   // Older / government style: letters then digits.
   const generic = /^([A-Z]{1,3})(\d{1,4})([A-Z]{0,2})$/.exec(cleaned);
   if (generic) return `${generic[1]} ${generic[2]}${generic[3]}`.trim();
@@ -19,7 +22,7 @@ export function formatKenyanPlate(raw: string): string {
 /** Accepts the common Kenyan formats, with or without the space. */
 export function isValidKenyanPlate(raw: string): boolean {
   const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return /^[A-Z]{1,3}\d{1,4}[A-Z]{0,2}$/.test(cleaned) && cleaned.length >= 5;
+  return /^[A-Z]{1,4}\d{1,4}[A-Z]{0,2}$/.test(cleaned) && cleaned.length >= 5;
 }
 
 /** Rough hex swatch for a colour word so the UI can show the car's colour. */
@@ -46,4 +49,9 @@ export function colourSwatch(colour?: string | null): string {
   };
   for (const [name, hex] of Object.entries(map)) if (key.includes(name)) return hex;
   return "#9aa0a6";
+}
+
+/** Boda and e-boda rides are motorbikes; everything else is a car. */
+export function isMotorbikeClass(vehicleClass?: string | null): boolean {
+  return vehicleClass === "boda" || vehicleClass === "e_boda";
 }
