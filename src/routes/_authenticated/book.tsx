@@ -848,6 +848,15 @@ function BookPage() {
           {estimating.isError ? (
             <p className="mt-2 text-xs text-destructive">{(estimating.error as Error).message}</p>
           ) : null}
+          {chosen && chosen.available && chosen.approach_fee > 0 ? (
+            <div className="mt-3 rounded-2xl border border-primary/30 bg-accent px-3.5 py-2.5 text-xs text-foreground">
+              <p className="font-semibold">The nearest car is far from you</p>
+              <p className="mt-0.5 text-muted-foreground">
+                It's {chosen.approach_distance_km.toFixed(1)} km away and must drive to you first, so a
+                pickup fee of KES {chosen.approach_fee} is included in the price.
+              </p>
+            </div>
+          ) : null}
 
           {/* One compact line showing how you'll pay, tapped open to change. */}
           <label className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5">
