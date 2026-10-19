@@ -487,7 +487,7 @@ export const getFinanceBoard = createServerFn({ method: "POST" })
       supabaseAdmin
         .from("payment_intents")
         .select("amount, created_at")
-        .eq("status", "succeeded")
+        .eq("status", "paid")
         .gte("created_at", since)
         .limit(5000),
       supabaseAdmin
