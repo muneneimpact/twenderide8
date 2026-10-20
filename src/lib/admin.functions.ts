@@ -997,7 +997,7 @@ export const listStaffUsers = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: roles } = await supabaseAdmin.from("user_roles").select("*");
     const { data: hireCars } = await supabaseAdmin
-      .from("vehicles").select("owner_driver_id, fleet_id").neq("hire_mode", "none");
+      .from("vehicles").select("owner_driver_id, fleet_id").neq("hire_approval_status", "not_submitted");
     const fleetIds = [...new Set((hireCars ?? []).map((v) => v.fleet_id).filter((v): v is string => Boolean(v)))];
     const { data: hireFleets } = fleetIds.length
       ? await supabaseAdmin.from("fleets").select("owner_id").in("id", fleetIds)
