@@ -795,8 +795,19 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       .eq("driver_id", context.userId)
       .maybeSingle();
     if (!wallet) throw new Error("No wallet found.");
-    if (Number(wallet.cached_balance) < data.amount) {
-      throw new Error("Withdrawal amount is more than your available balance.");
+    // Reserve funds: anything already requested and not yet settled is unavailable.
+    const { data: open } = await supabaseAdmin
+      .from("withdrawals")
+      .select("id, amount, status")
+      .eq("wallet_id", wallet.id)
+      .in("status", ["pending", "processing", "approved"] as never);
+    if ((open ?? []).some((w) => w.status === "pending")) {
+      throw new Error("You already have a withdrawal waiting. Please wait for it to finish.");
+    }
+    const reserved = (open ?? []).reduce((s, w) => s + Number(w.amount), 0);
+    const available = Number(wallet.cached_balance) - reserved;
+    if (available < data.amount) {
+      throw new Error(`Withdrawal is more than your available balance of KES ${Math.max(0, available).toLocaleString("en-KE")}.`);
     }
     const { data: created, error } = await supabaseAdmin
       .from("withdrawals")
