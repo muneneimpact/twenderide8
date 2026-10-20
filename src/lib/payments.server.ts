@@ -408,3 +408,8 @@ export async function reconcilePendingPayments(limit = 25) {
 
   return { checked: intentsToCheck.length, updated };
 }
+
+/** A ride paid from the Twende wallet runs the same once-only confirmation steps. */
+export async function confirmRidePaidFromWallet(rideId: string, reference: string, amount: number) {
+  await onPaymentConfirmed(rideId, { id: reference, mpesaReceipt: "Twende wallet", amount } as unknown as TwendeTransaction);
+}
