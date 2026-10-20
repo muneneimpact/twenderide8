@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { AdminHireFinanceBoard } from "@/components/AdminHireFinanceBoard";
 import { PeriodSummary } from "@/components/PeriodSummary";
+import { EtrQueue } from "@/components/EtrPanels";
 import { adjustWallet, getFinanceBoard, reviewWithdrawal } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/finance")({
@@ -112,6 +113,7 @@ function FinanceBoard() {
             { label: "Customer payments collected", rows: b.periodRows.collected },
           ]}
         />
+        <EtrQueue />
         <AdminHireFinanceBoard />
 
         <section className="surface-card p-4">

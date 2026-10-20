@@ -12,6 +12,7 @@ import { playAlert } from "@/lib/audio";
 import { CarBadge } from "@/components/CarBadge";
 import { RideChat } from "@/components/RideChat";
 import { ReceiptActions } from "@/components/ReceiptActions";
+import { RideEtrRequest } from "@/components/EtrPanels";
 
 const cancelReasons = [
   "Driver is taking too long",
@@ -366,7 +367,7 @@ function RideDetail() {
           </div>
         ) : null}
 
-        {ride.status === "trip_completed" ? <ReceiptActions rideId={ride.id} /> : null}
+        {ride.status === "trip_completed" ? <><ReceiptActions rideId={ride.id} /><RideEtrRequest rideId={ride.id} /></> : null}
 
         {ride.payment_method === "stk_push" && paymentStatus === "paid" && (
           <section className="mt-4 rounded-xl border border-success/40 bg-success/10 p-4">
