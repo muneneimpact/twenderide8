@@ -1398,11 +1398,12 @@ export const getUnattendedResolutions = createServerFn({ method: "POST" })
     ]);
     const out: Record<string, { payment_status: string; paid: number; mpesa: string | null; refund: { amount: number; status: string } | null; history: { stage: string; note: string; at: string }[] }> = {};
     for (const r of rides ?? []) out[r.id] = { payment_status: r.payment_status, paid: 0, mpesa: null, refund: null, history: [] };
-    for (const i of intents ?? []) if (i.ride_id && out[i.ride_id]) { out[i.ride_id].paid += Number(i.amount); out[i.ride_id].mpesa = i.provider_reference; }
-    for (const f of refunds ?? []) if (out[f.ride_id]) out[f.ride_id].refund = { amount: Number(f.amount), status: f.status };
+    for (const i of intents ?? []) { const o = i.ride_id ? out[i.ride_id] : undefined; if (o) { o.paid += Number(i.amount); o.mpesa = i.provider_reference; } }
+    for (const f of refunds ?? []) { const o = out[f.ride_id]; if (o) o.refund = { amount: Number(f.amount), status: f.status }; }
     for (const l of logs ?? []) {
       const m = (l.metadata ?? {}) as { stage?: string; note?: string };
-      if (l.entity_id && out[l.entity_id]) out[l.entity_id].history.push({ stage: m.stage ?? "", note: m.note ?? "", at: l.created_at });
+      const o = l.entity_id ? out[l.entity_id] : undefined;
+      if (o) o.history.push({ stage: m.stage ?? "", note: m.note ?? "", at: l.created_at });
     }
     return out;
   });

@@ -112,7 +112,7 @@ const STAGE_LABEL: Record<string, string> = {
 
 type ResInfo = { payment_status: string; paid: number; mpesa: string | null; refund: { amount: number; status: string } | null; history: { stage: string; note: string; at: string }[] };
 
-function Resolution({ rideId, info, onDone }: { rideId: string; info?: ResInfo; onDone: () => void }) {
+function Resolution({ rideId, info, onDone }: { rideId: string; info: ResInfo | undefined; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<(typeof RESOLUTION_STAGES)[number]>("investigating");
   const [note, setNote] = useState("");
