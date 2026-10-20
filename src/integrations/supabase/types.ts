@@ -650,6 +650,48 @@ export type Database = {
           },
         ]
       }
+      etr_requests: {
+        Row: {
+          billing_email: string | null
+          company_name: string
+          created_at: string
+          file_path: string | null
+          id: string
+          kra_pin: string
+          requester_id: string
+          ride_id: string
+          status: string
+          uploaded_at: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          billing_email?: string | null
+          company_name: string
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          kra_pin: string
+          requester_id: string
+          ride_id: string
+          status?: string
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          billing_email?: string | null
+          company_name?: string
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          kra_pin?: string
+          requester_id?: string
+          ride_id?: string
+          status?: string
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
       fare_configs: {
         Row: {
           base_fare: number
@@ -1365,6 +1407,56 @@ export type Database = {
           },
         ]
       }
+      lost_found_claims: {
+        Row: {
+          claimant_id: string
+          contact_phone: string | null
+          created_at: string
+          description: string
+          driver_note: string | null
+          id: string
+          report_id: string
+          ride_id: string
+          security_details: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          claimant_id: string
+          contact_phone?: string | null
+          created_at?: string
+          description: string
+          driver_note?: string | null
+          id?: string
+          report_id: string
+          ride_id: string
+          security_details?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          claimant_id?: string
+          contact_phone?: string | null
+          created_at?: string
+          description?: string
+          driver_note?: string | null
+          id?: string
+          report_id?: string
+          ride_id?: string
+          security_details?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lost_found_claims_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "lost_found_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lost_found_reports: {
         Row: {
           created_at: string
@@ -1794,6 +1886,8 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          company_billing_email: string | null
+          company_kra_pin: string | null
           company_name: string | null
           created_at: string
           email: string | null
@@ -1810,6 +1904,8 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          company_billing_email?: string | null
+          company_kra_pin?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
@@ -1826,6 +1922,8 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          company_billing_email?: string | null
+          company_kra_pin?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
