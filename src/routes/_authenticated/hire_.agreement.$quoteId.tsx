@@ -145,7 +145,7 @@ function AgreementPage() {
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-3xl px-4 py-4">
         <Link to="/hire" className="text-sm font-semibold text-primary">← Back to hire</Link>
-        <div className="mt-3 space-y-2 rounded-xl border border-border bg-card p-3">
+        <div id="agreement-actions" className="mt-3 scroll-mt-4 space-y-2 rounded-xl border border-border bg-card p-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <Badge ok={Boolean(b.signature)} label="Hirer signed" />
             <Badge ok={Boolean(b.owner_signed_at)} label="Owner signed" />
@@ -256,7 +256,10 @@ function SignBox({ quoteId, as, defaultName }: { quoteId: string; as: "hirer" | 
   const onSig = useCallback((s: string) => setSig(s), []);
   const m = useMutation({
     mutationFn: () => signFn({ data: { quoteId, as, signerName: name.trim(), signature: sig, saveForLater: as === "owner" && save, autoSign: auto } }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["hire-agreement", quoteId] }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["hire-agreement", quoteId] });
+      setTimeout(() => document.getElementById("agreement-actions")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+    },
   });
   return (
     <section id="sign" className="mt-3 scroll-mt-20 rounded-xl border-2 border-primary bg-card p-3 text-sm">
