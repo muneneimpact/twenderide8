@@ -175,7 +175,7 @@ export async function sendTransactionalEmail(input: {
   idempotencyKey: string;
   context?: CommsContext;
   /** Files sent inside the email itself (e.g. PDF agreements), base64 encoded. */
-  attachments?: Array<{ filename: string; content: string }>;
+  attachments?: Array<{ filename: string; content: string }> | undefined;
 }): Promise<CommsResult> {
   const ctx = input.context ?? {};
   const to = input.to.trim().toLowerCase();
