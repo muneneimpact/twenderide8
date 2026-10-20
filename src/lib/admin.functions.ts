@@ -1378,3 +1378,72 @@ export const getUnattendedRides = createServerFn({ method: "POST" })
       customer_phone: pm.get(r.customer_id)?.phone ?? null,
     }));
   });
+
+export const RESOLUTION_STAGES = ["investigating", "driver_assigned", "rebooked", "customer_cancelled", "refund_needed", "refunded", "resolved"] as const;
+
+/** Unattended rides enriched with payment, refund and latest resolution. */
+export const getUnattendedResolutions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ rideIds: z.array(z.string().uuid()).max(200) }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { requireRole, STAFF } = await import("./authz.server");
+    await requireRole(context.userId, STAFF);
+    if (!data.rideIds.length) return {};
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: rides }, { data: intents }, { data: refunds }, { data: logs }] = await Promise.all([
+      supabaseAdmin.from("rides").select("id, payment_status").in("id", data.rideIds),
+      supabaseAdmin.from("payment_intents").select("ride_id, amount, provider_reference, status").in("ride_id", data.rideIds).eq("status", "paid"),
+      supabaseAdmin.from("refunds").select("ride_id, amount, status").in("ride_id", data.rideIds),
+      supabaseAdmin.from("audit_logs").select("entity_id, metadata, created_at").eq("action", "unattended_resolution").in("entity_id", data.rideIds).order("created_at", { ascending: false }),
+    ]);
+    const out: Record<string, { payment_status: string; paid: number; mpesa: string | null; refund: { amount: number; status: string } | null; history: { stage: string; note: string; at: string }[] }> = {};
+    for (const r of rides ?? []) out[r.id] = { payment_status: r.payment_status, paid: 0, mpesa: null, refund: null, history: [] };
+    for (const i of intents ?? []) { const o = i.ride_id ? out[i.ride_id] : undefined; if (o) { o.paid += Number(i.amount); o.mpesa = i.provider_reference; } }
+    for (const f of refunds ?? []) { const o = out[f.ride_id]; if (o) o.refund = { amount: Number(f.amount), status: f.status }; }
+    for (const l of logs ?? []) {
+      const m = (l.metadata ?? {}) as { stage?: string; note?: string };
+      const o = l.entity_id ? out[l.entity_id] : undefined;
+      if (o) o.history.push({ stage: m.stage ?? "", note: m.note ?? "", at: l.created_at });
+    }
+    return out;
+  });
+
+export const resolveUnattendedRide = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ rideId: z.string().uuid(), stage: z.enum(RESOLUTION_STAGES), note: z.string().trim().max(500).default(""), notifyCustomer: z.boolean().default(false) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole, STAFF } = await import("./authz.server");
+    await requireRole(context.userId, STAFF);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { audit } = await import("./notifications.server");
+    const { data: ride, error } = await supabaseAdmin.from("rides").select("id, reference, customer_id, total_fare, payment_status").eq("id", data.rideId).single();
+    if (error || !ride) throw new Error("Ride not found");
+    if (data.stage === "refund_needed") {
+      if (ride.payment_status !== "paid" && ride.payment_status !== "refund_pending") throw new Error("This ride has no confirmed payment to refund.");
+      await supabaseAdmin.from("refunds").upsert(
+        { ride_id: ride.id, amount: Number(ride.total_fare), reason: `Unattended request: ${data.note || "no driver"}`, status: "pending", idempotency_key: `refund:${ride.id}` },
+        { onConflict: "idempotency_key", ignoreDuplicates: true },
+      );
+      await supabaseAdmin.from("rides").update({ payment_status: "refund_pending" }).eq("id", ride.id);
+    }
+    if (data.stage === "refunded") {
+      await supabaseAdmin.from("refunds").update({ status: "completed", approved_by: context.userId }).eq("ride_id", ride.id);
+      await supabaseAdmin.from("rides").update({ payment_status: "refunded" }).eq("id", ride.id);
+    }
+    await audit(context.userId, "unattended_resolution", "ride", ride.id, { stage: data.stage, note: data.note });
+    if (data.notifyCustomer) {
+      const { data: p } = await supabaseAdmin.from("profiles").select("phone").eq("id", ride.customer_id).maybeSingle();
+      const msg: Record<string, string> = {
+        refund_needed: `Twende: sorry no driver reached you for ride ${ride.reference}. A refund of KES ${Number(ride.total_fare).toLocaleString()} is being processed.`,
+        refunded: `Twende: your refund of KES ${Number(ride.total_fare).toLocaleString()} for ride ${ride.reference} has been sent.`,
+      };
+      const text = msg[data.stage] ?? `Twende: update on ride ${ride.reference}: ${data.note || data.stage.replaceAll("_", " ")}.`;
+      if (p?.phone) {
+        const { sendTransactionalSms } = await import("./comms.server");
+        await sendTransactionalSms({ to: p.phone, message: text, eventType: "unattended_resolution" } as never).catch(() => null);
+      }
+    }
+    return { ok: true };
+  });
