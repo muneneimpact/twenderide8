@@ -14,19 +14,8 @@ async function admin() {
 }
 
 async function move(args: { userId: string; amount: number; kind: string; status?: string; rideId?: string | null; note: string; key: string; phone?: string | null }) {
-  const db = await admin();
-  const { data, error } = await db.rpc("customer_wallet_move", {
-    p_user_id: args.userId,
-    p_amount: args.amount,
-    p_kind: args.kind,
-    p_status: args.status ?? "posted",
-    p_ride_id: (args.rideId ?? null) as string,
-    p_note: args.note,
-    p_key: args.key,
-    p_phone: (args.phone ?? null) as string,
-  });
-  if (error) throw new Error(error.message);
-  return data as { id: string; duplicate: boolean };
+  const { walletMove } = await import("./wallet-gateway.server");
+  return walletMove(args);
 }
 
 /** Moves a paid, unfulfilled ride's fare into the wallet exactly once. */
@@ -44,19 +33,28 @@ async function creditRide(userId: string, rideId: string) {
   return ride;
 }
 
+async function balancesFor(userId: string) {
+  const db = await admin();
+  const { walletBalances } = await import("./wallet-rules");
+  const { data } = await db.from("customer_wallet_entries").select("amount, status, refundable").eq("user_id", userId);
+  return walletBalances(data ?? []);
+}
+
 export const getCustomerWallet = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const db = await admin();
     const { data } = await db
       .from("customer_wallet_entries")
-      .select("id, amount, kind, status, note, ride_id, payout_reference, created_at")
+      .select("id, amount, kind, status, note, ride_id, hire_quote_id, refundable, payout_reference, created_at")
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
       .limit(100);
-    const rows = data ?? [];
-    const balance = rows.filter((r) => r.status !== "rejected").reduce((s, r) => s + Number(r.amount), 0);
-    return { balance: Number(balance.toFixed(2)), entries: rows };
+    const rows = (data ?? []).filter((r) => Number(r.amount) !== 0);
+    const b = await balancesFor(context.userId);
+    const { walletPromoConfig } = await import("./wallet-gateway.server");
+    const { data: profile } = await db.from("profiles").select("phone").eq("id", context.userId).maybeSingle();
+    return { balance: b.total, refundable: b.cash, promo: b.promo, entries: rows, promoConfig: await walletPromoConfig(), phone: profile?.phone ?? null };
   });
 
 /** Was this ride's payment already moved to the wallet? */
