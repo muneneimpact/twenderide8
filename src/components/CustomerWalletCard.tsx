@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getCustomerWallet, requestWalletRefund } from "@/lib/wallet.functions";
+import { getCustomerWallet, listWalletPayouts, requestWalletRefund, reviewWalletPayout } from "@/lib/wallet.functions";
 
 const LABEL: Record<string, string> = {
   ride_credit: "Held from ride with no driver",
@@ -69,7 +69,11 @@ export function CustomerWalletCard() {
   );
 }
 
-export function WalletPayoutsBoard({ list, review }: { list: () => Promise<{ id: string; amount: number; status: string; payout_phone: string | null; payout_reference: string | null; created_at: string }[]>; review: (a: { data: { id: string; decision: "paid" | "rejected"; reference?: string } }) => Promise<unknown> }) {
+export function WalletPayoutsBoard() {
+  const listFn = useServerFn(listWalletPayouts);
+  const reviewFn = useServerFn(reviewWalletPayout);
+  const list = () => listFn();
+  const review = (a: { data: { id: string; decision: "paid" | "rejected"; reference?: string } }) => reviewFn(a);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["wallet-payouts"], queryFn: list });
   const [refs, setRefs] = useState<Record<string, string>>({});
