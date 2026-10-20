@@ -40,6 +40,8 @@ function FinanceBoard() {
   const fetchBoard = useServerFn(getFinanceBoard);
   const decideFn = useServerFn(reviewWithdrawal);
   const adjustFn = useServerFn(adjustWallet);
+  const listPayoutsFn = useServerFn(listWalletPayouts);
+  const reviewPayoutFn = useServerFn(reviewWalletPayout);
 
   const board = useQuery({ queryKey: ["finance-board"], queryFn: () => fetchBoard({}), refetchInterval: 30000 });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["finance-board"] });
