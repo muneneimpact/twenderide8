@@ -27,6 +27,10 @@ export const Route = createFileRoute("/_authenticated/driver/hire")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): { section?: "bookings" | "finances" | "vehicles" | "documents" } => {
+    const v = search["section"];
+    return v === "bookings" || v === "finances" || v === "vehicles" || v === "documents" ? { section: v } : {};
+  },
   component: DriverHirePage,
 });
 
@@ -62,7 +66,8 @@ const SECTIONS = [
 type SectionKey = (typeof SECTIONS)[number]["key"];
 
 function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
-  const [section, setSection] = useState<SectionKey>("bookings");
+  const initial = Route.useSearch().section;
+  const [section, setSection] = useState<SectionKey>(initial ?? "bookings");
   return (
     <div className="mx-auto w-full max-w-md space-y-4 px-3 py-4 sm:px-4">
       <div className="py-1">
