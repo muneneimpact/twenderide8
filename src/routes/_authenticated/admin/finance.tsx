@@ -8,6 +8,8 @@ import { AdminHireFinanceBoard } from "@/components/AdminHireFinanceBoard";
 import { PeriodSummary } from "@/components/PeriodSummary";
 import { EtrQueue } from "@/components/EtrPanels";
 import { adjustWallet, getFinanceBoard, reviewWithdrawal } from "@/lib/admin.functions";
+import { WalletPayoutsBoard } from "@/components/CustomerWalletCard";
+import { listWalletPayouts, reviewWalletPayout } from "@/lib/wallet.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/finance")({
   head: () => ({
@@ -114,6 +116,7 @@ function FinanceBoard() {
           ]}
         />
         <EtrQueue />
+        <WalletPayoutsBoard list={() => listPayoutsFn()} review={(a) => reviewPayoutFn(a)} />
         <AdminHireFinanceBoard />
 
         <section className="surface-card p-4">
