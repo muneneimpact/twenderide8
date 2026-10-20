@@ -277,7 +277,7 @@ export const postDriverCaseMessage = createServerFn({ method: "POST" })
 export const emailRideReceipt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ rideId: z.string().uuid(), email: z.string().trim().email().optional() }).parse(input),
+    z.object({ rideId: z.string().uuid(), email: z.string().trim().email().optional(), pdfBase64: z.string().max(8_000_000).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -325,6 +325,7 @@ export const emailRideReceipt = createServerFn({ method: "POST" })
       eventType: "trip_receipt_manual",
       idempotencyKey: `receipt:${ride.id}:${to}:${Date.now()}`,
       context: { userId: context.userId, rideId: ride.id },
+      attachments: data.pdfBase64 ? [{ filename: `Twende-receipt-${ride.reference}.pdf`, content: data.pdfBase64 }] : undefined,
     });
     if (!result.sent) throw new Error(result.detail ?? "Email could not be sent.");
     return { to };

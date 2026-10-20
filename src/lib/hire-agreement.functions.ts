@@ -174,7 +174,7 @@ export const saveHireInspection = createServerFn({ method: "POST" })
 /** Email the hirer a link to their agreement; copy stays in their booking history. */
 export const emailHireAgreement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ quoteId: z.string().uuid(), email: z.string().trim().email().optional() }).parse(i))
+  .inputValidator((i) => z.object({ quoteId: z.string().uuid(), email: z.string().trim().email().optional(), pdfBase64: z.string().max(8_000_000).optional() }).parse(i))
   .handler(async ({ data, context }) => {
     const { q, supabaseAdmin } = await loadAccessible(data.quoteId, context.userId);
     const { data: renter } = await supabaseAdmin.from("profiles").select("full_name, email").eq("id", q.requester_id).maybeSingle();
@@ -203,6 +203,7 @@ export const emailHireAgreement = createServerFn({ method: "POST" })
       eventType: "hire_agreement_email",
       idempotencyKey: `agreement:${q.id}:${to}:${Date.now()}`,
       context: { userId: context.userId },
+      attachments: data.pdfBase64 ? [{ filename: `Twende-hire-agreement-${q.reference}.pdf`, content: data.pdfBase64 }] : undefined,
     });
     if (!result.sent) throw new Error(result.detail ?? "Email could not be sent.");
     await supabaseAdmin.from("hire_quotes").update({ agreement_emailed_at: new Date().toISOString() }).eq("id", q.id);

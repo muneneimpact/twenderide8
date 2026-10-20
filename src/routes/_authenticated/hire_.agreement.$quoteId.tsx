@@ -102,7 +102,7 @@ function AgreementPage() {
   const [email, setEmail] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfErr, setPdfErr] = useState<string | null>(null);
-  const send = useMutation({ mutationFn: () => emailFn({ data: { quoteId, email: email.trim() || undefined } }) });
+  const send = useMutation({ mutationFn: (pdfBase64: string) => emailFn({ data: { quoteId, email: email.trim() || undefined, pdfBase64 } }) });
   const needsSign = Boolean(q.data && (q.data.role.canSignAsHirer || q.data.role.canSignAsOwner));
 
   useEffect(() => {
@@ -121,11 +121,16 @@ function AgreementPage() {
   const complete = Boolean(b.completed_at);
   const sections = buildSections(d, brand.agreement_extra_terms);
 
-  async function downloadAgreement() {
-    setPdfBusy(true);
-    setPdfErr(null);
+  async function emailWithPdf() {
     try {
-      const bytes = await buildAgreementPdf(brand, {
+      send.mutate(toBase64(await agreementBytes()));
+    } catch (e) {
+      setPdfErr((e as Error).message);
+    }
+  }
+
+  function agreementBytes() {
+    return buildAgreementPdf(brand, {
         reference: b.reference,
         modeLabel: chauffeured ? "Chauffeured" : "Self-drive",
         sections,
@@ -133,6 +138,13 @@ function AgreementPage() {
         owner: { name: b.owner_signer ?? owner?.full_name ?? "Owner", signature: b.owner_signature, at: b.owner_signed_at },
         photos: [...INSPECTION_SIDES.map((s) => ({ label: s.charAt(0).toUpperCase() + s.slice(1), url: photos[s] ?? null })), ...extraPhotos.map((e) => ({ label: e.name, url: e.url }))],
       });
+  }
+
+  async function downloadAgreement() {
+    setPdfBusy(true);
+    setPdfErr(null);
+    try {
+      const bytes = await agreementBytes();
       downloadPdf(bytes, `Twende-hire-agreement-${b.reference}.pdf`);
     } catch (e) {
       setPdfErr((e as Error).message);
@@ -161,7 +173,7 @@ function AgreementPage() {
           {complete ? (
             <div className="flex flex-wrap gap-2">
               <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Send another copy to (optional)" className="input-base min-w-0 flex-1" />
-              <button onClick={() => send.mutate()} disabled={send.isPending} className="rounded-full border border-input px-4 py-2 text-xs font-semibold text-foreground disabled:opacity-50">
+              <button onClick={() => void emailWithPdf()} disabled={send.isPending} className="rounded-full border border-input px-4 py-2 text-xs font-semibold text-foreground disabled:opacity-50">
                 {send.isPending ? "Sending…" : "Email agreement"}
               </button>
               {send.isSuccess ? <p className="w-full text-xs text-success">Sent to {send.data.to}.</p> : null}
@@ -406,4 +418,10 @@ function InspectionForm({ quoteId, done }: { quoteId: string; done: boolean }) {
       {msg ? <p className="mt-1 text-destructive">{msg}</p> : null}
     </section>
   );
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
