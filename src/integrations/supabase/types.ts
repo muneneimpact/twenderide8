@@ -197,6 +197,54 @@ export type Database = {
           },
         ]
       }
+      customer_wallet_entries: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          idempotency_key: string
+          kind: string
+          note: string | null
+          payout_phone: string | null
+          payout_reference: string | null
+          reviewed_by: string | null
+          ride_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          kind: string
+          note?: string | null
+          payout_phone?: string | null
+          payout_reference?: string | null
+          reviewed_by?: string | null
+          ride_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          kind?: string
+          note?: string | null
+          payout_phone?: string | null
+          payout_reference?: string | null
+          reviewed_by?: string | null
+          ride_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       distance_bands: {
         Row: {
           admin_label: string
@@ -3288,6 +3336,19 @@ export type Database = {
       can_view_ride: {
         Args: { _ride_id: string; _user_id: string }
         Returns: boolean
+      }
+      customer_wallet_move: {
+        Args: {
+          p_amount: number
+          p_key: string
+          p_kind: string
+          p_note: string
+          p_phone?: string
+          p_ride_id: string
+          p_status: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       ensure_driver_wallet: { Args: { _driver_id: string }; Returns: string }
       ensure_fleet_wallet: { Args: { _fleet_id: string }; Returns: string }
