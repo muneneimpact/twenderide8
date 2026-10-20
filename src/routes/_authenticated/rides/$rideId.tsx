@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { getRideCreditState, keepRideAsCredit, retryRideWithCredit } from "@/lib/wallet.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -140,6 +141,22 @@ function RideDetail() {
       queryClient.invalidateQueries({ queryKey: ["ride", rideId] });
       queryClient.invalidateQueries({ queryKey: ["ride-payment", rideId] });
     },
+  });
+  const navigate = useNavigate();
+  const creditStateFn = useServerFn(getRideCreditState);
+  const retryFn = useServerFn(retryRideWithCredit);
+  const keepFn = useServerFn(keepRideAsCredit);
+  const creditState = useQuery({
+    queryKey: ["ride-credit", rideId],
+    queryFn: () => creditStateFn({ data: { rideId } }),
+  });
+  const retrying = useMutation({
+    mutationFn: () => retryFn({ data: { rideId } }),
+    onSuccess: (r) => navigate({ to: "/rides/$rideId", params: { rideId: r.rideId } }),
+  });
+  const keeping = useMutation({
+    mutationFn: () => keepFn({ data: { rideId } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ride-credit", rideId] }),
   });
 
   const cancelling = useMutation({
