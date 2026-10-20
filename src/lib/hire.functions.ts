@@ -702,6 +702,7 @@ export const saveMyHireDocument = createServerFn({ method: "POST" })
       .object({
         kind: z.enum(["id", "license"]),
         filePath: z.string().min(1).max(500),
+        remember: z.boolean().optional(),
       })
       .parse(input),
   )
@@ -723,6 +724,7 @@ export const saveMyHireDocument = createServerFn({ method: "POST" })
     if (!files?.some((file) => file.name === fileName)) {
       throw new Error("The uploaded document could not be found. Please upload it again.");
     }
+    if (data.remember === false) return { ok: true, filePath: data.filePath };
     const { error } = await supabaseAdmin.from("hire_customer_documents").upsert(
       {
         requester_id: context.userId,
