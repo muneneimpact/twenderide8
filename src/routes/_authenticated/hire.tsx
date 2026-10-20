@@ -882,6 +882,10 @@ function HirePage() {
                     Could not load saved documents. Upload them again to continue.
                   </p>
                 ) : null}
+                <label className="col-span-full flex items-start gap-2 rounded-xl bg-secondary/60 p-2.5 text-xs text-foreground">
+                  <input type="checkbox" className="mt-0.5" checked={rememberDocs} onChange={(e) => setRememberDocs(e.target.checked)} />
+                  <span>Save my ID number, ID and driving licence to my account so future hires are filled in for me.</span>
+                </label>
                 <UploadBox
                   label="Your ID (photo)"
                   done={Boolean(idPath)}
