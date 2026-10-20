@@ -201,12 +201,15 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          funding_batch_id: string | null
+          hire_quote_id: string | null
           id: string
           idempotency_key: string
           kind: string
           note: string | null
           payout_phone: string | null
           payout_reference: string | null
+          refundable: boolean
           reviewed_by: string | null
           ride_id: string | null
           status: string
@@ -216,12 +219,15 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string
+          funding_batch_id?: string | null
+          hire_quote_id?: string | null
           id?: string
           idempotency_key: string
           kind: string
           note?: string | null
           payout_phone?: string | null
           payout_reference?: string | null
+          refundable?: boolean
           reviewed_by?: string | null
           ride_id?: string | null
           status?: string
@@ -231,12 +237,15 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          funding_batch_id?: string | null
+          hire_quote_id?: string | null
           id?: string
           idempotency_key?: string
           kind?: string
           note?: string | null
           payout_phone?: string | null
           payout_reference?: string | null
+          refundable?: boolean
           reviewed_by?: string | null
           ride_id?: string | null
           status?: string
@@ -2938,6 +2947,69 @@ export type Database = {
           },
         ]
       }
+      wallet_funding_batches: {
+        Row: {
+          amount_per_user: number
+          approved_at: string | null
+          approved_by: string | null
+          approver_phone: string
+          code_attempts: number
+          code_expires_at: string | null
+          code_hash: string | null
+          cohort: string
+          created_at: string
+          created_by: string
+          id: string
+          mpesa_receipt: string | null
+          note: string | null
+          payment_intent_id: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+          user_ids: string[]
+        }
+        Insert: {
+          amount_per_user: number
+          approved_at?: string | null
+          approved_by?: string | null
+          approver_phone: string
+          code_attempts?: number
+          code_expires_at?: string | null
+          code_hash?: string | null
+          cohort: string
+          created_at?: string
+          created_by: string
+          id?: string
+          mpesa_receipt?: string | null
+          note?: string | null
+          payment_intent_id?: string | null
+          status?: string
+          total_amount: number
+          updated_at?: string
+          user_ids: string[]
+        }
+        Update: {
+          amount_per_user?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          approver_phone?: string
+          code_attempts?: number
+          code_expires_at?: string | null
+          code_hash?: string | null
+          cohort?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          mpesa_receipt?: string | null
+          note?: string | null
+          payment_intent_id?: string | null
+          status?: string
+          total_amount?: number
+          updated_at?: string
+          user_ids?: string[]
+        }
+        Relationships: []
+      }
       wallet_ledger: {
         Row: {
           actor_id: string | null
@@ -3340,10 +3412,13 @@ export type Database = {
       customer_wallet_move: {
         Args: {
           p_amount: number
+          p_batch_id?: string
+          p_hire_quote_id?: string
           p_key: string
           p_kind: string
           p_note: string
           p_phone?: string
+          p_refundable?: boolean
           p_ride_id: string
           p_status: string
           p_user_id: string
