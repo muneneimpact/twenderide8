@@ -800,8 +800,8 @@ export const requestWithdrawal = createServerFn({ method: "POST" })
       .from("withdrawals")
       .select("id, amount, status")
       .eq("wallet_id", wallet.id)
-      .in("status", ["pending", "processing", "approved"] as never);
-    if ((open ?? []).some((w) => w.status === "pending")) {
+      .in("status", ["pending", "under_review", "approved", "processing"]);
+    if ((open ?? []).some((w) => w.status === "pending" || w.status === "under_review")) {
       throw new Error("You already have a withdrawal waiting. Please wait for it to finish.");
     }
     const reserved = (open ?? []).reduce((s, w) => s + Number(w.amount), 0);
