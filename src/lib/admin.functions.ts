@@ -1454,8 +1454,9 @@ export const resolveUnattendedRide = createServerFn({ method: "POST" })
       };
       const text = msg[data.stage] ?? `Twende: update on ride ${ride.reference}: ${data.note || data.stage.replaceAll("_", " ")}.`;
       if (p?.phone) {
-        const { sendTransactionalSms } = await import("./comms.server");
-        await sendTransactionalSms({ to: p.phone, message: text, eventType: "unattended_resolution" } as never).catch(() => null);
+        const { textUserWithLink } = await import("./links.server");
+        await textUserWithLink({ userId: ride.customer_id, message: `${text} Details:`, path: `/rides/${ride.id}`,
+          eventType: "unattended_resolution", idempotencyKey: `unattended:${ride.id}:${data.stage}:${Date.now()}` });
       }
     }
     return { ok: true };

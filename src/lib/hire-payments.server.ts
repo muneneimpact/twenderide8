@@ -379,7 +379,7 @@ export async function settleHirePayment(paymentIntentId: string, receipt: string
         const { sendTransactionalSms } = await import("./comms.server");
         await sendTransactionalSms({
           to: renter.phone,
-          message,
+          message: `${message} Receipt & agreement: https://twenderides.lovable.app/hire/agreement/${quote.id}`,
           eventType: "hire_paid_in_full_sms",
           idempotencyKey: `hire-paid-in-full-sms:${quote.id}`,
           context: { userId: quote.requester_id, paymentIntentId },
