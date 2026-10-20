@@ -73,7 +73,7 @@ export function WalletPayoutsBoard() {
   const listFn = useServerFn(listWalletPayouts);
   const reviewFn = useServerFn(reviewWalletPayout);
   const list = () => listFn();
-  const review = (a: { data: { id: string; decision: "paid" | "rejected"; reference?: string } }) => reviewFn(a);
+  const review = (a: { data: { id: string; decision: "paid" | "rejected"; reference?: string | undefined } }) => reviewFn(a as never);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["wallet-payouts"], queryFn: list });
   const [refs, setRefs] = useState<Record<string, string>>({});
