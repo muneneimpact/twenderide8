@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { getRideCreditState, keepRideAsCredit, retryRideWithCredit } from "@/lib/wallet.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -140,6 +141,22 @@ function RideDetail() {
       queryClient.invalidateQueries({ queryKey: ["ride", rideId] });
       queryClient.invalidateQueries({ queryKey: ["ride-payment", rideId] });
     },
+  });
+  const navigate = useNavigate();
+  const creditStateFn = useServerFn(getRideCreditState);
+  const retryFn = useServerFn(retryRideWithCredit);
+  const keepFn = useServerFn(keepRideAsCredit);
+  const creditState = useQuery({
+    queryKey: ["ride-credit", rideId],
+    queryFn: () => creditStateFn({ data: { rideId } }),
+  });
+  const retrying = useMutation({
+    mutationFn: () => retryFn({ data: { rideId } }),
+    onSuccess: (r) => navigate({ to: "/rides/$rideId", params: { rideId: r.rideId } }),
+  });
+  const keeping = useMutation({
+    mutationFn: () => keepFn({ data: { rideId } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ride-credit", rideId] }),
   });
 
   const cancelling = useMutation({
@@ -521,18 +538,41 @@ function RideDetail() {
         {(ride.status === "no_driver_found" || ride.status === "expired") && paymentStatus === "paid" ? (
           <section className="mt-4 rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold text-foreground">No driver reached you — your KES {Number(ride.total_fare).toLocaleString("en-KE")} is safe</h3>
-            <p className="mt-1 text-xs text-muted-foreground">Try again for another driver, or get your money back.</p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <Link to="/book" className="flex-1 rounded-md bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground">Retry ride</Link>
-              <button
-                onClick={() => refunding.mutate()}
-                disabled={refunding.isPending || refunding.isSuccess}
-                className="flex-1 rounded-md border border-border px-4 py-3 text-sm font-semibold text-foreground disabled:opacity-60"
-              >
-                {refunding.isSuccess ? "Refund requested" : refunding.isPending ? "Requesting…" : "Request refund"}
-              </button>
-            </div>
-            {refunding.isError && <p className="mt-2 text-sm text-destructive">{(refunding.error as Error).message}</p>}
+            <p className="mt-1 text-xs text-muted-foreground">Retry the same trip with the same amount (no new M-PESA prompt), keep it in your Twende wallet, or get it back.</p>
+            {creditState.data?.retryRideId ? (
+              <Link to="/rides/$rideId" params={{ rideId: creditState.data.retryRideId }} className="mt-3 block rounded-md bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground">Open your retried ride</Link>
+            ) : (
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  onClick={() => retrying.mutate()}
+                  disabled={retrying.isPending}
+                  className="rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                >
+                  {retrying.isPending ? "Finding a driver…" : `Retry with KES ${Number(ride.total_fare).toLocaleString("en-KE")} already paid`}
+                </button>
+                {creditState.data?.credited || keeping.isSuccess ? (
+                  <Link to="/account" className="rounded-md border border-border px-4 py-3 text-center text-sm font-semibold text-foreground">In your wallet — open Account to refund</Link>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => keeping.mutate()}
+                      disabled={keeping.isPending}
+                      className="flex-1 rounded-md border border-border px-4 py-3 text-sm font-semibold text-foreground disabled:opacity-60"
+                    >
+                      {keeping.isPending ? "Saving…" : "Keep in wallet"}
+                    </button>
+                    <button
+                      onClick={() => refunding.mutate()}
+                      disabled={refunding.isPending || refunding.isSuccess}
+                      className="flex-1 rounded-md border border-border px-4 py-3 text-sm font-semibold text-foreground disabled:opacity-60"
+                    >
+                      {refunding.isSuccess ? "Refund requested" : refunding.isPending ? "Requesting…" : "Refund to M-PESA"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {[retrying, keeping, refunding].map((m, i) => m.isError ? <p key={i} className="mt-2 text-sm text-destructive">{(m.error as Error).message}</p> : null)}
           </section>
         ) : ride.status.startsWith("cancelled") || ride.status === "no_driver_found" || ride.status === "expired" ? (
           <>

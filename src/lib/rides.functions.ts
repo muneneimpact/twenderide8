@@ -991,6 +991,12 @@ export const requestUnfulfilledRefund = createServerFn({ method: "POST" })
     if (!["no_driver_found", "expired"].includes(ride.status)) throw new Error("This ride is not eligible for a refund here.");
     if (ride.payment_status === "refund_pending" || ride.payment_status === "refunded") return { ok: true, already: true };
     if (ride.payment_status !== "paid") throw new Error("No confirmed payment found for this ride.");
+    const { data: credited } = await supabaseAdmin
+      .from("customer_wallet_entries")
+      .select("id")
+      .eq("idempotency_key", `credit:${ride.id}`)
+      .maybeSingle();
+    if (credited) throw new Error("This payment is already in your Twende wallet. Request the refund from your wallet on the Account page.");
     await supabaseAdmin.from("refunds").upsert(
       { ride_id: ride.id, amount: Number(ride.total_fare), reason: "No driver found — customer requested refund", status: "pending", idempotency_key: `refund:${ride.id}` },
       { onConflict: "idempotency_key" },

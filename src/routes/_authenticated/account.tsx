@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { CustomerWalletCard } from "@/components/CustomerWalletCard";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { getMe, updateProfile, getMyPhotoUrl } from "@/lib/account.functions";
 import {
@@ -226,6 +227,7 @@ function AccountPage() {
   return (
     <AppShell title="Your account">
       <div className="mx-auto max-w-md space-y-5 px-4 py-4">
+        <CustomerWalletCard />
         {/* Profile */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-display text-lg font-bold text-foreground">Profile</h2>
