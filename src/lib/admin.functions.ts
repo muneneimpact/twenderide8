@@ -1373,8 +1373,8 @@ export const getUnattendedRides = createServerFn({ method: "POST" })
     const cIds = [...new Set(list.map((r) => r.customer_id))];
     const [{ data: quotes }, { data: people }] = await Promise.all([
       qIds.length
-        ? supabaseAdmin.from("route_quotes").select("id, pickup_address, dropoff_address").in("id", qIds)
-        : Promise.resolve({ data: [] as { id: string; pickup_address: string | null; dropoff_address: string | null }[] }),
+        ? supabaseAdmin.from("route_quotes").select("id, pickup_address, dropoff_address, pickup_lat, pickup_lng").in("id", qIds)
+        : Promise.resolve({ data: [] as { id: string; pickup_address: string | null; dropoff_address: string | null; pickup_lat: number; pickup_lng: number }[] }),
       cIds.length
         ? supabaseAdmin.from("profiles").select("id, full_name, phone").in("id", cIds)
         : Promise.resolve({ data: [] as { id: string; full_name: string | null; phone: string | null }[] }),
@@ -1385,6 +1385,8 @@ export const getUnattendedRides = createServerFn({ method: "POST" })
       ...r,
       pickup: qm.get(r.quote_id)?.pickup_address ?? null,
       dropoff: qm.get(r.quote_id)?.dropoff_address ?? null,
+      pickup_lat: qm.get(r.quote_id)?.pickup_lat ?? null,
+      pickup_lng: qm.get(r.quote_id)?.pickup_lng ?? null,
       customer_name: pm.get(r.customer_id)?.full_name ?? null,
       customer_phone: pm.get(r.customer_id)?.phone ?? null,
     }));
@@ -1457,4 +1459,69 @@ export const resolveUnattendedRide = createServerFn({ method: "POST" })
       }
     }
     return { ok: true };
+  });
+
+
+/** Approved drivers ops can call, nearest first when the pickup is known. */
+export const listDriversForManualDispatch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ rideId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { requireRole, OPS } = await import("./authz.server");
+    await requireRole(context.userId, OPS);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { haversineKm } = await import("./geo");
+    const { data: ride } = await supabaseAdmin.from("rides").select("quote_id").eq("id", data.rideId).maybeSingle();
+    const { data: quote } = ride?.quote_id
+      ? await supabaseAdmin.from("route_quotes").select("pickup_lat, pickup_lng").eq("id", ride.quote_id).maybeSingle()
+      : { data: null };
+    const { data: drivers } = await supabaseAdmin
+      .from("drivers").select("id, is_online, last_lat, last_lng, active_vehicle_id").eq("status", "approved");
+    const ids = (drivers ?? []).map((d) => d.id);
+    const { data: people } = ids.length
+      ? await supabaseAdmin.from("profiles").select("id, full_name, phone").in("id", ids)
+      : { data: [] as Array<{ id: string; full_name: string | null; phone: string | null }> };
+    return (drivers ?? []).map((d) => {
+      const p = (people ?? []).find((x) => x.id === d.id);
+      const km = quote && d.last_lat != null && d.last_lng != null
+        ? Number(haversineKm({ lat: quote.pickup_lat, lng: quote.pickup_lng }, { lat: d.last_lat, lng: d.last_lng }).toFixed(1))
+        : null;
+      return { id: d.id, name: p?.full_name ?? "Driver", phone: p?.phone ?? null, online: d.is_online, has_vehicle: Boolean(d.active_vehicle_id), km };
+    }).sort((a, b) => Number(b.online) - Number(a.online) || (a.km ?? 999) - (b.km ?? 999));
+  });
+
+/**
+ * Ops called a driver: send that driver a direct ride request. The driver accepts
+ * in their app like any request, and the customer then sees the normal trip flow.
+ */
+export const manualDispatchToDriver = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ rideId: z.string().uuid(), driverId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { requireRole, OPS } = await import("./authz.server");
+    await requireRole(context.userId, OPS);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ride } = await supabaseAdmin.from("rides").select("id, status, driver_id, customer_id, reference").eq("id", data.rideId).maybeSingle();
+    if (!ride) throw new Error("Ride not found.");
+    if (ride.driver_id) throw new Error("This ride already has a driver.");
+    if (!["searching", "no_driver_found", "expired"].includes(ride.status)) throw new Error("This ride can no longer be assigned.");
+    const { data: driver } = await supabaseAdmin.from("drivers").select("id, status, active_vehicle_id").eq("id", data.driverId).maybeSingle();
+    if (driver?.status !== "approved") throw new Error("Pick an approved driver.");
+    if (!driver.active_vehicle_id) throw new Error("That driver has no active vehicle selected. Ask them to pick one in the app.");
+    await supabaseAdmin.from("rides").update({ status: "searching" }).eq("id", ride.id);
+    await supabaseAdmin.from("ride_status_events").insert({ ride_id: ride.id, status: "searching", actor_id: context.userId, actor_role: "ops_admin", note: "Ops sent the request to a driver directly" });
+    const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
+    const { error } = await supabaseAdmin.from("driver_offers").upsert({
+      ride_id: ride.id, driver_id: driver.id, vehicle_id: driver.active_vehicle_id, status: "offered",
+      responded_at: null, expires_at: expiresAt,
+    }, { onConflict: "ride_id,driver_id" });
+    if (error) throw new Error(error.message);
+    const { notify, audit } = await import("./notifications.server");
+    await notify({ userId: driver.id, templateCode: "ride_offer", title: "New ride request from Twende ops",
+      body: "Ops just called you about this ride. Open the app and accept to see the pickup.", rideId: ride.id, dedupeKey: `manual:${ride.id}:${driver.id}:${Date.now()}` });
+    const { textUserWithLink } = await import("./links.server");
+    await textUserWithLink({ userId: driver.id, message: `Twende: ride ${ride.reference} is waiting for you. Accept it here:`, path: "/driver",
+      eventType: "manual_dispatch", idempotencyKey: `manual:${ride.id}:${driver.id}:${Date.now()}` });
+    await audit(context.userId, "unattended_resolution", "ride", ride.id, { stage: "driver_assigned", note: "Request sent to driver after call", driver_id: driver.id });
+    return { ok: true, expiresAt };
   });
