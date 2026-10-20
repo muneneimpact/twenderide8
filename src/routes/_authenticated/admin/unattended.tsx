@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getUnattendedRides, getUnattendedResolutions, opsCancelRide, resolveUnattendedRide, RESOLUTION_STAGES } from "@/lib/admin.functions";
+import { getUnattendedRides, getUnattendedResolutions, opsCancelRide, resolveUnattendedRide, RESOLUTION_STAGES, listDriversForManualDispatch, manualDispatchToDriver } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/admin/unattended")({
@@ -83,6 +83,11 @@ function UnattendedPage() {
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{LABEL[r.status] ?? r.status}</span>
             </div>
             <p className="text-sm text-muted-foreground">From: {r.pickup ?? "—"}</p>
+            {r.pickup_lat != null && r.pickup_lng != null ? (
+              <a className="inline-flex text-xs font-semibold text-primary underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${r.pickup_lat},${r.pickup_lng}`}>
+                View pickup on map
+              </a>
+            ) : null}
             <p className="text-sm">
               {r.customer_name ?? "Customer"} {r.customer_phone && <a className="underline" href={`tel:${r.customer_phone}`}>{r.customer_phone}</a>}
             </p>
@@ -92,6 +97,7 @@ function UnattendedPage() {
             {r.status === "searching" && (
               <Button size="sm" variant="outline" onClick={() => close(r.id)}>Close request</Button>
             )}
+            <ManualDispatch rideId={r.id} onDone={() => qc.invalidateQueries({ queryKey: ["unattended"] })} />
             <Resolution rideId={r.id} info={res.data?.[r.id]} onDone={() => qc.invalidateQueries({ queryKey: ["unattended-res"] })} />
           </div>
         ))}
@@ -141,6 +147,21 @@ function Resolution({ rideId, info, onDone }: { rideId: string; info: ResInfo | 
         {info?.refund ? <span className="rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary">Refund {info.refund.status}</span> : paid && info?.payment_status === "paid" ? <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-semibold text-destructive">Refund may be needed</span> : null}
         {latest ? <span className="rounded-full bg-success/15 px-2 py-0.5 font-semibold text-success">{STAGE_LABEL[latest.stage] ?? latest.stage}</span> : <span className="rounded-full bg-muted px-2 py-0.5">Unresolved</span>}
       </div>
+      {paid ? (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-2">
+          <p className="font-semibold text-foreground">Refund</p>
+          <p className="text-muted-foreground">
+            Paid KES {info!.paid.toLocaleString()}{info!.mpesa ? ` · M-PESA ${info!.mpesa}` : ""}.{" "}
+            {info!.refund ? `Refund KES ${info!.refund.amount.toLocaleString()} is ${info!.refund.status}.` : "No refund recorded yet."}
+          </p>
+          {!info!.refund || info!.refund.status !== "completed" ? (
+            <div className="mt-1 flex gap-1">
+              {!info!.refund ? <Button size="sm" variant="outline" onClick={() => { setStage("refund_needed"); setOpen(true); }}>Start refund</Button> : null}
+              {info!.refund ? <Button size="sm" variant="outline" onClick={() => { setStage("refunded"); setOpen(true); }}>Mark refund sent</Button> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {info?.history.length ? (
         <ul className="space-y-0.5 text-muted-foreground">
           {info.history.slice(0, 3).map((h, i) => <li key={i}>{new Date(h.at).toLocaleString()} — {STAGE_LABEL[h.stage] ?? h.stage}{h.note ? `: ${h.note}` : ""}</li>)}
@@ -161,6 +182,47 @@ function Resolution({ rideId, info, onDone }: { rideId: string; info: ResInfo | 
       ) : (
         <Button size="sm" variant="outline" onClick={() => setOpen(true)}>Resolve / update stage</Button>
       )}
+    </div>
+  );
+}
+
+function ManualDispatch({ rideId, onDone }: { rideId: string; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState("");
+  const [busy, setBusy] = useState(false);
+  const drivers = useQuery({ queryKey: ["manual-drivers", rideId], queryFn: () => listDriversForManualDispatch({ data: { rideId } }), enabled: open });
+  const chosen = drivers.data?.find((d) => d.id === pick);
+  const send = async () => {
+    setBusy(true);
+    try {
+      await manualDispatchToDriver({ data: { rideId, driverId: pick } });
+      toast.success("Request sent. It shows in the driver's app to accept.");
+      setOpen(false);
+      onDone();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!open) return <Button size="sm" variant="outline" onClick={() => setOpen(true)}>Call &amp; send to a driver</Button>;
+  return (
+    <div className="space-y-2 rounded-lg border p-2 text-xs">
+      <p className="font-semibold">1. Call a driver · 2. Pick them · 3. Send. They accept in their app.</p>
+      {drivers.isLoading ? <p className="text-muted-foreground">Loading drivers…</p> : null}
+      <select value={pick} onChange={(e) => setPick(e.target.value)} className="input-base w-full">
+        <option value="">Choose driver</option>
+        {(drivers.data ?? []).map((d) => (
+          <option key={d.id} value={d.id} disabled={!d.has_vehicle}>
+            {d.name} · {d.online ? "online" : "offline"}{d.km != null ? ` · ${d.km} km` : ""}{d.has_vehicle ? "" : " · no vehicle"}
+          </option>
+        ))}
+      </select>
+      {chosen?.phone ? <a className="inline-flex font-semibold text-primary underline" href={`tel:${chosen.phone}`}>Call {chosen.name} ({chosen.phone})</a> : null}
+      <div className="flex gap-2">
+        <Button size="sm" onClick={send} disabled={!pick || busy}>{busy ? "Sending…" : "Send ride to driver"}</Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
     </div>
   );
 }

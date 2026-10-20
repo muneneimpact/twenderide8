@@ -379,7 +379,7 @@ export async function settleHirePayment(paymentIntentId: string, receipt: string
         const { sendTransactionalSms } = await import("./comms.server");
         await sendTransactionalSms({
           to: renter.phone,
-          message,
+          message: `${message} Receipt & agreement: https://twenderides.lovable.app/hire/agreement/${quote.id}`,
           eventType: "hire_paid_in_full_sms",
           idempotencyKey: `hire-paid-in-full-sms:${quote.id}`,
           context: { userId: quote.requester_id, paymentIntentId },
@@ -411,7 +411,7 @@ export async function settleHirePayment(paymentIntentId: string, receipt: string
         const { sendTransactionalSms } = await import("./comms.server");
         await sendTransactionalSms({
           to: owner.phone,
-          message: `Twende Meru: hire ${quote.reference} is paid (KES ${paidTotal.toLocaleString("en-KE")}). Open the app > Hire cars to prepare the handover.`,
+          message: `Twende Meru: hire ${quote.reference} is paid (KES ${paidTotal.toLocaleString("en-KE")}). Prepare the handover: https://twenderides.lovable.app/driver/hire?section=bookings`,
           eventType: "hire_owner_paid_sms",
           idempotencyKey: `hire-owner-sms:${paymentIntentId}`,
           context: { userId: result.owner_user_id, paymentIntentId },
@@ -507,7 +507,7 @@ export async function sendHirePaymentReminder(input: {
         const { sendTransactionalSms } = await import("./comms.server");
         const result = await sendTransactionalSms({
           to: input.quote.contact_phone ?? profile!.phone!,
-          message: body,
+          message: `${body} Pay here: https://twenderides.lovable.app/hire`,
           eventType: "hire_payment_reminder",
           idempotencyKey: `hire-payment-reminder:sms:${input.intentId}`,
           context: { userId: input.quote.requester_id },

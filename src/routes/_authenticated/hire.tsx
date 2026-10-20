@@ -223,6 +223,7 @@ function HirePage() {
   const navigate = useNavigate();
   const usePayLater = hirerType === "company" && !companyPayNow;
   const [renterName, setRenterName] = useState("");
+  const [rememberDocs, setRememberDocs] = useState(true);
   const [renterIdNumber, setRenterIdNumber] = useState("");
   const [paymentPhone, setPaymentPhone] = useState("");
   const [organisation, setOrganisation] = useState("");
@@ -416,12 +417,14 @@ function HirePage() {
       return;
     }
     try {
-      await saveDocFn({ data: { kind, filePath: path } });
+      await saveDocFn({ data: { kind, filePath: path, remember: rememberDocs } });
       if (kind === "id") setIdPath(path);
       else setLicensePath(path);
       void queryClient.invalidateQueries({ queryKey: ["my-hire-documents"] });
       setMessage(
-        `${kind === "id" ? "ID" : "Driving licence"} saved securely for future bookings. Upload again only when you need to replace it.`,
+        rememberDocs
+          ? `${kind === "id" ? "ID" : "Driving licence"} saved to your account for future hires.`
+          : `${kind === "id" ? "ID" : "Driving licence"} attached to this booking only.`,
       );
     } catch (error) {
       await supabase.storage.from("hire-documents").remove([path]);
@@ -460,7 +463,7 @@ function HirePage() {
       }),
     onSuccess: (row) => {
       // Remember ID and company so repeat bookings are pre-filled.
-      if (accountId) {
+      if (accountId && rememberDocs) {
         void supabase
           .from("profiles")
           .update({
@@ -879,6 +882,10 @@ function HirePage() {
                     Could not load saved documents. Upload them again to continue.
                   </p>
                 ) : null}
+                <label className="col-span-full flex items-start gap-2 rounded-xl bg-secondary/60 p-2.5 text-xs text-foreground">
+                  <input type="checkbox" className="mt-0.5" checked={rememberDocs} onChange={(e) => setRememberDocs(e.target.checked)} />
+                  <span>Save my ID number, ID and driving licence to my account so future hires are filled in for me.</span>
+                </label>
                 <UploadBox
                   label="Your ID (photo)"
                   done={Boolean(idPath)}

@@ -15,3 +15,16 @@
 - [ ] WhatsApp to owner (blocked: WhatsApp connection disconnected)
 - [x] Corporate pay-later date/method, business email OTP, signed agreement
 - [x] Driver hire page handover UX
+
+# Oct 20 round
+- [x] Bottom bar fits 5 tabs on phones; "Hire" renamed "Car Hire"
+- [x] Lost & found: completed trips only; blind claim of driver-found items (no driver description shown; phones unlocked in person only)
+- [x] Driver tools locked until approval (onboarding only)
+- [x] People page: Ops team / Drivers / Car hire / Customers
+- [x] Unattended: refund box for paid rides only, call & send ride to a driver, pickup on map
+- [x] Emailed agreements and receipts carry the PDF file
+- [x] Company ETR request on trips, finance attaches PDF, texts with links; company KRA details saved to account
+- [x] Hire ID/licence saved to account only when the customer agrees
+- [x] Action links in hire, payout, ETR, lost & found, unattended texts
+- [ ] M-PESA pay-before-driver + reuse paid amount on a new request (waiting: user decision on credit vs refund)
+- [ ] WhatsApp copies of texts (blocked: WhatsApp connection disconnected)
