@@ -3,13 +3,20 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { emailRideReceipt } from "@/lib/lost-found.functions";
 import { ReceiptDownload } from "./ReceiptDownload";
+import { getRideReceipt } from "@/lib/documents.functions";
+import { buildReceiptPdf, pdfToBase64, type Branding } from "@/lib/pdf-docs";
 
 /** Download (print to PDF) or email the receipt of a completed trip. */
 export function ReceiptActions({ rideId }: { rideId: string }) {
   const sendFn = useServerFn(emailRideReceipt);
+  const receiptFn = useServerFn(getRideReceipt);
   const [email, setEmail] = useState("");
   const send = useMutation({
-    mutationFn: () => sendFn({ data: { rideId, email: email.trim() || undefined } }),
+    mutationFn: async () => {
+      const res = await receiptFn({ data: { rideId } });
+      const bytes = await buildReceiptPdf(res.branding as Branding | null, res.receipt);
+      return sendFn({ data: { rideId, email: email.trim() || undefined, pdfBase64: pdfToBase64(bytes) } });
+    },
   });
   return (
     <section className="mt-4 rounded-xl border border-border bg-card p-4 print:hidden">
