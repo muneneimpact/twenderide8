@@ -996,7 +996,18 @@ export const listStaffUsers = createServerFn({ method: "POST" })
     await requireRole(context.userId, SUPER);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: roles } = await supabaseAdmin.from("user_roles").select("*");
-    const ids = [...new Set((roles ?? []).map((r) => r.user_id))];
+    const { data: hireCars } = await supabaseAdmin
+      .from("vehicles").select("owner_driver_id, fleet_id").neq("hire_mode", "none");
+    const fleetIds = [...new Set((hireCars ?? []).map((v) => v.fleet_id).filter((v): v is string => Boolean(v)))];
+    const { data: hireFleets } = fleetIds.length
+      ? await supabaseAdmin.from("fleets").select("owner_id").in("id", fleetIds)
+      : { data: [] as Array<{ owner_id: string }> };
+    const hireOwnerIds = [...new Set([
+      ...(hireCars ?? []).map((v) => v.owner_driver_id).filter((v): v is string => Boolean(v)),
+      ...(hireFleets ?? []).map((f) => f.owner_id),
+    ])];
+    const { data: drivers } = await supabaseAdmin.from("drivers").select("id, status");
+    const ids = [...new Set([...(roles ?? []).map((r) => r.user_id), ...hireOwnerIds])];
     const { data: profiles } = ids.length
       ? await supabaseAdmin.from("profiles").select("id, full_name, email, phone").in("id", ids)
       : { data: [] };
@@ -1005,7 +1016,7 @@ export const listStaffUsers = createServerFn({ method: "POST" })
       .select("*")
       .order("created_at", { ascending: false })
       .limit(60);
-    return { roles: roles ?? [], profiles: profiles ?? [], auditLogs: logs ?? [] };
+    return { roles: roles ?? [], profiles: profiles ?? [], auditLogs: logs ?? [], hireOwnerIds, driverStatus: Object.fromEntries((drivers ?? []).map((d) => [d.id, d.status])) as Record<string, string> };
   });
 
 export const setUserRole = createServerFn({ method: "POST" })

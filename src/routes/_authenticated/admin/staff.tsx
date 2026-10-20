@@ -122,21 +122,7 @@ function StaffBoard() {
           </div>
         </section>
 
-        <section className="surface-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">People with roles</h3>
-          <ul className="mt-2 divide-y divide-border">
-            {s.profiles.map((profile) => (
-              <li key={profile.id} className="py-2.5">
-                <p className="text-sm font-medium text-foreground">
-                  {profile.full_name ?? profile.email ?? profile.id}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {profile.email ?? "no email"} · {(byUser.get(profile.id) ?? []).join(", ")}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <PeopleGroups profiles={s.profiles} byUser={byUser} hireOwners={new Set(s.hireOwnerIds)} driverStatus={s.driverStatus} />
 
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Audit trail</h3>
@@ -152,5 +138,68 @@ function StaffBoard() {
         </section>
       </div>
     </AppShell>
+  );
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: "Super admin",
+  ops_admin: "Ops admin",
+  finance_admin: "Finance admin",
+  driver: "Driver",
+  fleet_owner: "Fleet owner",
+  customer: "Customer",
+};
+
+type Person = { id: string; full_name: string | null; email: string | null; phone: string | null };
+
+function PeopleGroups({ profiles, byUser, hireOwners, driverStatus }: {
+  profiles: Person[]; byUser: Map<string, string[]>; hireOwners: Set<string>; driverStatus: Record<string, string>;
+}) {
+  const [tab, setTab] = useState<"ops" | "driver" | "hire" | "customer">("ops");
+  const [q, setQ] = useState("");
+  const roles = (id: string) => byUser.get(id) ?? [];
+  const isOps = (id: string) => roles(id).some((r) => r.endsWith("_admin"));
+  const groups = {
+    ops: profiles.filter((p) => isOps(p.id)),
+    driver: profiles.filter((p) => roles(p.id).includes("driver")),
+    hire: profiles.filter((p) => hireOwners.has(p.id) || roles(p.id).includes("fleet_owner")),
+    customer: profiles.filter((p) => !isOps(p.id) && !roles(p.id).includes("driver") && !hireOwners.has(p.id) && !roles(p.id).includes("fleet_owner")),
+  };
+  const opsOrder = ["super_admin", "ops_admin", "finance_admin"];
+  const term = q.trim().toLowerCase();
+  const list = groups[tab]
+    .filter((p) => !term || [p.full_name, p.email, p.phone].some((v) => v?.toLowerCase().includes(term)))
+    .sort((a, b) => tab === "ops"
+      ? Math.min(...roles(a.id).map((r) => opsOrder.indexOf(r)).filter((i) => i >= 0)) - Math.min(...roles(b.id).map((r) => opsOrder.indexOf(r)).filter((i) => i >= 0))
+      : 0);
+  const tabs = [["ops", "Ops team"], ["driver", "Drivers"], ["hire", "Car hire"], ["customer", "Customers"]] as const;
+  return (
+    <section className="surface-card p-4">
+      <h3 className="text-sm font-semibold text-foreground">People</h3>
+      <div className="mt-2 grid grid-cols-4 gap-1">
+        {tabs.map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`rounded-full px-2 py-2 text-[11px] font-semibold ${tab === k ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
+            {l} ({groups[k].length})
+          </button>
+        ))}
+      </div>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email or phone" className="mt-2 w-full rounded-2xl border border-input bg-background px-3.5 py-2 text-sm" />
+      <ul className="mt-2 divide-y divide-border">
+        {list.map((p) => (
+          <li key={p.id} className="py-2.5">
+            <p className="text-sm font-medium text-foreground">{p.full_name ?? p.email ?? p.id}</p>
+            <p className="text-xs text-muted-foreground">{p.email ?? "no email"}{p.phone ? ` · ${p.phone}` : ""}</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {roles(p.id).filter((r) => tab !== "ops" || r.endsWith("_admin")).map((r) => (
+                <span key={r} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${r === "super_admin" ? "bg-destructive/15 text-destructive" : r.endsWith("_admin") ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>{ROLE_LABEL[r] ?? r}</span>
+              ))}
+              {tab === "driver" && driverStatus[p.id] ? <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold capitalize text-warning">{driverStatus[p.id]}</span> : null}
+              {hireOwners.has(p.id) ? <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">Car hire owner</span> : null}
+            </div>
+          </li>
+        ))}
+        {!list.length ? <li className="py-3 text-xs text-muted-foreground">Nobody here yet.</li> : null}
+      </ul>
+    </section>
   );
 }
