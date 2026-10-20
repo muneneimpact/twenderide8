@@ -15,11 +15,11 @@ export const Route = createFileRoute("/api/public/payments/callback")({
         const url = new URL(request.url);
         const token = process.env["PALPLUSS_CALLBACK_TOKEN"];
         const provided = url.searchParams.get("token") ?? request.headers.get("x-callback-token");
-        const verified = !token || provided === token;
-
-        if (token && !verified) {
+        // Fail closed: no configured token, no token sent, or a mismatch is rejected.
+        if (!token || !provided || provided !== token) {
           return new Response("Unauthorized", { status: 401 });
         }
+        const verified = true;
 
         let payload: Record<string, unknown>;
         try {

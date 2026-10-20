@@ -975,3 +975,26 @@ export const publicSearchPlaces = createServerFn({ method: "POST" })
     const { MERU_CENTRE } = await import("./geo");
     return getMapProvider().search(data.query, MERU_CENTRE);
   });
+
+/** Paid ride that found no driver: customer asks for their money back (1 tap). */
+export const requestUnfulfilledRefund = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ rideId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ride } = await supabaseAdmin
+      .from("rides")
+      .select("id, customer_id, status, payment_status, total_fare")
+      .eq("id", data.rideId)
+      .maybeSingle();
+    if (!ride || ride.customer_id !== context.userId) throw new Error("Ride not found.");
+    if (!["no_driver_found", "expired"].includes(ride.status)) throw new Error("This ride is not eligible for a refund here.");
+    if (ride.payment_status === "refund_pending" || ride.payment_status === "refunded") return { ok: true, already: true };
+    if (ride.payment_status !== "paid") throw new Error("No confirmed payment found for this ride.");
+    await supabaseAdmin.from("refunds").upsert(
+      { ride_id: ride.id, amount: Number(ride.total_fare), reason: "No driver found — customer requested refund", status: "pending", idempotency_key: `refund:${ride.id}` },
+      { onConflict: "idempotency_key" },
+    );
+    await supabaseAdmin.from("rides").update({ payment_status: "refund_pending" }).eq("id", ride.id);
+    return { ok: true, already: false };
+  });
