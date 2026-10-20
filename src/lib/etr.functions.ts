@@ -123,13 +123,13 @@ export const uploadEtrDocument = createServerFn({ method: "POST" })
       await sendTransactionalEmail({
         to: req.billing_email,
         template: {
-          code: "custom",
+          code: "support_reply",
           data: {
-            subject: `ETR for Twende ride ${ride?.reference ?? ""}`,
-            heading: "Your ETR receipt",
-            body: `Attached is the ETR for ${req.company_name} (KRA PIN ${req.kra_pin}), ride ${ride?.reference ?? ""}.`,
+            name: req.company_name,
+            reference: ride?.reference ?? null,
+            message: `Attached is the ETR for ${req.company_name} (KRA PIN ${req.kra_pin}), ride ${ride?.reference ?? ""}.`,
           },
-        } as never,
+        },
         eventType: "etr_sent_email",
         idempotencyKey: `etr-email:${req.id}:${Date.now()}`,
         context: { userId: req.requester_id, rideId: req.ride_id },
