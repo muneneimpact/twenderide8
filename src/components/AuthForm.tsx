@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isValidKenyanPhone, maskPhone, normaliseKenyanPhone } from "@/lib/phone";
 import { signInWithPhonePassword, startPhoneLogin, verifyPhoneLogin } from "@/lib/phone-auth.functions";
+import { Eye, EyeOff } from "lucide-react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 export interface AuthFormProps {
   eyebrow: string;
@@ -24,6 +26,24 @@ export interface AuthFormProps {
 
 const input =
   "mt-1 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-shadow focus:ring-2 focus:ring-ring";
+
+/** Password field with an eye button to show or hide what was typed. */
+function PasswordInput(props: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input {...props} type={visible ? "text" : "password"} className={`${input} pr-11`} />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Hide password" : "Show password"}
+        className="absolute right-2 top-1/2 mt-0.5 -translate-y-1/2 rounded-full p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -302,15 +322,13 @@ export function AuthForm({
                 <span className="text-xs font-medium text-muted-foreground">
                   {mode === "signin" ? "Password" : "Password"}
                 </span>
-                <input
-                  type="password"
+                <PasswordInput
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
                   minLength={8}
                   autoComplete={mode === "signin" ? "current-password" : "new-password"}
                   placeholder="At least 8 characters"
-                  className={input}
                 />
               </label>
               )}
@@ -351,45 +369,55 @@ export function AuthForm({
             <form onSubmit={confirmCode} className="mt-6 space-y-3">
               <label className="auth-rise block">
                 <span className="text-xs font-medium text-muted-foreground">6-digit code</span>
-                <input
-                  inputMode="numeric"
-                  pattern="\d{6}"
-                  maxLength={6}
-                  value={code}
-                  onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
-                  required
-                  autoFocus
-                  autoComplete="one-time-code"
-                  className={`${input} text-center text-lg tracking-[0.5em]`}
-                />
+                <div className="mt-2 flex justify-center">
+                  <InputOTP
+                    maxLength={6}
+                    value={code}
+                    onChange={(value) => setCode(value.replace(/\D/g, ""))}
+                    autoFocus
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    pattern="^[0-9]*$"
+                  >
+                    <InputOTPGroup className="gap-2">
+                      {[0, 1, 2, 3, 4, 5].map((i) => (
+                        <InputOTPSlot
+                          key={i}
+                          index={i}
+                          style={{ animationDelay: `${i * 60}ms` }}
+                          className={`otp-slot h-12 w-11 rounded-xl border border-input bg-background text-lg font-semibold first:rounded-xl last:rounded-xl ${
+                            code[i] ? "otp-filled border-primary" : ""
+                          }`}
+                        />
+                      ))}
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
               </label>
               {resetting && (
                 <>
                   <label className="auth-rise auth-delay-1 block">
                     <span className="text-xs font-medium text-muted-foreground">New password</span>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       required
                       minLength={8}
                       autoComplete="new-password"
                       placeholder="At least 8 characters"
-                      className={input}
                     />
                   </label>
                   <label className="auth-rise auth-delay-1 block">
                     <span className="text-xs font-medium text-muted-foreground">Re-enter new password</span>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={confirmPassword}
                       onChange={(event) => setConfirmPassword(event.target.value)}
                       required
                       minLength={8}
                       autoComplete="new-password"
                       placeholder="Type it once more"
-                      className={input}
                     />
+
                   </label>
                 </>
               )}
@@ -447,15 +475,14 @@ export function AuthForm({
             </label>
             <label className="auth-rise auth-delay-2 block">
               <span className="text-xs font-medium text-muted-foreground">Password</span>
-              <input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
                 minLength={8}
                 autoComplete="current-password"
-                className={input}
               />
+
             </label>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <button
