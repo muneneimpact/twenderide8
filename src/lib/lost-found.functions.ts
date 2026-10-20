@@ -58,6 +58,7 @@ export const listMyRecentTrips = createServerFn({ method: "POST" })
       .from("rides")
       .select("id")
       .eq(col, context.userId)
+      .eq("status", "trip_completed")
       .order("requested_at", { ascending: false })
       .limit(20);
     const map = await tripLabels((rides ?? []).map((r) => r.id));
@@ -82,18 +83,42 @@ export const createLostFoundReport = createServerFn({ method: "POST" })
       .from("rides")
       .select("id")
       .in("id", data.rideIds)
+      .eq("status", "trip_completed")
       .eq(col, context.userId);
-    if ((owned ?? []).length !== data.rideIds.length) throw new Error("Pick only your own trips.");
+    if ((owned ?? []).length !== data.rideIds.length) throw new Error("Pick only your own completed trips.");
     if (data.as === "customer" && data.rideIds.length > 1)
       throw new Error("Choose the single trip where the item was lost.");
-    const { error } = await context.supabase.from("lost_found_reports").insert({
+    const { data: report, error } = await context.supabase.from("lost_found_reports").insert({
       reporter_id: context.userId,
       reporter_role: data.as,
       kind: data.as === "driver" ? "found" : "lost",
       ride_ids: data.rideIds,
       description: data.description,
-    });
+    }).select("id").single();
     if (error) throw new Error(error.message);
+    if (data.as === "driver") {
+      // Tell each passenger on those trips — without revealing what was found.
+      const { data: rides } = await supabaseAdmin.from("rides").select("id, customer_id").in("id", data.rideIds);
+      const { notify } = await import("./notifications.server");
+      const { textUserWithLink } = await import("./links.server");
+      for (const r of rides ?? []) {
+        if (!r.customer_id) continue;
+        await notify({
+          userId: r.customer_id,
+          templateCode: "lost_found_driver_found",
+          title: "Your driver found something",
+          body: "Your driver found an item that may be yours. Describe it to claim it.",
+          rideId: r.id,
+        });
+        await textUserWithLink({
+          userId: r.customer_id,
+          message: "Twende: your driver found an item that may be yours. Describe it to claim it:",
+          path: "/lost-found",
+          eventType: "lost_found_driver_found",
+          idempotencyKey: `lf-found:${report.id}:${r.id}`,
+        });
+      }
+    }
     return { ok: true };
   });
 
@@ -303,4 +328,116 @@ export const emailRideReceipt = createServerFn({ method: "POST" })
     });
     if (!result.sent) throw new Error(result.detail ?? "Email could not be sent.");
     return { to };
+  });
+
+
+/** Driver "found" reports on the caller's trips. The driver's description is never returned. */
+export const listFoundForMe = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rides } = await supabaseAdmin
+      .from("rides").select("id").eq("customer_id", context.userId).eq("status", "trip_completed")
+      .order("requested_at", { ascending: false }).limit(50);
+    const rideIds = (rides ?? []).map((r) => r.id);
+    if (!rideIds.length) return [];
+    const { data: reports } = await supabaseAdmin
+      .from("lost_found_reports").select("id, ride_ids, status, created_at")
+      .eq("kind", "found").in("status", ["open", "matched"]).overlaps("ride_ids", rideIds);
+    const { data: claims } = (reports ?? []).length
+      ? await supabaseAdmin.from("lost_found_claims").select("report_id, status, driver_note")
+          .eq("claimant_id", context.userId).in("report_id", (reports ?? []).map((r) => r.id))
+      : { data: [] as Array<{ report_id: string; status: string; driver_note: string | null }> };
+    const mine = new Set(rideIds);
+    const labels = await tripLabels(rideIds);
+    return (reports ?? []).map((r) => {
+      const rideId = r.ride_ids.find((id) => mine.has(id))!;
+      const claim = (claims ?? []).find((c) => c.report_id === r.id) ?? null;
+      return { id: r.id, ride_id: rideId, trip: labels.get(rideId) ?? null, found_at: r.created_at, claim };
+    });
+  });
+
+export const submitFoundClaim = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      reportId: z.string().uuid(),
+      rideId: z.string().uuid(),
+      description: z.string().trim().min(10).max(1000),
+      contactPhone: z.string().trim().max(20).optional(),
+      securityDetails: z.string().trim().max(600).optional(),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: ride } = await supabaseAdmin.from("rides").select("id")
+      .eq("id", data.rideId).eq("customer_id", context.userId).eq("status", "trip_completed").maybeSingle();
+    const { data: report } = await supabaseAdmin.from("lost_found_reports").select("id, reporter_id, ride_ids, kind")
+      .eq("id", data.reportId).maybeSingle();
+    if (!ride || !report || report.kind !== "found" || !report.ride_ids.includes(data.rideId)) {
+      throw new Error("This found item is not linked to your trip.");
+    }
+    if (data.securityDetails && /\b(pin|password|passcode)\b\s*[:=]?\s*\d{4,}/i.test(data.securityDetails)) {
+      throw new Error("Never send your lock-screen PIN or password. You unlock the phone in person at handover.");
+    }
+    const { error } = await supabaseAdmin.from("lost_found_claims").upsert({
+      report_id: data.reportId, claimant_id: context.userId, ride_id: data.rideId,
+      description: data.description, contact_phone: data.contactPhone ?? null,
+      security_details: data.securityDetails ?? null, status: "pending", updated_at: new Date().toISOString(),
+    }, { onConflict: "report_id,claimant_id" });
+    if (error) throw new Error(error.message);
+    const { notify } = await import("./notifications.server");
+    await notify({ userId: report.reporter_id, templateCode: "lost_found_claim", title: "Someone claimed an item you found",
+      body: "Check their description against the item.", rideId: data.rideId });
+    const { textUserWithLink } = await import("./links.server");
+    await textUserWithLink({ userId: report.reporter_id, message: "Twende: a passenger claimed an item you found. Check their description:",
+      path: "/lost-found", eventType: "lost_found_claim", idempotencyKey: `lf-claim:${data.reportId}:${context.userId}:${Date.now()}` });
+    return { ok: true };
+  });
+
+/** Claims on items the driver found, for them to match. */
+export const listClaimsOnMyFinds = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: reports } = await supabaseAdmin.from("lost_found_reports").select("id, description")
+      .eq("reporter_id", context.userId).eq("kind", "found");
+    if (!(reports ?? []).length) return [];
+    const { data: claims } = await supabaseAdmin.from("lost_found_claims").select("*")
+      .in("report_id", (reports ?? []).map((r) => r.id)).order("created_at", { ascending: false });
+    const ids = [...new Set((claims ?? []).map((c) => c.claimant_id))];
+    const { data: people } = ids.length ? await supabaseAdmin.from("profiles").select("id, full_name").in("id", ids) : { data: [] };
+    const labels = await tripLabels((claims ?? []).map((c) => c.ride_id));
+    return (claims ?? []).map((c) => ({
+      id: c.id, status: c.status, description: c.description, contact_phone: c.contact_phone,
+      security_details: c.security_details, driver_note: c.driver_note, created_at: c.created_at,
+      claimant: (people ?? []).find((p) => p.id === c.claimant_id)?.full_name ?? "Passenger",
+      trip: labels.get(c.ride_id)?.label ?? null,
+      your_item: (reports ?? []).find((r) => r.id === c.report_id)?.description ?? "",
+    }));
+  });
+
+export const decideFoundClaim = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ claimId: z.string().uuid(), decision: z.enum(["approved", "rejected", "more_info"]), note: z.string().max(500).optional() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: claim } = await supabaseAdmin.from("lost_found_claims").select("id, report_id, claimant_id, ride_id").eq("id", data.claimId).maybeSingle();
+    if (!claim) throw new Error("Claim not found.");
+    const { data: report } = await supabaseAdmin.from("lost_found_reports").select("reporter_id").eq("id", claim.report_id).maybeSingle();
+    if (report?.reporter_id !== context.userId) throw new Error("Only the driver who found the item can decide.");
+    await supabaseAdmin.from("lost_found_claims").update({ status: data.decision, driver_note: data.note ?? null, updated_at: new Date().toISOString() }).eq("id", claim.id);
+    if (data.decision === "approved") {
+      await supabaseAdmin.from("lost_found_reports").update({ status: "matched", updated_at: new Date().toISOString() }).eq("id", claim.report_id);
+    }
+    const msg = data.decision === "approved"
+      ? "Your driver matched your claim. Meet them to collect it; you will unlock the item in person to confirm it is yours."
+      : data.decision === "more_info" ? "Your driver needs more details to confirm the item." : "Your driver could not match your description to the item.";
+    const { notify } = await import("./notifications.server");
+    await notify({ userId: claim.claimant_id, templateCode: "lost_found_claim_decided", title: "Lost & found update", body: msg, rideId: claim.ride_id });
+    const { textUserWithLink } = await import("./links.server");
+    await textUserWithLink({ userId: claim.claimant_id, message: `Twende: ${msg}`, path: "/lost-found", eventType: "lost_found_claim_decided", idempotencyKey: `lf-dec:${claim.id}:${data.decision}:${Date.now()}` });
+    return { ok: true };
   });
