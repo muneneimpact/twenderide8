@@ -6,7 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
 import { MapPanel } from "@/components/MapPanel";
 import { supabase } from "@/integrations/supabase/client";
-import { cancelRide, getRide, rateRide } from "@/lib/rides.functions";
+import { cancelRide, getRide, rateRide, requestUnfulfilledRefund } from "@/lib/rides.functions";
 import { getPaymentStatus, startStkPush } from "@/lib/payments.functions";
 import { playAlert } from "@/lib/audio";
 import { CarBadge } from "@/components/CarBadge";
@@ -132,6 +132,15 @@ function RideDetail() {
       void supabase.removeChannel(channel);
     };
   }, [queryClient, rideId]);
+
+  const refundFn = useServerFn(requestUnfulfilledRefund);
+  const refunding = useMutation({
+    mutationFn: () => refundFn({ data: { rideId } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ride", rideId] });
+      queryClient.invalidateQueries({ queryKey: ["ride-payment", rideId] });
+    },
+  });
 
   const cancelling = useMutation({
     mutationFn: ({ reason, reasonCode: code }: { reason: string; reasonCode: string }) =>
@@ -509,13 +518,32 @@ function RideDetail() {
           </section>
         )}
 
-        {ride.status.startsWith("cancelled") || ride.status === "no_driver_found" ? (
-          <Link
-            to="/book"
-            className="mt-4 block w-full rounded-md bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground"
-          >
-            Request another ride
-          </Link>
+        {(ride.status === "no_driver_found" || ride.status === "expired") && paymentStatus === "paid" ? (
+          <section className="mt-4 rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground">No driver reached you — your KES {Number(ride.total_fare).toLocaleString("en-KE")} is safe</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Try again for another driver, or get your money back.</p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Link to="/book" className="flex-1 rounded-md bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground">Retry ride</Link>
+              <button
+                onClick={() => refunding.mutate()}
+                disabled={refunding.isPending || refunding.isSuccess}
+                className="flex-1 rounded-md border border-border px-4 py-3 text-sm font-semibold text-foreground disabled:opacity-60"
+              >
+                {refunding.isSuccess ? "Refund requested" : refunding.isPending ? "Requesting…" : "Request refund"}
+              </button>
+            </div>
+            {refunding.isError && <p className="mt-2 text-sm text-destructive">{(refunding.error as Error).message}</p>}
+          </section>
+        ) : ride.status.startsWith("cancelled") || ride.status === "no_driver_found" || ride.status === "expired" ? (
+          <>
+            {paymentStatus === "refund_pending" && <p className="mt-4 text-center text-xs text-muted-foreground">Your refund is being processed.</p>}
+            <Link
+              to="/book"
+              className="mt-4 block w-full rounded-md bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground"
+            >
+              Request another ride
+            </Link>
+          </>
         ) : null}
 
         {ride.status === "trip_completed" && (
