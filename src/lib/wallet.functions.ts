@@ -221,15 +221,31 @@ export const reviewWalletPayout = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("This refund was already handled.");
+    const kes = (n: number) => `KES ${n.toLocaleString("en-KE")}`;
+    const amt = Math.abs(Number(row.amount));
+    const bal = await balancesFor(row.user_id);
+    const balText = `Wallet balance: ${kes(bal.total)} (cash ${kes(bal.cash)}, promo ${kes(bal.promo)}).`;
+    const body = data.decision === "paid"
+      ? `Twende: your refund of ${kes(amt)} has been sent to M-PESA. Code ${data.reference!.trim()}. ${balText}`
+      : `Twende: your refund of ${kes(amt)} was declined and returned to your wallet. ${balText}`;
     const { notify } = await import("./notifications.server");
     await notify({
       userId: row.user_id,
       templateCode: "wallet_refund",
       title: data.decision === "paid" ? "Refund sent" : "Refund returned to wallet",
-      body: data.decision === "paid"
-        ? `Twende sent KES ${Math.abs(Number(row.amount)).toLocaleString("en-KE")} to your M-PESA. Code ${data.reference}.`
-        : `Your refund request was declined; KES ${Math.abs(Number(row.amount)).toLocaleString("en-KE")} is back in your Twende wallet.`,
+      body,
+      critical: true,
+      dedupeKey: `wallet-refund-done:${data.id}`,
     });
+    try {
+      const { whatsappGatewayConfigured, whatsappGatewaySend } = await import("./whatsapp-gateway.server");
+      if (whatsappGatewayConfigured()) {
+        const { data: prof } = await db.from("profiles").select("phone").eq("id", row.user_id).maybeSingle();
+        if (prof?.phone) await whatsappGatewaySend({ to: prof.phone.replace(/^\+/, ""), type: "text", text: { body } });
+      }
+    } catch (e) {
+      console.error("refund whatsapp failed", e);
+    }
     return { ok: true };
   });
 
