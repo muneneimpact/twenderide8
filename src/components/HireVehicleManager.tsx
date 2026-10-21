@@ -12,6 +12,8 @@ type Draft = {
   seats: string;
   hireMode: HireMode;
   paymentPolicy: "full" | "daily_flexible";
+  depositPolicy: "upfront" | "handover" | "none";
+  depositAmount: string;
   description: string;
   features: string;
   rules: string;
@@ -70,7 +72,7 @@ export function HireVehicleManager({
         dailyRate: String(vehicle.hire_daily_rate ?? ""),
         seats: String(vehicle.seats ?? ""),
         hireMode: (vehicle.hire_mode ?? "both") as HireMode,
-        paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible",
+        paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible", depositPolicy: ((vehicle as { hire_deposit_policy?: string }).hire_deposit_policy ?? "none") as Draft["depositPolicy"], depositAmount: String((vehicle as { hire_deposit_amount?: number }).hire_deposit_amount || ""),
         description: vehicle.hire_description ?? "",
         features: vehicle.hire_features ?? "",
         rules: vehicle.hire_rules ?? "",
@@ -110,6 +112,8 @@ export function HireVehicleManager({
           seats: draft.seats === "" ? null : Number(draft.seats),
           hireMode: draft.hireMode,
           paymentPolicy: draft.paymentPolicy,
+          depositPolicy: draft.depositPolicy,
+          depositAmount: draft.depositPolicy === "none" ? 0 : Number(draft.depositAmount || 0),
           description: draft.description.trim() || null,
           features: draft.features.trim() || null,
           rules: draft.rules.trim() || null,
@@ -155,7 +159,7 @@ export function HireVehicleManager({
           dailyRate: String(vehicle.hire_daily_rate ?? ""),
           seats: String(vehicle.seats ?? ""),
           hireMode: (vehicle.hire_mode ?? "both") as HireMode,
-          paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible",
+          paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible", depositPolicy: ((vehicle as { hire_deposit_policy?: string }).hire_deposit_policy ?? "none") as Draft["depositPolicy"], depositAmount: String((vehicle as { hire_deposit_amount?: number }).hire_deposit_amount || ""),
           description: vehicle.hire_description ?? "",
           features: vehicle.hire_features ?? "",
           rules: vehicle.hire_rules ?? "",
@@ -227,7 +231,7 @@ export function HireVehicleManager({
             dailyRate: String(vehicle.hire_daily_rate ?? ""),
             seats: String(vehicle.seats ?? ""),
             hireMode: (vehicle.hire_mode ?? "both") as HireMode,
-            paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible",
+            paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible", depositPolicy: ((vehicle as { hire_deposit_policy?: string }).hire_deposit_policy ?? "none") as Draft["depositPolicy"], depositAmount: String((vehicle as { hire_deposit_amount?: number }).hire_deposit_amount || ""),
             description: vehicle.hire_description ?? "",
             features: vehicle.hire_features ?? "",
             rules: vehicle.hire_rules ?? "",
@@ -393,6 +397,35 @@ export function HireVehicleManager({
                     </option>
                   </select>
                 </label>
+                <div className="block sm:col-span-2 lg:col-span-4">
+                  <span className="text-[11px] text-muted-foreground">Refundable deposit</span>
+                  <div className="mt-1 grid gap-2 sm:grid-cols-3">
+                    {([
+                      ["upfront", "Upfront", "Paid with the booking"],
+                      ["handover", "At handover", "Paid in the app at pickup"],
+                      ["none", "No deposit", "Nothing to pay"],
+                    ] as const).map(([value, title, hint]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => updateDraft(vehicle, "depositPolicy", value)}
+                        className={`rounded-xl border p-2 text-left text-xs ${draft.depositPolicy === value ? "border-primary bg-primary/10 text-foreground" : "border-input text-muted-foreground"}`}
+                      >
+                        <span className="block font-semibold text-foreground">{title}</span>
+                        {hint}
+                      </button>
+                    ))}
+                  </div>
+                  {draft.depositPolicy !== "none" ? (
+                    <input
+                      value={draft.depositAmount}
+                      inputMode="numeric"
+                      placeholder="Deposit amount (KES)"
+                      onChange={(event) => updateDraft(vehicle, "depositAmount", event.target.value.replace(/\D/g, ""))}
+                      className="input-base mt-2"
+                    />
+                  ) : null}
+                </div>
               </div>
               {draft.hireMode !== "self_drive" ? (
                 <label className="mt-2 block">

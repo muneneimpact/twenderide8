@@ -747,6 +747,19 @@ function HirePage() {
                       : `Pay KES ${estimatedTotal.toLocaleString("en-KE")} in full before the owner sees the booking.`}
                   </p>
                 ) : null}
+                {chosen ? (
+                  <p className="mt-1 text-xs font-semibold text-foreground">
+                    {(() => {
+                      const amt = Number(chosen.hire_deposit_amount ?? 0);
+                      const kes = `KES ${amt.toLocaleString("en-KE")}`;
+                      if (chosen.hire_deposit_policy === "upfront" && amt > 0)
+                        return `Plus a refundable deposit of ${kes}, paid with this booking.`;
+                      if (chosen.hire_deposit_policy === "handover" && amt > 0)
+                        return `Refundable deposit of ${kes} is paid in the app at pickup, before you get the keys.`;
+                      return "No deposit for this car.";
+                    })()}
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"

@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import {
   listOwnerBookings,
   markHireHandover,
+  requestHandoverDeposit,
   ownerDeclineHire,
   ownerApplySavedSignature,
   type OwnerBooking,
@@ -27,6 +28,12 @@ export function OwnerHireBookings() {
   const handFn = useServerFn(markHireHandover);
   const declineFn = useServerFn(ownerDeclineHire);
   const signFn = useServerFn(ownerApplySavedSignature);
+  const depositFn = useServerFn(requestHandoverDeposit);
+  const depositReq = useMutation({
+    mutationFn: (quoteId: string) => depositFn({ data: { quoteId } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["owner-hire-bookings"] }),
+    onError: (e: Error) => setErr(e.message),
+  });
   const q = useQuery({ queryKey: ["owner-hire-bookings"], queryFn: () => listFn(), refetchInterval: 30_000 });
   const [declining, setDeclining] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -118,18 +125,34 @@ export function OwnerHireBookings() {
               {b.renter_phone ? (
                 <a href={`tel:${b.renter_phone}`} className="mt-1 inline-block font-semibold text-primary">Call renter {b.renter_phone}</a>
               ) : null}
+              <p className="mt-1 font-medium text-foreground">
+                {b.deposit_policy === "none" || b.deposit_amount <= 0
+                  ? "No deposit"
+                  : b.deposit_policy === "upfront"
+                    ? `Refundable deposit KES ${b.deposit_amount.toLocaleString("en-KE")} — paid at booking`
+                    : b.deposit_requested
+                      ? b.paid >= b.total
+                        ? `Refundable deposit KES ${b.deposit_amount.toLocaleString("en-KE")} — paid`
+                        : `Waiting for hirer to pay the KES ${b.deposit_amount.toLocaleString("en-KE")} deposit`
+                      : `Refundable deposit KES ${b.deposit_amount.toLocaleString("en-KE")} — due at pickup`}
+              </p>
               <SignTick b={b} />
               <div className="mt-2 flex flex-wrap gap-2">
                 <Link to="/hire/agreement/$quoteId" params={{ quoteId: b.id }} hash="sign" className="rounded-full border border-primary px-3 py-2 font-semibold text-primary">
                   {b.status === "confirmed" && !b.handed_over_at ? "Walkaround, sign & agreement" : "Sign / agreement"}
                 </Link>
-                {b.status === "confirmed" && !b.handed_over_at ? (
+                {b.status === "confirmed" && !b.handed_over_at && b.deposit_policy === "handover" && b.deposit_amount > 0 && !b.deposit_requested ? (
+                  <button onClick={() => depositReq.mutate(b.id)} disabled={depositReq.isPending} className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">
+                    Ask hirer to pay KES {b.deposit_amount.toLocaleString("en-KE")} deposit
+                  </button>
+                ) : null}
+                {b.status === "confirmed" && !b.handed_over_at && !(b.deposit_policy === "handover" && b.deposit_amount > 0 && (!b.deposit_requested || b.paid < b.total)) ? (
                   <button onClick={() => hand.mutate({ quoteId: b.id, step: "handed_over" })} disabled={hand.isPending} className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">
                     Hand over car
                   </button>
                 ) : null}
                 {b.handed_over_at && !b.returned_at ? (
-                  <button onClick={() => setReturning(returning === b.id ? null : b.id)} disabled={hand.isPending} className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">
+                  <button onClick={() => { setReturning(returning === b.id ? null : b.id); setRet((r) => ({ ...r, deposit: b.deposit_policy === "none" ? "0" : String(b.deposit_amount) })); }} disabled={hand.isPending} className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">
                     Car returned
                   </button>
                 ) : null}

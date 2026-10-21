@@ -9,6 +9,9 @@ import { z } from "zod";
 import { canOwnerDecline } from "./hire-rules";
 
 export interface OwnerBooking {
+  deposit_policy: "upfront" | "handover" | "none";
+  deposit_amount: number;
+  deposit_requested: boolean;
   id: string;
   reference: string;
   vehicle: string;
@@ -93,6 +96,9 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
       owner_signed: Boolean(r.owner_signed_at),
       hirer_signed: Boolean(r.agreement_signed_at),
       agreement_completed: Boolean(r.agreement_completed_at),
+      deposit_policy: (r.deposit_policy ?? "none") as "upfront" | "handover" | "none",
+      deposit_amount: Number(r.deposit_amount ?? 0),
+      deposit_requested: Boolean(r.deposit_requested_at),
     }));
   });
 
@@ -119,6 +125,11 @@ export const markHireHandover = createServerFn({ method: "POST" })
     const q = await loadBookingFor(context.userId, data.quoteId);
     if (q.status !== "confirmed") throw new Error("Only confirmed bookings can be handed over.");
     if (data.step === "returned" && !q.handed_over_at) throw new Error("Mark the handover first.");
+    if (data.step === "handed_over" && q.deposit_policy === "handover" && Number(q.deposit_amount) > 0) {
+      const due = Number(q.quoted_total ?? q.estimated_total);
+      if (!q.deposit_requested_at || Number(q.payment_paid_total ?? 0) < due)
+        throw new Error("The hirer must pay the deposit in the app before you hand over the car.");
+    }
     if (data.step === "returned" && !data.settlement) throw new Error("Enter the deposit and return readings.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const kes = (n: number) => `KES ${Math.round(n).toLocaleString("en-KE")}`;
@@ -277,5 +288,36 @@ export const ownerApplySavedSignature = createServerFn({ method: "POST" })
     const { logAgreement, completeIfBothSigned } = await import("./agreements.server");
     await logAgreement(q.id, context.userId, "owner_signed", { signer: sig.signer_name, kind: "saved", via: "bookings_list" }, { userAgent: null, ip: null });
     await completeIfBothSigned(q.id);
+    return { ok: true, already: false };
+  });
+
+/** Pickup deposit: adds the owner's quoted deposit to the booking so the hirer pays it in the app. */
+export const requestHandoverDeposit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ quoteId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const q = await loadBookingFor(context.userId, data.quoteId);
+    if (q.status !== "confirmed" || q.handed_over_at) throw new Error("This booking is not waiting for pickup.");
+    if (q.deposit_policy !== "handover" || Number(q.deposit_amount) <= 0) throw new Error("This booking has no pickup deposit.");
+    if (q.deposit_requested_at) return { ok: true, already: true };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const amount = Number(q.deposit_amount);
+    const patch: Record<string, unknown> = {
+      deposit_requested_at: new Date().toISOString(),
+      estimated_total: Number(q.estimated_total) + amount,
+      payment_status: "partial",
+    };
+    if (q.quoted_total != null) patch["quoted_total"] = Number(q.quoted_total) + amount;
+    const { error } = await supabaseAdmin.from("hire_quotes").update(patch as never).eq("id", q.id).is("deposit_requested_at", null);
+    if (error) throw new Error(error.message);
+    const { notify } = await import("./notifications.server");
+    await notify({
+      userId: q.requester_id,
+      templateCode: "hire_deposit_due",
+      title: "Pay your refundable deposit",
+      body: `Twende: pay the KES ${Math.round(amount).toLocaleString("en-KE")} refundable deposit for hire ${q.reference} in the app to collect the car.`,
+      critical: true,
+      dedupeKey: `hire-deposit:${q.id}`,
+    } as never);
     return { ok: true, already: false };
   });

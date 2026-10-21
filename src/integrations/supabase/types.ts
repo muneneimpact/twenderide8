@@ -1247,6 +1247,9 @@ export type Database = {
           created_at: string
           currency: string
           days: number
+          deposit_amount: number
+          deposit_policy: string
+          deposit_requested_at: string | null
           drive_mode: string
           end_at: string | null
           estimated_total: number
@@ -1325,6 +1328,9 @@ export type Database = {
           created_at?: string
           currency?: string
           days?: number
+          deposit_amount?: number
+          deposit_policy?: string
+          deposit_requested_at?: string | null
           drive_mode?: string
           end_at?: string | null
           estimated_total?: number
@@ -1403,6 +1409,9 @@ export type Database = {
           created_at?: string
           currency?: string
           days?: number
+          deposit_amount?: number
+          deposit_policy?: string
+          deposit_requested_at?: string | null
           drive_mode?: string
           end_at?: string | null
           estimated_total?: number
@@ -2917,6 +2926,8 @@ export type Database = {
           hire_cancellation_policy: string
           hire_chauffeur_daily_rate: number
           hire_daily_rate: number | null
+          hire_deposit_amount: number
+          hire_deposit_policy: string
           hire_description: string | null
           hire_features: string | null
           hire_insurance_details: string | null
@@ -2952,6 +2963,8 @@ export type Database = {
           hire_cancellation_policy?: string
           hire_chauffeur_daily_rate?: number
           hire_daily_rate?: number | null
+          hire_deposit_amount?: number
+          hire_deposit_policy?: string
           hire_description?: string | null
           hire_features?: string | null
           hire_insurance_details?: string | null
@@ -2987,6 +3000,8 @@ export type Database = {
           hire_cancellation_policy?: string
           hire_chauffeur_daily_rate?: number
           hire_daily_rate?: number | null
+          hire_deposit_amount?: number
+          hire_deposit_policy?: string
           hire_description?: string | null
           hire_features?: string | null
           hire_insurance_details?: string | null
