@@ -42,3 +42,35 @@ export async function textStaffWithLink(
     ids.map((id) => textUserWithLink({ ...input, userId: id, idempotencyKey: `${input.idempotencyKey}:${id}` })),
   );
 }
+
+/** Alert ops, finance and super admins (SMS + WhatsApp when configured) that a vehicle awaits approval. Never throws. */
+export async function alertStaffVehicleSubmitted(vehicleId: string, kind: "ride" | "hire"): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: v } = await supabaseAdmin
+      .from("vehicles")
+      .select("plate_number, make, model, vehicle_class")
+      .eq("id", vehicleId)
+      .maybeSingle();
+    if (!v) return;
+    const path = kind === "hire" ? "/admin/hire" : "/admin";
+    const label = [v.make, v.model].filter(Boolean).join(" ");
+    const msg = `Twende: vehicle ${v.plate_number}${label ? ` (${label})` : ""} was sent for ${kind === "hire" ? "car hire" : "ride"} approval. Review:`;
+    const roles = ["ops_admin", "finance_admin", "super_admin"] as const;
+    const key = `vehicle-submitted:${kind}:${vehicleId}:${Date.now()}`;
+    await textStaffWithLink([...roles], { message: msg, path, eventType: "vehicle_submitted", idempotencyKey: key });
+    const { whatsappGatewayConfigured, whatsappGatewaySend } = await import("./whatsapp-gateway.server");
+    if (!whatsappGatewayConfigured()) return;
+    const { data: staff } = await supabaseAdmin.from("user_roles").select("user_id").in("role", [...roles]);
+    const ids = [...new Set((staff ?? []).map((s) => s.user_id))];
+    if (!ids.length) return;
+    const { data: profs } = await supabaseAdmin.from("profiles").select("phone").in("id", ids);
+    await Promise.allSettled(
+      (profs ?? []).filter((p) => p.phone).map((p) =>
+        whatsappGatewaySend({ to: p.phone!.replace(/^\+/, ""), type: "text", text: { body: `${msg} ${appLink(path)}` } }),
+      ),
+    );
+  } catch (e) {
+    console.error("vehicle submitted alert failed", e);
+  }
+}

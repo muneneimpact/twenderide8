@@ -120,6 +120,7 @@ export const applyAsDriver = createServerFn({ method: "POST" })
       .from("driver_vehicle_authorisations")
       .insert({ vehicle_id: vehicle.id, driver_id: userId });
     await audit(userId, "driver_application_submitted", "driver", userId, { vehicle: vehicle.id });
+    await (await import("./links.server")).alertStaffVehicleSubmitted(vehicle.id, "ride");
     return { vehicle };
   });
 
@@ -174,6 +175,7 @@ export const addVehicleForDriver = createServerFn({ method: "POST" })
     await supabaseAdmin
       .from("driver_vehicle_authorisations")
       .insert({ vehicle_id: vehicle.id, driver_id: context.userId });
+    await (await import("./links.server")).alertStaffVehicleSubmitted(vehicle.id, "ride");
     return { vehicle };
   });
 
@@ -220,6 +222,7 @@ export const addVehicleForHire = createServerFn({ method: "POST" })
       if (error.code === "23505") throw new Error("That number plate is already registered.");
       throw new Error(error.message);
     }
+    await (await import("./links.server")).alertStaffVehicleSubmitted(vehicle.id, "hire");
     return { vehicle };
   });
 
