@@ -27,6 +27,10 @@ export interface OwnerBooking {
   total: number;
   paid: number;
   pay_later: string | null;
+  company_verified: boolean;
+  business_email: string | null;
+  business_registration: string | null;
+  kyc: Array<{ kind: string; label: string; url: string }>;
   handed_over_at: string | null;
   returned_at: string | null;
   can_decline: boolean;
@@ -35,6 +39,13 @@ export interface OwnerBooking {
   hirer_signed: boolean;
   agreement_completed: boolean;
 }
+
+const KYC_LABELS: Record<string, string> = {
+  certificate: "Certificate of registration",
+  kra_pin: "KRA PIN certificate",
+  cr12: "CR12 / directors",
+  other: "Business document",
+};
 
 async function loadBookingFor(userId: string, quoteId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
