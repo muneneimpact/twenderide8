@@ -111,6 +111,8 @@ function BookPage() {
   const [stops, setStops] = useState<Point[]>([]);
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>("go");
   const [pickupNotes, setPickupNotes] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [paymentTouched, setPaymentTouched] = useState(false);
   const [tripKind, setTripKind] = useState<"ride" | "delivery">("ride");
@@ -282,6 +284,8 @@ function BookPage() {
                 vehicleClass,
                 deliveryFleetId: selectedDelivery!.fleetId,
                 pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
+                recipientName: recipientName.trim() || null,
+                recipientPhone: recipientPhone.replace(/\s/g, ""),
               },
             })
           : await quoteFn({
