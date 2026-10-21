@@ -1239,7 +1239,9 @@ function HirePage() {
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-medium text-foreground">{q.reference}</p>
                     <span className="rounded-full bg-secondary px-2.5 py-1 text-xs text-foreground">
-                      {STATUS_COPY[q.status] ?? q.status}
+                      {q.pay_later_method && q.status === "submitted"
+                        ? "Waiting for owner verification"
+                        : (STATUS_COPY[q.status] ?? q.status)}
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
