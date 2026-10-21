@@ -113,6 +113,36 @@ export type Database = {
         }
         Relationships: []
       }
+      business_kyc_documents: {
+        Row: {
+          created_at: string
+          document_kind: string
+          file_path: string
+          id: string
+          saved_for_future: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_kind: string
+          file_path: string
+          id?: string
+          saved_for_future?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          document_kind?: string
+          file_path?: string
+          id?: string
+          saved_for_future?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       comms_log: {
         Row: {
           attempts: number
@@ -1241,6 +1271,8 @@ export type Database = {
           business_email_verified_at: string | null
           business_registration_number: string | null
           commission_percent_snapshot: number | null
+          company_verified_at: string | null
+          company_verified_by: string | null
           contact_email: string | null
           contact_name: string | null
           contact_phone: string | null
@@ -1323,6 +1355,8 @@ export type Database = {
           business_email_verified_at?: string | null
           business_registration_number?: string | null
           commission_percent_snapshot?: number | null
+          company_verified_at?: string | null
+          company_verified_by?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
@@ -1405,6 +1439,8 @@ export type Database = {
           business_email_verified_at?: string | null
           business_registration_number?: string | null
           commission_percent_snapshot?: number | null
+          company_verified_at?: string | null
+          company_verified_by?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
@@ -2938,6 +2974,7 @@ export type Database = {
           hire_minimum_age: number | null
           hire_mode: string
           hire_notes: string | null
+          hire_pay_later_allowed: boolean
           hire_payment_policy: string
           hire_rejection_reason: string | null
           hire_reviewed_at: string | null
@@ -2975,6 +3012,7 @@ export type Database = {
           hire_minimum_age?: number | null
           hire_mode?: string
           hire_notes?: string | null
+          hire_pay_later_allowed?: boolean
           hire_payment_policy?: string
           hire_rejection_reason?: string | null
           hire_reviewed_at?: string | null
@@ -3012,6 +3050,7 @@ export type Database = {
           hire_minimum_age?: number | null
           hire_mode?: string
           hire_notes?: string | null
+          hire_pay_later_allowed?: boolean
           hire_payment_policy?: string
           hire_rejection_reason?: string | null
           hire_reviewed_at?: string | null
