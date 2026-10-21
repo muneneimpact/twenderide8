@@ -241,6 +241,12 @@ function HirePage() {
   const [payCard, setPayCard] = useState<{ quoteId: string; amount?: number | null } | null>(null);
   const navigate = useNavigate();
   const usePayLater = hirerType === "company" && !companyPayNow;
+
+  // If the chosen car's owner doesn't allow pay-later, force Pay now.
+  useEffect(() => {
+    if (chosen && chosen.hire_pay_later_allowed === false && !companyPayNow) setCompanyPayNow(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen?.id, chosen?.hire_pay_later_allowed]);
   const [renterName, setRenterName] = useState("");
   const [rememberDocs, setRememberDocs] = useState(true);
   const [renterIdNumber, setRenterIdNumber] = useState("");
@@ -1190,6 +1196,35 @@ function HirePage() {
               ) : null}
               {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
             </div>
+          </section>
+        ) : null}
+
+        {bookedRef && hirerType === "company" ? (
+          <section className="surface-card border-primary/30 p-4">
+            <p className="text-sm font-semibold text-foreground">
+              Booking {bookedRef} sent for owner verification
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your company details, documents and verified email are kept — book another car for the
+              same company without typing them again.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setVehicleId(null);
+                setOpenId(null);
+                setStartAt("");
+                setReturnAt("");
+                setRulesAccepted(false);
+                setCorporateTerms(null);
+                setBookingStep("browse");
+                setMessage(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="mt-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+            >
+              Book another car
+            </button>
           </section>
         ) : null}
 
