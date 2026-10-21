@@ -824,6 +824,63 @@ export const saveMyHireDocument = createServerFn({ method: "POST" })
     return { ok: true, filePath: data.filePath };
   });
 
+/** Company KYC documents saved on the account for future hires. */
+export const getMyBusinessKyc = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("business_kyc_documents")
+      .select("document_kind, file_path, updated_at")
+      .eq("user_id", context.userId);
+    if (error) throw new Error(`Could not load saved business documents: ${error.message}`);
+    return (data ?? []) as Array<{ document_kind: string; file_path: string; updated_at: string }>;
+  });
+
+/** Save a company KYC upload (paths must live in this user's private folder). */
+export const saveBusinessKycDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        kind: z.enum(["certificate", "kra_pin", "cr12", "other"]),
+        filePath: z.string().min(1).max(400),
+        remember: z.boolean().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    if (
+      !data.filePath.startsWith(`${context.userId}/biz-`) ||
+      data.filePath.includes("..") ||
+      data.filePath.includes("\\")
+    ) {
+      throw new Error("That document upload does not belong to your account.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const fileName = data.filePath.slice(context.userId.length + 1);
+    const { data: files, error: storageError } = await supabaseAdmin.storage
+      .from("hire-documents")
+      .list(context.userId, { limit: 100, search: fileName });
+    if (storageError) throw new Error(`Could not verify document upload: ${storageError.message}`);
+    if (!files?.some((file) => file.name === fileName)) {
+      throw new Error("The uploaded document could not be found. Please upload it again.");
+    }
+    if (data.remember === false) return { ok: true, filePath: data.filePath };
+    const { error } = await supabaseAdmin.from("business_kyc_documents").upsert(
+      {
+        user_id: context.userId,
+        document_kind: data.kind,
+        file_path: data.filePath,
+        saved_for_future: true,
+        updated_at: new Date().toISOString(),
+      } as never,
+      { onConflict: "user_id,document_kind" },
+    );
+    if (error) throw new Error(`Could not save business document: ${error.message}`);
+    return { ok: true, filePath: data.filePath };
+  });
+
 export const listMyHireQuotes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
