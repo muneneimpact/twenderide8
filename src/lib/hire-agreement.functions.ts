@@ -286,3 +286,44 @@ export const getHireReceipt = createServerFn({ method: "GET" })
       },
     };
   });
+
+/**
+ * The hirer's own pickup / return readings (odometer, fuel, notes, camera photos).
+ * Kept separately from the owner's walkaround so both sides have their own proof.
+ * Each save is appended to history; nothing earlier is overwritten.
+ */
+export const saveHirerVehicleDetails = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        quoteId: z.string().uuid(),
+        stage: z.enum(["pickup", "return"]),
+        odometer: z.number().int().min(0).max(5_000_000),
+        fuel: z.string().max(40),
+        notes: z.string().max(1000).nullable(),
+        photos: z.array(z.object({ name: z.string().trim().min(1).max(60), path: z.string() })).max(12).default([]),
+        device: z.string().max(300).nullable().optional(),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { q, supabaseAdmin, isRenter } = await loadAccessible(data.quoteId, context.userId);
+    if (!isRenter) throw new Error("Only the hirer can add these details.");
+    const booked = Number(q.payment_paid_total ?? 0) > 0 || q.payment_status === "paid" || (q.status === "confirmed" && !!q.pay_later_method);
+    if (!booked) throw new Error("Add pickup details once your booking is paid or confirmed.");
+    for (const p of data.photos) {
+      if (!p.path.startsWith(`${context.userId}/hirer-${data.quoteId}-`) || p.path.includes("..")) throw new Error("Invalid photo upload.");
+    }
+    const prev = (q.hirer_inspection ?? {}) as Record<string, unknown>;
+    const pickup = prev["pickup"] as { odometer?: number } | undefined;
+    if (data.stage === "return" && pickup?.odometer != null && data.odometer < pickup.odometer) {
+      throw new Error(`Return odometer can't be below pickup (${pickup.odometer} km).`);
+    }
+    const entry = { odometer: data.odometer, fuel: data.fuel, notes: data.notes, photos: data.photos, at: new Date().toISOString(), device: data.device ?? null, by: context.userId };
+    const history = Array.isArray(prev["history"]) ? (prev["history"] as unknown[]) : [];
+    const next = { ...prev, [data.stage]: entry, history: [...history, { stage: data.stage, ...entry }].slice(-40) };
+    const { error } = await supabaseAdmin.from("hire_quotes").update({ hirer_inspection: next as never }).eq("id", q.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
