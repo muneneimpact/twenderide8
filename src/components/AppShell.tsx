@@ -133,8 +133,8 @@ export function AppShell({
             className="mx-auto flex w-full max-w-4xl snap-x snap-mandatory gap-1 overflow-x-auto overscroll-x-contain rounded-2xl border border-border bg-card/95 p-1.5 shadow-[0_10px_36px_-10px_rgba(0,0,0,0.45)] backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {visibleTabs.map((tab) => {
-              // Book is the primary action: bold and clearly emphasized even when not active.
-              const isPrimary = tab.to === "/book";
+              // Book and Car Hire are the primary actions: bold and emphasized even when not active.
+              const isPrimary = tab.to === "/book" || tab.to === "/hire";
               const inactiveClass = compactDock
                 ? `flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-xl px-1 py-2 text-center text-[11px] leading-tight transition-colors sm:text-sm ${isPrimary ? "font-bold text-primary" : "font-medium text-muted-foreground"}`
                 : `flex min-h-11 min-w-[76px] shrink-0 snap-center items-center justify-center whitespace-nowrap rounded-full px-3 py-2.5 text-center text-xs transition-colors sm:text-sm md:flex-1 ${isPrimary ? "font-bold text-primary" : "font-medium text-muted-foreground"}`;
