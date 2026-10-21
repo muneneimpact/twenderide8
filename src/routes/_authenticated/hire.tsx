@@ -241,12 +241,6 @@ function HirePage() {
   const [payCard, setPayCard] = useState<{ quoteId: string; amount?: number | null } | null>(null);
   const navigate = useNavigate();
   const usePayLater = hirerType === "company" && !companyPayNow;
-
-  // If the chosen car's owner doesn't allow pay-later, force Pay now.
-  useEffect(() => {
-    if (chosen && chosen.hire_pay_later_allowed === false && !companyPayNow) setCompanyPayNow(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chosen?.id, chosen?.hire_pay_later_allowed]);
   const [renterName, setRenterName] = useState("");
   const [rememberDocs, setRememberDocs] = useState(true);
   const [renterIdNumber, setRenterIdNumber] = useState("");

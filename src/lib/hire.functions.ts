@@ -163,7 +163,7 @@ export const listHireVehicles = createServerFn({ method: "GET" })
         .in("status", ["submitted", "quoted", "confirmed"])
         .gte("start_at", new Date(Date.now() - 90 * 86_400_000).toISOString());
       if (error) throw new Error(`Could not load hire availability: ${error.message}`);
-      booked.push(...((data ?? []) as never));
+      booked.push(...((data ?? []) as typeof booked));
     }
     return list.map((vehicle) => ({
       ...vehicle,
