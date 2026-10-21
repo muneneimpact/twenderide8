@@ -14,3 +14,4 @@
 - Wallet cohort multi-select (tags + select-all) for admin funding — awaiting go-ahead.
 - Unpaid company bookings blocking dates: HQ-69F55911, HQ-6829680D; HQ-96D5350F partially paid.
 - App not published — M-PESA callbacks still target the old address until publish.
+- NEW: Companies can book rides for their people (staff ride bookings billed to the company).
