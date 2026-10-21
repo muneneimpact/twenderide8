@@ -61,7 +61,15 @@ export const updateCompanyProfile = createServerFn({ method: "POST" })
     z
       .object({
         companyName: z.string().trim().min(2).max(160),
-        kraPin: z.string().trim().toUpperCase().regex(KRA, "Enter a valid KRA PIN, e.g. P051234567X.").or(z.literal("")),
+      kraPin: z
+        .string()
+        .trim()
+        .toUpperCase()
+        .regex(
+          KRA,
+          "That KRA PIN doesn't look right. Personal PINs start with A and company PINs with P, followed by 9 numbers and a letter — e.g. A001234567X or P051234567X.",
+        )
+        .or(z.literal("")),
         billingEmail: z.string().trim().email().or(z.literal("")),
         registrationNumber: z.string().trim().max(80),
       })

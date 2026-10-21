@@ -45,7 +45,20 @@ function CompanyKycPage() {
 
   const [f, setF] = useState({ companyName: "", kraPin: "", billingEmail: "", registrationNumber: "" });
   const [uploading, setUploading] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [savedTick, setSavedTick] = useState(false);
+
+  /** Server validation errors arrive as a JSON array; show just the message. */
+  function friendlyError(e: unknown): string {
+    const raw = (e as Error).message ?? "Something went wrong. Please try again.";
+    try {
+      const parsed = JSON.parse(raw) as Array<{ message?: string }>;
+      if (Array.isArray(parsed) && parsed[0]?.message) return parsed[0].message;
+    } catch {
+      /* not JSON — already plain text */
+    }
+    return raw;
+  }
 
   useEffect(() => {
     if (profile.data) {
@@ -61,19 +74,23 @@ function CompanyKycPage() {
   const save = useMutation({
     mutationFn: () => saveFn({ data: f }),
     onSuccess: () => {
-      setMessage("Company details saved to your account.");
+      setMessage({ kind: "ok", text: "Company details saved to your account — they will pre-fill every business booking." });
+      setSavedTick(true);
       void qc.invalidateQueries({ queryKey: ["company-profile"] });
     },
-    onError: (e) => setMessage((e as Error).message),
+    onError: (e) => {
+      setSavedTick(false);
+      setMessage({ kind: "err", text: friendlyError(e) });
+    },
   });
 
   async function uploadDoc(kind: string, file: File) {
     if (file.size > 10 * 1024 * 1024) {
-      setMessage("Each document must be 10 MB or smaller.");
+      setMessage({ kind: "err", text: "Each document must be 10 MB or smaller." });
       return;
     }
     if (file.type && !file.type.startsWith("image/") && file.type !== "application/pdf") {
-      setMessage("Upload a photo or PDF of the document.");
+      setMessage({ kind: "err", text: "Upload a photo or PDF of the document." });
       return;
     }
     setUploading(kind);
@@ -89,17 +106,17 @@ function CompanyKycPage() {
       .upload(path, file, { upsert: true, contentType: file.type });
     if (error) {
       setUploading(null);
-      setMessage(error.message);
+      setMessage({ kind: "err", text: friendlyError(error) });
       return;
     }
     try {
       await saveDocFn({ data: { kind: kind as never, filePath: path, remember: true } });
-      setMessage("Document saved to your account — it will be reviewed for approval.");
+      setMessage({ kind: "ok", text: "Document saved to your account — it will be reviewed for approval." });
       void qc.invalidateQueries({ queryKey: ["company-profile"] });
       void qc.invalidateQueries({ queryKey: ["my-business-kyc"] });
     } catch (e) {
       await supabase.storage.from("hire-documents").remove([path]);
-      setMessage((e as Error).message);
+      setMessage({ kind: "err", text: friendlyError(e) });
     } finally {
       setUploading(null);
     }
@@ -111,7 +128,7 @@ function CompanyKycPage() {
     <AppShell title="Company account">
       <div className="space-y-4 pb-24">
         {isNew ? (
-          <section className="surface-card border-primary/30 p-4">
+          <section className="rounded-2xl border border-dashed border-input bg-card/40 p-4">
             <h2 className="font-display text-lg font-bold text-foreground">Hiring as a company?</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Register your company once: add its details and KYC documents below. They are saved to
@@ -122,7 +139,14 @@ function CompanyKycPage() {
         ) : null}
 
         <section className="surface-card p-4">
-          <h2 className="font-display text-base font-semibold text-foreground">Company details</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-base font-semibold text-foreground">Company details</h2>
+            {(savedTick || profile.data?.companyName) && (
+              <span className="rounded-full bg-success/15 px-2.5 py-1 text-[10px] font-bold text-success">
+                ✓ Saved
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">
             Used on bookings, agreements and ETR receipts. You can edit these later — every change
             is recorded and visible to our admin team.
@@ -142,9 +166,12 @@ function CompanyKycPage() {
             />
             <input
               className="input-base w-full uppercase"
-              placeholder="KRA PIN e.g. P051234567X"
+              placeholder="KRA PIN — A… for personal, P… for company"
               value={f.kraPin}
-              onChange={(e) => setF({ ...f, kraPin: e.target.value })}
+              onChange={(e) => {
+                setSavedTick(false);
+                setF({ ...f, kraPin: e.target.value });
+              }}
             />
             <input
               className="input-base w-full"
@@ -203,7 +230,17 @@ function CompanyKycPage() {
           </div>
         </section>
 
-        {message ? <p className="mx-4 text-xs text-muted-foreground">{message}</p> : null}
+        {message ? (
+          <p
+            className={`mx-4 rounded-xl px-3 py-2 text-xs font-medium ${
+              message.kind === "ok"
+                ? "bg-success/15 text-success"
+                : "bg-destructive/10 text-destructive"
+            }`}
+          >
+            {message.text}
+          </p>
+        ) : null}
 
         <CompanyProfileCard />
 
