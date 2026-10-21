@@ -57,6 +57,13 @@
       "when": 1792549360444,
       "tag": "0007_corporate_hire_kyc_paylater",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792551100379,
+      "tag": "0008_hire_etr_and_company_reg",
+      "breakpoints": true
     }
   ]
 }

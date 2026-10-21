@@ -1073,6 +1073,48 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_etr_requests: {
+        Row: {
+          billing_email: string | null
+          company_name: string
+          created_at: string
+          file_path: string | null
+          hire_quote_id: string
+          id: string
+          kra_pin: string
+          requester_id: string
+          status: string
+          uploaded_at: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          billing_email?: string | null
+          company_name: string
+          created_at?: string
+          file_path?: string | null
+          hire_quote_id: string
+          id?: string
+          kra_pin: string
+          requester_id: string
+          status?: string
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          billing_email?: string | null
+          company_name?: string
+          created_at?: string
+          file_path?: string | null
+          hire_quote_id?: string
+          id?: string
+          kra_pin?: string
+          requester_id?: string
+          status?: string
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
       hire_offers: {
         Row: {
           created_at: string
@@ -2063,6 +2105,7 @@ export type Database = {
           company_billing_email: string | null
           company_kra_pin: string | null
           company_name: string | null
+          company_registration_number: string | null
           created_at: string
           email: string | null
           full_name: string | null
@@ -2081,6 +2124,7 @@ export type Database = {
           company_billing_email?: string | null
           company_kra_pin?: string | null
           company_name?: string | null
+          company_registration_number?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -2099,6 +2143,7 @@ export type Database = {
           company_billing_email?: string | null
           company_kra_pin?: string | null
           company_name?: string | null
+          company_registration_number?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
