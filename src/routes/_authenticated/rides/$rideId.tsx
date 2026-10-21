@@ -1,3 +1,4 @@
+import { PayRideWithWallet } from "@/components/CustomerWalletCard";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { getRideCreditState, keepRideAsCredit, retryRideWithCredit } from "@/lib/wallet.functions";
 import { useServerFn } from "@tanstack/react-start";
@@ -437,6 +438,7 @@ function RideDetail() {
                     ? "Send the prompt again"
                     : "Pay with M-Pesa"}
               </button>
+              {!awaitingPayment && <PayRideWithWallet rideId={ride.id} fare={Number(ride.total_fare)} />}
               {paymentFailed && paymentFailure && (
                 <p className="mt-2 text-sm text-destructive">{paymentFailure}</p>
               )}

@@ -13,20 +13,9 @@ async function admin() {
   return (await import("@/integrations/supabase/client.server")).supabaseAdmin;
 }
 
-async function move(args: { userId: string; amount: number; kind: string; status?: string; rideId?: string | null; note: string; key: string; phone?: string | null }) {
-  const db = await admin();
-  const { data, error } = await db.rpc("customer_wallet_move", {
-    p_user_id: args.userId,
-    p_amount: args.amount,
-    p_kind: args.kind,
-    p_status: args.status ?? "posted",
-    p_ride_id: (args.rideId ?? null) as string,
-    p_note: args.note,
-    p_key: args.key,
-    p_phone: (args.phone ?? null) as string,
-  });
-  if (error) throw new Error(error.message);
-  return data as { id: string; duplicate: boolean };
+async function move(args: { userId: string; amount: number; kind: string; status?: string; rideId?: string | null; hireQuoteId?: string | null; note: string; key: string; phone?: string | null }) {
+  const { walletMove } = await import("./wallet-gateway.server");
+  return walletMove(args);
 }
 
 /** Moves a paid, unfulfilled ride's fare into the wallet exactly once. */
@@ -44,19 +33,28 @@ async function creditRide(userId: string, rideId: string) {
   return ride;
 }
 
+async function balancesFor(userId: string) {
+  const db = await admin();
+  const { walletBalances } = await import("./wallet-rules");
+  const { data } = await db.from("customer_wallet_entries").select("amount, status, refundable").eq("user_id", userId);
+  return walletBalances(data ?? []);
+}
+
 export const getCustomerWallet = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const db = await admin();
     const { data } = await db
       .from("customer_wallet_entries")
-      .select("id, amount, kind, status, note, ride_id, payout_reference, created_at")
+      .select("id, amount, kind, status, note, ride_id, hire_quote_id, refundable, payout_reference, created_at")
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
       .limit(100);
-    const rows = data ?? [];
-    const balance = rows.filter((r) => r.status !== "rejected").reduce((s, r) => s + Number(r.amount), 0);
-    return { balance: Number(balance.toFixed(2)), entries: rows };
+    const rows = (data ?? []).filter((r) => Number(r.amount) !== 0);
+    const b = await balancesFor(context.userId);
+    const { walletPromoConfig } = await import("./wallet-gateway.server");
+    const { data: profile } = await db.from("profiles").select("phone").eq("id", context.userId).maybeSingle();
+    return { balance: b.total, refundable: b.cash, promo: b.promo, entries: rows, promoConfig: await walletPromoConfig(), phone: profile?.phone ?? null };
   });
 
 /** Was this ride's payment already moved to the wallet? */
@@ -156,10 +154,11 @@ export const requestWalletRefund = createServerFn({ method: "POST" })
     const db = await admin();
     const { normaliseKenyanPhone } = await import("./phone");
     const phone = normaliseKenyanPhone(data.phone);
-    const { data: rows } = await db.from("customer_wallet_entries").select("amount, status, kind").eq("user_id", context.userId);
+    const { data: rows } = await db.from("customer_wallet_entries").select("status, kind").eq("user_id", context.userId);
     if ((rows ?? []).some((r) => r.kind === "refund_payout" && r.status === "pending")) throw new Error("You already have a refund on the way.");
-    const balance = (rows ?? []).filter((r) => r.status !== "rejected").reduce((s, r) => s + Number(r.amount), 0);
-    if (balance <= 0) throw new Error("Your wallet is empty.");
+    // Only refundable cash can go back to M-PESA; promo credit stays for rides and car hire.
+    const balance = (await balancesFor(context.userId)).cash;
+    if (balance <= 0) throw new Error("Nothing refundable. Promo credit can only pay for rides and car hire.");
     await move({ userId: context.userId, amount: -balance, kind: "refund_payout", status: "pending", note: "Refund to M-PESA", key: `payout:${context.userId}:${Date.now()}`, phone });
     return { amount: balance };
   });
@@ -206,4 +205,81 @@ export const reviewWalletPayout = createServerFn({ method: "POST" })
         : `Your refund request was declined; KES ${Math.abs(Number(row.amount)).toLocaleString("en-KE")} is back in your Twende wallet.`,
     });
     return { ok: true };
+  });
+
+/** Customer top-up: sends an M-PESA prompt. Money is added only after M-PESA confirms. */
+export const startWalletTopup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ amount: z.number().int(), phone: z.string().min(9).max(20) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { TOPUP_MIN, TOPUP_MAX } = await import("./wallet-rules");
+    if (data.amount < TOPUP_MIN || data.amount > TOPUP_MAX) throw new Error(`Top up between KES ${TOPUP_MIN} and KES ${TOPUP_MAX.toLocaleString("en-KE")}.`);
+    const { normaliseKenyanPhone } = await import("./phone");
+    const phone = normaliseKenyanPhone(data.phone);
+    const db = await admin();
+    const { data: intent, error } = await db
+      .from("payment_intents")
+      .insert({ customer_id: context.userId, method: "stk_push", amount: data.amount, msisdn: phone, status: "pending", idempotency_key: `wtopup:${context.userId}:${Date.now()}` })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    const { getPaymentProvider } = await import("./adapters/payment.server");
+    const result = await getPaymentProvider().initiateStkPush({ intentId: intent.id, rideReference: "WALLET-TOPUP", amount: data.amount, msisdn: phone, idempotencyKey: intent.idempotency_key });
+    const st = result.status === "blocked_provider_gate" ? "failed" : result.status;
+    await db.from("payment_intents").update({ status: st, provider: result.provider, mode: result.mode, provider_reference: result.providerReference, provider_request: result.request as never, provider_response: result.response as never, failure_reason: result.accepted ? null : result.message }).eq("id", intent.id);
+    if (!result.accepted) throw new Error(result.message);
+    return { intentId: intent.id, message: "Check your phone and enter your M-PESA PIN." };
+  });
+
+export const getTopupStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ intentId: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const db = await admin();
+    const { data: intent } = await db.from("payment_intents").select("status, failure_reason, idempotency_key").eq("id", data.intentId).eq("customer_id", context.userId).maybeSingle();
+    if (!intent || !intent.idempotency_key.startsWith("wtopup:")) throw new Error("Top-up not found.");
+    return { status: intent.status as string, reason: intent.failure_reason };
+  });
+
+/** Pays a pending M-PESA ride from the wallet (promo credit first, then cash). */
+export const payRideFromWallet = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ rideId: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const db = await admin();
+    const { data: ride } = await db.from("rides").select("id, reference, customer_id, payment_method, payment_status, total_fare, status").eq("id", data.rideId).maybeSingle();
+    if (!ride || ride.customer_id !== context.userId) throw new Error("Ride not found.");
+    if (ride.payment_method !== "stk_push") throw new Error("This is a cash ride.");
+    if (ride.payment_status === "paid") return { ok: true };
+    if (["cancelled_by_customer", "cancelled_by_driver", "cancelled_by_system", "expired"].includes(ride.status)) throw new Error("This ride is no longer active.");
+    if (["processing", "awaiting_confirmation"].includes(ride.payment_status)) throw new Error("An M-PESA prompt is already waiting. Finish or cancel it first.");
+    await move({ userId: context.userId, amount: -Number(ride.total_fare), kind: "ride_payment", rideId: ride.id, note: `Paid ride ${ride.reference} from wallet`, key: `use:${ride.id}` });
+    await db.from("payment_intents").insert({ ride_id: ride.id, customer_id: context.userId, method: "stk_push", amount: ride.total_fare, status: "paid", provider: "twende_wallet", idempotency_key: `wallet:${ride.id}` });
+    await db.from("rides").update({ payment_status: "paid" }).eq("id", ride.id);
+    const { confirmRidePaidFromWallet } = await import("./payments.server");
+    await confirmRidePaidFromWallet(ride.id, `wallet:${ride.id}`, Number(ride.total_fare));
+    return { ok: true };
+  });
+
+/** Pays (part of) a car hire booking from the wallet; settles like an M-PESA payment. */
+export const payHireFromWallet = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ quoteId: z.string().uuid(), amount: z.number().positive() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const db = await admin();
+    const { data: quote } = await db.from("hire_quotes").select("id, reference, requester_id, status, vehicle_id, payment_policy, payment_status, payment_paid_total, quoted_total, estimated_total").eq("id", data.quoteId).maybeSingle();
+    if (!quote || quote.requester_id !== context.userId) throw new Error("That hire booking is not yours.");
+    if (!quote.vehicle_id || quote.payment_policy === "legacy") throw new Error("This booking cannot be paid from the wallet.");
+    if (!["submitted", "confirmed"].includes(quote.status)) throw new Error("This hire request is no longer open for payment.");
+    if (quote.payment_status === "paid") throw new Error("Already fully paid.");
+    const remaining = Math.max(0, Number(quote.quoted_total ?? quote.estimated_total) - Number(quote.payment_paid_total ?? 0));
+    const amount = Math.round(Math.min(data.amount, remaining));
+    if (amount <= 0) throw new Error("Nothing left to pay.");
+    const key = `hirewallet:${quote.id}:${Date.now()}`;
+    await move({ userId: context.userId, amount: -amount, kind: "hire_payment", note: `Car hire ${quote.reference ?? ""} from wallet`, key, hireQuoteId: quote.id });
+    const { data: intent, error } = await db.from("payment_intents").insert({ hire_quote_id: quote.id, customer_id: context.userId, method: "stk_push", amount, status: "paid", provider: "twende_wallet", idempotency_key: key }).select("id").single();
+    if (error) throw new Error(error.message);
+    const { settleHirePayment } = await import("./hire-payments.server");
+    await settleHirePayment(intent.id, "Twende wallet");
+    return { ok: true, amount };
   });

@@ -8,6 +8,13 @@
       "when": 1792539490658,
       "tag": "0000_customer_wallet",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792540688508,
+      "tag": "0001_wallet_topups_promo_funding",
+      "breakpoints": true
     }
   ]
 }

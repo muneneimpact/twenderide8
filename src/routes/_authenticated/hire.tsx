@@ -1,3 +1,4 @@
+import { PayHireWithWallet } from "@/components/CustomerWalletCard";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
 import { createFileRoute } from "@tanstack/react-router";
@@ -1163,6 +1164,11 @@ function HirePage() {
                                       ? `Retry KES ${installment.toLocaleString("en-KE")}`
                                       : `Pay next installment KES ${installment.toLocaleString("en-KE")}`}
                                 </button>
+                                <PayHireWithWallet
+                                  quoteId={q.id}
+                                  amount={q.payment_policy === "full" ? remaining : installment}
+                                />
+                                {/* wallet pay */}
                                 {q.payment_policy === "daily_flexible" &&
                                 remaining > installment ? (
                                   <button

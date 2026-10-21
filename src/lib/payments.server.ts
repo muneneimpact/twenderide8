@@ -123,6 +123,9 @@ export async function applyGatewayTransaction(tx: TwendeTransaction): Promise<Ap
     if (intent.hire_quote_id) {
       const { settleHirePayment } = await import("./hire-payments.server");
       await settleHirePayment(intent.id, tx.mpesaReceipt ?? null);
+    } else if (!intent.ride_id) {
+      const { isWalletIntent, handleWalletIntentPaid } = await import("./wallet-gateway.server");
+      if (isWalletIntent(intent.idempotency_key)) await handleWalletIntentPaid(intent, tx.mpesaReceipt ?? null, tx.amount != null ? Number(tx.amount) : null);
     }
     return {
       matched: true,
@@ -191,6 +194,12 @@ export async function applyGatewayTransaction(tx: TwendeTransaction): Promise<Ap
   }
 
   if (!intent.ride_id) {
+    const { isWalletIntent, handleWalletIntentPaid } = await import("./wallet-gateway.server");
+    if (status === "paid" && isWalletIntent(intent.idempotency_key)) {
+      await handleWalletIntentPaid(intent, tx.mpesaReceipt ?? null, tx.amount != null ? Number(tx.amount) : null);
+    } else if (intent.idempotency_key.startsWith("fundauth:") && status !== "paid") {
+      await supabaseAdmin.from("wallet_funding_batches").update({ status: "failed" }).eq("payment_intent_id", intent.id).eq("status", "awaiting_payment");
+    }
     return {
       matched: true,
       status,
@@ -398,4 +407,9 @@ export async function reconcilePendingPayments(limit = 25) {
   }
 
   return { checked: intentsToCheck.length, updated };
+}
+
+/** A ride paid from the Twende wallet runs the same once-only confirmation steps. */
+export async function confirmRidePaidFromWallet(rideId: string, reference: string, amount: number) {
+  await onPaymentConfirmed(rideId, { id: reference, mpesaReceipt: "Twende wallet", amount } as unknown as TwendeTransaction);
 }
