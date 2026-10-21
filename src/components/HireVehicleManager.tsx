@@ -13,6 +13,7 @@ type Draft = {
   hireMode: HireMode;
   paymentPolicy: "full" | "daily_flexible";
   depositPolicy: "upfront" | "handover" | "none";
+  payLaterAllowed: boolean;
   depositAmount: string;
   description: string;
   features: string;
@@ -72,7 +73,7 @@ export function HireVehicleManager({
         dailyRate: String(vehicle.hire_daily_rate ?? ""),
         seats: String(vehicle.seats ?? ""),
         hireMode: (vehicle.hire_mode ?? "both") as HireMode,
-        paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible", depositPolicy: ((vehicle as { hire_deposit_policy?: string }).hire_deposit_policy ?? "none") as Draft["depositPolicy"], depositAmount: String((vehicle as { hire_deposit_amount?: number }).hire_deposit_amount || ""),
+        paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible", depositPolicy: ((vehicle as { hire_deposit_policy?: string }).hire_deposit_policy ?? "none") as Draft["depositPolicy"], payLaterAllowed: Boolean((vehicle as { hire_pay_later_allowed?: boolean }).hire_pay_later_allowed), depositAmount: String((vehicle as { hire_deposit_amount?: number }).hire_deposit_amount || ""),
         description: vehicle.hire_description ?? "",
         features: vehicle.hire_features ?? "",
         rules: vehicle.hire_rules ?? "",
@@ -114,6 +115,7 @@ export function HireVehicleManager({
           paymentPolicy: draft.paymentPolicy,
           depositPolicy: draft.depositPolicy,
           depositAmount: draft.depositPolicy === "none" ? 0 : Number(draft.depositAmount || 0),
+          payLaterAllowed: draft.payLaterAllowed,
           description: draft.description.trim() || null,
           features: draft.features.trim() || null,
           rules: draft.rules.trim() || null,
@@ -159,7 +161,7 @@ export function HireVehicleManager({
           dailyRate: String(vehicle.hire_daily_rate ?? ""),
           seats: String(vehicle.seats ?? ""),
           hireMode: (vehicle.hire_mode ?? "both") as HireMode,
-          paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible", depositPolicy: ((vehicle as { hire_deposit_policy?: string }).hire_deposit_policy ?? "none") as Draft["depositPolicy"], depositAmount: String((vehicle as { hire_deposit_amount?: number }).hire_deposit_amount || ""),
+          paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible", depositPolicy: ((vehicle as { hire_deposit_policy?: string }).hire_deposit_policy ?? "none") as Draft["depositPolicy"], payLaterAllowed: Boolean((vehicle as { hire_pay_later_allowed?: boolean }).hire_pay_later_allowed), depositAmount: String((vehicle as { hire_deposit_amount?: number }).hire_deposit_amount || ""),
           description: vehicle.hire_description ?? "",
           features: vehicle.hire_features ?? "",
           rules: vehicle.hire_rules ?? "",
@@ -231,7 +233,7 @@ export function HireVehicleManager({
             dailyRate: String(vehicle.hire_daily_rate ?? ""),
             seats: String(vehicle.seats ?? ""),
             hireMode: (vehicle.hire_mode ?? "both") as HireMode,
-            paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible", depositPolicy: ((vehicle as { hire_deposit_policy?: string }).hire_deposit_policy ?? "none") as Draft["depositPolicy"], depositAmount: String((vehicle as { hire_deposit_amount?: number }).hire_deposit_amount || ""),
+            paymentPolicy: vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible", depositPolicy: ((vehicle as { hire_deposit_policy?: string }).hire_deposit_policy ?? "none") as Draft["depositPolicy"], payLaterAllowed: Boolean((vehicle as { hire_pay_later_allowed?: boolean }).hire_pay_later_allowed), depositAmount: String((vehicle as { hire_deposit_amount?: number }).hire_deposit_amount || ""),
             description: vehicle.hire_description ?? "",
             features: vehicle.hire_features ?? "",
             rules: vehicle.hire_rules ?? "",
@@ -426,6 +428,23 @@ export function HireVehicleManager({
                     />
                   ) : null}
                 </div>
+                <label className="flex items-start gap-2 rounded-xl border border-border p-3 sm:col-span-2 lg:col-span-4">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={draft.payLaterAllowed}
+                    onChange={(event) => updateDraft(vehicle, "payLaterAllowed", event.target.checked)}
+                  />
+                  <span className="text-xs text-foreground">
+                    <span className="font-semibold">Allow verified companies to pay later</span>
+                    <span className="mt-0.5 block text-muted-foreground">
+                      Companies that upload their business documents and sign the agreement can book
+                      now and pay by invoice, cheque, bank transfer or M-PESA on a date they choose.
+                      You review their documents and confirm before the dates are reserved. When off,
+                      companies must pay immediately like everyone else.
+                    </span>
+                  </span>
+                </label>
               </div>
               {draft.hireMode !== "self_drive" ? (
                 <label className="mt-2 block">

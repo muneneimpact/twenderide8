@@ -62,6 +62,7 @@ export interface HireVehicleRow {
   hire_mode: string | null;
   hire_payment_policy: HirePaymentPolicy;
   hire_deposit_policy?: string | null;
+  hire_pay_later_allowed?: boolean | null;
   hire_deposit_amount?: number | null;
   hire_daily_rate: number | null;
   hire_cancellation_policy: string;
@@ -117,7 +118,7 @@ async function withPhotos(
 const VEHICLE_FIELDS =
   "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 const PUBLIC_HIRE_VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
@@ -147,18 +148,22 @@ export const listHireVehicles = createServerFn({ method: "GET" })
       start_at: string;
       end_at: string | null;
       days: number;
+      status: string;
       payment_status: string;
       payment_hold_expires_at: string | null;
+      pay_later_method: string | null;
     }> = [];
     for (let offset = 0; offset < ids.length; offset += 100) {
       const { data, error } = await supabaseAdmin
         .from("hire_quotes")
-        .select("vehicle_id, start_at, end_at, days, payment_status, payment_hold_expires_at")
+        .select(
+          "vehicle_id, start_at, end_at, days, status, payment_status, payment_hold_expires_at, pay_later_method",
+        )
         .in("vehicle_id", ids.slice(offset, offset + 100))
         .in("status", ["submitted", "quoted", "confirmed"])
         .gte("start_at", new Date(Date.now() - 90 * 86_400_000).toISOString());
       if (error) throw new Error(`Could not load hire availability: ${error.message}`);
-      booked.push(...(data ?? []));
+      booked.push(...((data ?? []) as typeof booked));
     }
     return list.map((vehicle) => ({
       ...vehicle,
@@ -167,6 +172,7 @@ export const listHireVehicles = createServerFn({ method: "GET" })
           (row) =>
             row.vehicle_id === vehicle.id &&
             (["legacy", "partial", "paid"].includes(row.payment_status) ||
+              (row.status === "confirmed" && Boolean(row.pay_later_method)) ||
               (row.payment_status === "pending" &&
                 Boolean(
                   row.payment_hold_expires_at &&
@@ -211,7 +217,7 @@ export const listMyVehicles = createServerFn({ method: "GET" })
       ? await supabaseAdmin
           .from("hire_quotes")
           .select(
-            "vehicle_id, start_at, end_at, days, status, payment_status, payment_hold_expires_at",
+            "vehicle_id, start_at, end_at, days, status, payment_status, payment_hold_expires_at, pay_later_method",
           )
           .in("vehicle_id", vehicleIds)
           .in("status", ["submitted", "quoted", "confirmed"])
@@ -225,6 +231,7 @@ export const listMyVehicles = createServerFn({ method: "GET" })
             status: string;
             payment_status: string;
             payment_hold_expires_at: string | null;
+            pay_later_method: string | null;
           }>,
         };
     return list.map((vehicle) => ({
@@ -234,6 +241,7 @@ export const listMyVehicles = createServerFn({ method: "GET" })
           (booking) =>
             booking.vehicle_id === vehicle.id &&
             (["legacy", "partial", "paid"].includes(booking.payment_status) ||
+              (booking.status === "confirmed" && Boolean(booking.pay_later_method)) ||
               (booking.payment_status === "pending" &&
                 Boolean(
                   booking.payment_hold_expires_at &&
@@ -282,6 +290,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         submitForHireReview: z.boolean().optional(),
         depositPolicy: z.enum(["upfront", "handover", "none"]).optional(),
         depositAmount: z.number().min(0).max(1_000_000).optional(),
+        payLaterAllowed: z.boolean().optional(),
       })
       .parse(input),
   )
@@ -319,6 +328,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       patch["hire_deposit_policy"] = data.depositPolicy;
       patch["hire_deposit_amount"] = data.depositPolicy === "none" ? 0 : data.depositAmount;
     }
+    if (data.payLaterAllowed !== undefined) patch["hire_pay_later_allowed"] = data.payLaterAllowed;
     if (data.dailyRate !== undefined) patch["hire_daily_rate"] = data.dailyRate;
     if (data.chauffeurDailyRate !== undefined)
       patch["hire_chauffeur_daily_rate"] = data.chauffeurDailyRate;
@@ -482,6 +492,16 @@ export const submitHireQuote = createServerFn({ method: "POST" })
             signature: z.string().min(20).max(200_000),
           })
           .optional(),
+        kycDocuments: z
+          .array(
+            z.object({
+              kind: z.enum(["certificate", "kra_pin", "cr12", "other"]),
+              path: z.string().min(1).max(400),
+              remember: z.boolean().optional(),
+            }),
+          )
+          .max(6)
+          .optional(),
       })
       .parse(input),
   )
@@ -504,6 +524,23 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       if (!verified?.length) throw new Error("Verify the business email with the code we sent first.");
       if (new Date(corporate.payLaterDueDate).getTime() < Date.now() - 86_400_000)
         throw new Error("Choose a payment date from today onwards.");
+      // Company KYC: at least one business document, uploaded now or saved earlier.
+      const kycPaths = (data.kycDocuments ?? []).map((d) => d.path);
+      for (const path of kycPaths) {
+        if (!path.startsWith(`${context.userId}/biz-`) || path.includes(".."))
+          throw new Error("Upload your business documents again.");
+      }
+      if (kycPaths.length === 0) {
+        const { data: saved } = await supabaseAdmin
+          .from("business_kyc_documents")
+          .select("id")
+          .eq("user_id", context.userId)
+          .limit(1);
+        if (!saved?.length)
+          throw new Error(
+            "Upload at least one business document (certificate of registration, KRA PIN certificate or CR12) to hire as a company.",
+          );
+      }
     }
     for (const path of [data.idDocumentPath, data.licenseDocumentPath]) {
       if (path && !path.startsWith(`${context.userId}/`))
@@ -535,7 +572,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       const { data: vehicle } = await supabaseAdmin
         .from("vehicles")
         .select(
-          "id, vehicle_class, hire_daily_rate, hire_chauffeur_daily_rate, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_mode, hire_available, hire_approval_status, status",
+          "id, vehicle_class, hire_daily_rate, hire_chauffeur_daily_rate, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_mode, hire_available, hire_approval_status, status",
         )
         .eq("id", data.vehicleId)
         .maybeSingle();
@@ -549,6 +586,11 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       }
       if (vehicle.hire_mode !== "both" && vehicle.hire_mode !== data.driveMode) {
         throw new Error("That car is not listed for the selected hire type.");
+      }
+      if (corporate && !vehicle.hire_pay_later_allowed) {
+        throw new Error(
+          "This owner allows immediate payments only — please choose Pay now (M-PESA) to book this car.",
+        );
       }
       dailyRate = vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate);
       chauffeurDailyRate = Number(vehicle.hire_chauffeur_daily_rate ?? CHAUFFEUR_DAY_RATE);
@@ -627,7 +669,9 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         commission_percent_snapshot: commissionPercent,
         ...(corporate
           ? {
-              status: data.vehicleId ? "confirmed" : "submitted",
+              // Pay-later bookings wait for the owner to verify the company's KYC;
+              // the dates are blocked only once the owner confirms.
+              status: "submitted",
               pay_later_method: corporate.payLaterMethod,
               pay_later_due_date: corporate.payLaterDueDate,
               business_email: corporate.businessEmail.toLowerCase(),
@@ -654,12 +698,32 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
 
+    // Persist company KYC documents (and remember them for future hires when asked).
+    if (corporate && data.kycDocuments?.length) {
+      for (const doc of data.kycDocuments) {
+        if (doc.remember === false) continue;
+        await supabaseAdmin.from("business_kyc_documents").upsert(
+          {
+            user_id: context.userId,
+            document_kind: doc.kind,
+            file_path: doc.path,
+            saved_for_future: true,
+            updated_at: new Date().toISOString(),
+          } as never,
+          { onConflict: "user_id,document_kind" },
+        );
+      }
+    }
+
     let payment: Awaited<
       ReturnType<typeof import("./hire-payments.server").startHirePayment>
     > | null = null;
     if (corporate && data.vehicleId) {
       const { notifyOwnerOfBooking } = await import("./hire-owner.server");
-      await notifyOwnerOfBooking(row.id, `pay later by ${corporate.payLaterMethod.replace("_", " ")} on ${corporate.payLaterDueDate}`);
+      await notifyOwnerOfBooking(
+        row.id,
+        `company pay-later booking — verify their documents, then confirm. They pay by ${corporate.payLaterMethod.replace("_", " ")} on ${corporate.payLaterDueDate}`,
+      );
     } else if (data.vehicleId && paymentPhone) {
       try {
         const payments = await import("./hire-payments.server");
@@ -758,6 +822,63 @@ export const saveMyHireDocument = createServerFn({ method: "POST" })
       { onConflict: "requester_id,document_kind" },
     );
     if (error) throw new Error(`Could not save document for future bookings: ${error.message}`);
+    return { ok: true, filePath: data.filePath };
+  });
+
+/** Company KYC documents saved on the account for future hires. */
+export const getMyBusinessKyc = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("business_kyc_documents")
+      .select("document_kind, file_path, updated_at")
+      .eq("user_id", context.userId);
+    if (error) throw new Error(`Could not load saved business documents: ${error.message}`);
+    return (data ?? []) as Array<{ document_kind: string; file_path: string; updated_at: string }>;
+  });
+
+/** Save a company KYC upload (paths must live in this user's private folder). */
+export const saveBusinessKycDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        kind: z.enum(["certificate", "kra_pin", "cr12", "other"]),
+        filePath: z.string().min(1).max(400),
+        remember: z.boolean().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    if (
+      !data.filePath.startsWith(`${context.userId}/biz-`) ||
+      data.filePath.includes("..") ||
+      data.filePath.includes("\\")
+    ) {
+      throw new Error("That document upload does not belong to your account.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const fileName = data.filePath.slice(context.userId.length + 1);
+    const { data: files, error: storageError } = await supabaseAdmin.storage
+      .from("hire-documents")
+      .list(context.userId, { limit: 100, search: fileName });
+    if (storageError) throw new Error(`Could not verify document upload: ${storageError.message}`);
+    if (!files?.some((file) => file.name === fileName)) {
+      throw new Error("The uploaded document could not be found. Please upload it again.");
+    }
+    if (data.remember === false) return { ok: true, filePath: data.filePath };
+    const { error } = await supabaseAdmin.from("business_kyc_documents").upsert(
+      {
+        user_id: context.userId,
+        document_kind: data.kind,
+        file_path: data.filePath,
+        saved_for_future: true,
+        updated_at: new Date().toISOString(),
+      } as never,
+      { onConflict: "user_id,document_kind" },
+    );
+    if (error) throw new Error(`Could not save business document: ${error.message}`);
     return { ok: true, filePath: data.filePath };
   });
 
@@ -875,14 +996,16 @@ export const requestHirePaymentReminder = createServerFn({ method: "POST" })
     const { data: quote } = await supabaseAdmin
       .from("hire_quotes")
       .select(
-        "id, reference, requester_id, vehicle_id, estimated_total, quoted_total, days, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, payment_hold_expires_at, status, contact_phone, contact_email",
+        "id, reference, requester_id, vehicle_id, estimated_total, quoted_total, days, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, payment_hold_expires_at, status, contact_phone, contact_email, pay_later_method",
       )
       .eq("id", data.quoteId)
       .maybeSingle();
     if (!quote?.vehicle_id || quote.payment_policy === "legacy" || quote.status !== "confirmed") {
       throw new Error("Only paid, confirmed car-hire bookings can be sent a payment reminder.");
     }
-    if (!["partial"].includes(quote.payment_status))
+    // Pay-later company bookings can be reminded even before any payment (status "pending").
+    const payLater = Boolean(quote.pay_later_method);
+    if (!["partial"].includes(quote.payment_status) && !(payLater && quote.payment_status === "pending"))
       throw new Error("This hire booking has no outstanding installment.");
     const { data: vehicle } = await supabaseAdmin
       .from("vehicles")

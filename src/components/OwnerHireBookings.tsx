@@ -6,10 +6,12 @@ import {
   listOwnerBookings,
   markHireHandover,
   requestHandoverDeposit,
+  ownerConfirmCompanyBooking,
   ownerDeclineHire,
   ownerApplySavedSignature,
   type OwnerBooking,
 } from "@/lib/hire-owner.functions";
+import { requestHirePaymentReminder } from "@/lib/hire.functions";
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleString("en-KE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -17,6 +19,8 @@ const fmt = (iso: string) =>
 function stage(b: OwnerBooking) {
   if (b.returned_at) return { label: "Returned", tone: "bg-secondary text-muted-foreground" };
   if (b.handed_over_at) return { label: "On hire", tone: "bg-primary/15 text-primary" };
+  if (b.status === "submitted" && b.pay_later)
+    return { label: "Verify company", tone: "bg-warning/15 text-warning" };
   if (b.status === "confirmed") return { label: "Ready to hand over", tone: "bg-success/15 text-success" };
   return { label: "Awaiting payment", tone: "bg-warning/15 text-warning" };
 }
@@ -29,6 +33,7 @@ export function OwnerHireBookings() {
   const declineFn = useServerFn(ownerDeclineHire);
   const signFn = useServerFn(ownerApplySavedSignature);
   const depositFn = useServerFn(requestHandoverDeposit);
+  const verifyFn = useServerFn(ownerConfirmCompanyBooking);
   const depositReq = useMutation({
     mutationFn: (quoteId: string) => depositFn({ data: { quoteId } }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["owner-hire-bookings"] }),
@@ -66,6 +71,22 @@ export function OwnerHireBookings() {
   const sign = useMutation({
     mutationFn: (quoteId: string) => signFn({ data: { quoteId } }),
     onSuccess: refresh,
+    onError: (e) => setErr((e as Error).message),
+  });
+  const verify = useMutation({
+    mutationFn: (quoteId: string) => verifyFn({ data: { quoteId } }),
+    onSuccess: refresh,
+    onError: (e) => setErr((e as Error).message),
+  });
+  const remindFn = useServerFn(requestHirePaymentReminder);
+  const remind = useMutation({
+    mutationFn: (vars: { quoteId: string; amount: number }) =>
+      remindFn({ data: { ...vars, channels: ["sms", "email", "whatsapp"] } }),
+    onSuccess: (r) => {
+      setErr(null);
+      refresh();
+      if (!r.accepted) setErr(r.message);
+    },
     onError: (e) => setErr((e as Error).message),
   });
   const SignTick = ({ b }: { b: OwnerBooking }) => (
@@ -122,6 +143,26 @@ export function OwnerHireBookings() {
                 {b.pay_later ? ` · pays ${b.pay_later}` : ""}
                 {b.has_documents ? " · ID on file" : ""}
               </p>
+              {b.pay_later ? (
+                <div className="mt-2 rounded-xl border border-border bg-secondary/40 p-2">
+                  <p className="font-semibold text-foreground">
+                    Company pay-later {b.company_verified ? "· verified ✓" : "· waiting for your verification"}
+                  </p>
+                  {b.business_email ? <p className="text-muted-foreground">Email: {b.business_email}</p> : null}
+                  {b.business_registration ? <p className="text-muted-foreground">Reg. no: {b.business_registration}</p> : null}
+                  {b.kyc.length ? (
+                    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                      {b.kyc.map((doc) => (
+                        <a key={doc.kind} href={doc.url} target="_blank" rel="noreferrer" className="font-semibold text-primary underline">
+                          {doc.label}
+                        </a>
+                      ))}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-destructive">No business documents uploaded yet.</p>
+                  )}
+                </div>
+              ) : null}
               {b.renter_phone ? (
                 <a href={`tel:${b.renter_phone}`} className="mt-1 inline-block font-semibold text-primary">Call renter {b.renter_phone}</a>
               ) : null}
@@ -138,6 +179,15 @@ export function OwnerHireBookings() {
               </p>
               <SignTick b={b} />
               <div className="mt-2 flex flex-wrap gap-2">
+                {b.status === "submitted" && b.pay_later ? (
+                  <button
+                    onClick={() => verify.mutate(b.id)}
+                    disabled={verify.isPending || b.kyc.length === 0}
+                    className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50"
+                  >
+                    {verify.isPending ? "Verifying…" : "Verify company & confirm booking"}
+                  </button>
+                ) : null}
                 <Link to="/hire/agreement/$quoteId" params={{ quoteId: b.id }} hash="sign" className="rounded-full border border-primary px-3 py-2 font-semibold text-primary">
                   {b.status === "confirmed" && !b.handed_over_at ? "Walkaround, sign & agreement" : "Sign / agreement"}
                 </Link>
@@ -154,6 +204,15 @@ export function OwnerHireBookings() {
                 {b.handed_over_at && !b.returned_at ? (
                   <button onClick={() => { setReturning(returning === b.id ? null : b.id); setRet((r) => ({ ...r, deposit: b.deposit_policy === "none" ? "0" : String(b.deposit_amount) })); }} disabled={hand.isPending} className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">
                     Car returned
+                  </button>
+                ) : null}
+                {b.pay_later && b.status === "confirmed" && b.paid < b.total ? (
+                  <button
+                    onClick={() => remind.mutate({ quoteId: b.id, amount: b.total - b.paid })}
+                    disabled={remind.isPending}
+                    className="rounded-full border border-primary px-3 py-2 font-semibold text-primary disabled:opacity-50"
+                  >
+                    {remind.isPending ? "Sending…" : `Request payment (KES ${(b.total - b.paid).toLocaleString("en-KE")})`}
                   </button>
                 ) : null}
                 {b.can_decline ? (

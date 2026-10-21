@@ -15,14 +15,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { ReceiptDownload } from "@/components/ReceiptDownload";
 import {
   estimateHireTotal,
+  getMyBusinessKyc,
   getMyHireDocuments,
   listHireVehicles,
   listMyHireQuotes,
   payHireBooking,
   respondToHireOffer,
+  saveBusinessKycDocument,
   saveMyHireDocument,
   submitHireQuote,
 } from "@/lib/hire.functions";
+
+type KycKind = "certificate" | "kra_pin" | "cr12" | "other";
+const KYC_SLOTS: Array<{ kind: KycKind; label: string }> = [
+  { kind: "certificate", label: "Certificate of registration" },
+  { kind: "kra_pin", label: "KRA PIN certificate" },
+  { kind: "cr12", label: "CR12 / directors list" },
+];
 
 export const Route = createFileRoute("/_authenticated/hire")({
   head: () => ({
@@ -184,6 +193,8 @@ function HirePage() {
   const listFn = useServerFn(listMyHireQuotes);
   const savedDocsFn = useServerFn(getMyHireDocuments);
   const saveDocFn = useServerFn(saveMyHireDocument);
+  const savedKycFn = useServerFn(getMyBusinessKyc);
+  const saveKycFn = useServerFn(saveBusinessKycDocument);
   const vehiclesFn = useServerFn(listHireVehicles);
   const respondFn = useServerFn(respondToHireOffer);
   const payFn = useServerFn(payHireBooking);
@@ -198,6 +209,11 @@ function HirePage() {
   const savedDocuments = useQuery({
     queryKey: ["my-hire-documents", accountId],
     queryFn: () => savedDocsFn(),
+    enabled: Boolean(accountId),
+  });
+  const savedKyc = useQuery({
+    queryKey: ["my-business-kyc", accountId],
+    queryFn: () => savedKycFn(),
     enabled: Boolean(accountId),
   });
   const vehicles = useQuery({
@@ -240,10 +256,12 @@ function HirePage() {
   const [notes, setNotes] = useState("");
   const [idPath, setIdPath] = useState<string | null>(null);
   const [licensePath, setLicensePath] = useState<string | null>(null);
+  const [kycPaths, setKycPaths] = useState<Partial<Record<KycKind, string>>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [corporateTerms, setCorporateTerms] = useState<CorporateTerms | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [bookedRef, setBookedRef] = useState<string | null>(null);
 
   useEffect(() => {
     if (!idPath && savedDocuments.data?.idDocumentPath) {
@@ -253,6 +271,18 @@ function HirePage() {
       setLicensePath(savedDocuments.data.licenseDocumentPath);
     }
   }, [idPath, licensePath, savedDocuments.data]);
+
+  // Pre-fill saved company KYC documents for repeat hires.
+  useEffect(() => {
+    if (!savedKyc.data) return;
+    setKycPaths((current) => {
+      const next = { ...current };
+      for (const doc of savedKyc.data) {
+        if (!next[doc.document_kind as KycKind]) next[doc.document_kind as KycKind] = doc.file_path;
+      }
+      return next;
+    });
+  }, [savedKyc.data]);
 
   useEffect(() => {
     let live = true;
@@ -330,6 +360,12 @@ function HirePage() {
   });
 
   const chosen = all.find((v) => v.id === vehicleId) ?? null;
+
+  // If the chosen car's owner doesn't allow pay-later, force Pay now.
+  useEffect(() => {
+    if (chosen && chosen.hire_pay_later_allowed === false && !companyPayNow) setCompanyPayNow(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen?.id, chosen?.hire_pay_later_allowed]);
   const opened = all.find((v) => v.id === openId) ?? null;
   const clash = Boolean(
     chosen && scheduleValid && start && endDate && overlapsRange(chosen, start, endDate),
@@ -392,6 +428,48 @@ function HirePage() {
       },
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
     );
+  }
+
+  async function uploadBiz(kind: KycKind, file: File) {
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage("Each document must be 10 MB or smaller.");
+      return;
+    }
+    if (file.type && !file.type.startsWith("image/") && file.type !== "application/pdf") {
+      setMessage("Upload a photo or PDF of the document.");
+      return;
+    }
+    setUploading(`biz-${kind}`);
+    setMessage(null);
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) {
+      setUploading(null);
+      return;
+    }
+    const path = `${auth.user.id}/biz-${kind}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, "")}`;
+    const { error } = await supabase.storage
+      .from("hire-documents")
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (error) {
+      setUploading(null);
+      setMessage(error.message);
+      return;
+    }
+    try {
+      await saveKycFn({ data: { kind, filePath: path, remember: rememberDocs } });
+      setKycPaths((current) => ({ ...current, [kind]: path }));
+      void queryClient.invalidateQueries({ queryKey: ["my-business-kyc"] });
+      setMessage(
+        rememberDocs
+          ? "Business document saved to your account for future hires."
+          : "Business document attached to this booking only.",
+      );
+    } catch (error) {
+      await supabase.storage.from("hire-documents").remove([path]);
+      setMessage((error as Error).message);
+    } finally {
+      setUploading(null);
+    }
   }
 
   async function upload(kind: "id" | "license", file: File) {
@@ -462,6 +540,11 @@ function HirePage() {
           licenseDocumentPath: licensePath ?? undefined,
           rulesAccepted,
           corporate: usePayLater && corporateTerms ? corporateTerms : undefined,
+          kycDocuments: usePayLater
+            ? (Object.entries(kycPaths) as Array<[KycKind, string]>)
+                .filter(([, path]) => Boolean(path))
+                .map(([kind, path]) => ({ kind, path, remember: rememberDocs }))
+            : undefined,
         },
       }),
     onSuccess: (row) => {
@@ -475,15 +558,22 @@ function HirePage() {
           })
           .eq("id", accountId);
       }
-      setMessage(
-        usePayLater && corporateTerms
-          ? `Booking ${row.reference} confirmed. Agreement signed; please pay by ${corporateTerms.payLaterMethod.replace("_", " ")} on ${corporateTerms.payLaterDueDate}.`
-          : row.payment
-          ? row.payment.accepted
-            ? `Request ${row.reference} saved. Approve the M-Pesa prompt for KES ${Number(row.payment.amount).toLocaleString("en-KE")}; the owner sees it after the required payment clears.`
-            : `Request ${row.reference} saved, but payment did not start: ${row.payment.message}. Retry from Your requests.`
-          : `Request ${row.reference} sent. Estimate KES ${Number(row.estimated_total).toLocaleString("en-KE")} — a provider will respond.`,
-      );
+      if (usePayLater && corporateTerms) {
+        setBookedRef(row.reference);
+        setMessage(
+          `Booking ${row.reference} sent. The owner will verify your company documents, then your dates are reserved. Pay by ${corporateTerms.payLaterMethod.replace("_", " ")} on ${corporateTerms.payLaterDueDate}.`,
+        );
+        // Take the company straight to the agreement to sign and save it.
+        void navigate({ to: "/hire/agreement/$quoteId", params: { quoteId: row.id }, hash: "sign" });
+      } else {
+        setMessage(
+          row.payment
+            ? row.payment.accepted
+              ? `Request ${row.reference} saved. Approve the M-Pesa prompt for KES ${Number(row.payment.amount).toLocaleString("en-KE")}; the owner sees it after the required payment clears.`
+              : `Request ${row.reference} saved, but payment did not start: ${row.payment.message}. Retry from Your requests.`
+            : `Request ${row.reference} sent. Estimate KES ${Number(row.estimated_total).toLocaleString("en-KE")} — a provider will respond.`,
+        );
+      }
       if (row.payment?.accepted) setPayCard({ quoteId: row.id, amount: Number(row.payment.amount) });
       setStops([]);
       setNotes("");
@@ -515,6 +605,8 @@ function HirePage() {
     onError: (error) => setMessage((error as Error).message),
   });
 
+  const payLaterBlocked = Boolean(chosen && chosen.hire_pay_later_allowed === false);
+  const kycCount = Object.values(kycPaths).filter(Boolean).length;
   const missing: string[] = [];
   if (!vehicleId) missing.push("choose a vehicle");
   if (!scheduleValid) missing.push("choose a future pickup and return time within 90 days");
@@ -525,6 +617,8 @@ function HirePage() {
   if (hirerType === "company" && !organisation.trim()) missing.push("enter the company name");
   if (usePayLater && !corporateTerms)
     missing.push("verify the business email, pick a payment date and sign the agreement");
+  if (usePayLater && kycCount === 0 && !savedKyc.isPending)
+    missing.push("upload at least one business document (certificate, KRA PIN or CR12)");
   if (!idPath && !savedDocuments.isPending) missing.push("upload your ID");
   if (tab === "self_drive" && !licensePath && !savedDocuments.isPending)
     missing.push("upload your driving licence");
@@ -1035,17 +1129,45 @@ function HirePage() {
                   {[
                     { k: true, t: "Pay now (M-PESA)", d: "No email check needed" },
                     { k: false, t: "Pay later", d: "Invoice, cheque or bank" },
-                  ].map((o) => (
-                    <button
-                      key={String(o.k)}
-                      type="button"
-                      onClick={() => setCompanyPayNow(o.k)}
-                      className={`rounded-xl border p-3 text-left ${companyPayNow === o.k ? "border-primary bg-primary/10" : "border-border"}`}
-                    >
-                      <p className="font-semibold text-foreground">{o.t}</p>
-                      <p className="text-muted-foreground">{o.d}</p>
-                    </button>
-                  ))}
+                  ].map((o) => {
+                    const disabled = !o.k && payLaterBlocked;
+                    return (
+                      <button
+                        key={String(o.k)}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => setCompanyPayNow(o.k)}
+                        className={`rounded-xl border p-3 text-left disabled:opacity-50 ${companyPayNow === o.k ? "border-primary bg-primary/10" : "border-border"}`}
+                      >
+                        <p className="font-semibold text-foreground">{o.t}</p>
+                        <p className="text-muted-foreground">
+                          {disabled ? "This owner allows immediate payments only" : o.d}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              {usePayLater && chosen ? (
+                <div className="rounded-xl border border-border p-3">
+                  <p className="text-xs font-semibold text-foreground">Business documents (KYC)</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Upload at least one. The owner reviews them before your booking is confirmed.
+                    {rememberDocs
+                      ? " They are saved to your account and reused for future hires."
+                      : " Tick the save option above to reuse them for future hires."}
+                  </p>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {KYC_SLOTS.map((slot) => (
+                      <UploadBox
+                        key={slot.kind}
+                        label={slot.label}
+                        done={Boolean(kycPaths[slot.kind])}
+                        busy={uploading === `biz-${slot.kind}`}
+                        onFile={(f) => void uploadBiz(slot.kind, f)}
+                      />
+                    ))}
+                  </div>
                 </div>
               ) : null}
               {usePayLater && chosen ? (
@@ -1077,6 +1199,35 @@ function HirePage() {
           </section>
         ) : null}
 
+        {bookedRef && hirerType === "company" ? (
+          <section className="surface-card border-primary/30 p-4">
+            <p className="text-sm font-semibold text-foreground">
+              Booking {bookedRef} sent for owner verification
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your company details, documents and verified email are kept — book another car for the
+              same company without typing them again.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setVehicleId(null);
+                setOpenId(null);
+                setStartAt("");
+                setReturnAt("");
+                setRulesAccepted(false);
+                setCorporateTerms(null);
+                setBookingStep("browse");
+                setMessage(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="mt-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+            >
+              Book another car
+            </button>
+          </section>
+        ) : null}
+
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Your requests</h3>
           {(quotes.data ?? []).length === 0 ? (
@@ -1088,7 +1239,9 @@ function HirePage() {
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-medium text-foreground">{q.reference}</p>
                     <span className="rounded-full bg-secondary px-2.5 py-1 text-xs text-foreground">
-                      {STATUS_COPY[q.status] ?? q.status}
+                      {q.pay_later_method && q.status === "submitted"
+                        ? "Waiting for owner verification"
+                        : (STATUS_COPY[q.status] ?? q.status)}
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -1107,11 +1260,11 @@ function HirePage() {
                   {q.admin_notes ? (
                     <p className="mt-1 text-xs text-muted-foreground">{q.admin_notes}</p>
                   ) : null}
-                  {q.vehicle_id &&
+                   {q.vehicle_id &&
                   (q.payment_status === "paid" ||
                     q.payment_status === "partially_paid" ||
                     Number(q.payment_paid_total ?? 0) > 0 ||
-                    (q.status === "confirmed" && !!q.pay_later_method)) ? (
+                    !!q.pay_later_method) ? (
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Link
                         to="/hire/agreement/$quoteId"

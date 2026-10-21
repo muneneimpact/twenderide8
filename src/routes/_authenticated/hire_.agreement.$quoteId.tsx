@@ -118,7 +118,8 @@ function AgreementPage() {
   const extraPhotos = d.extraPhotos ?? [];
   const brand = (d.branding as Branding | null) ?? DEFAULT_BRANDING;
   const chauffeured = b.drive_mode !== "self_drive";
-  const complete = Boolean(b.completed_at);
+  // The final agreement PDF is issued once the hire is done (car returned) and both sides signed.
+  const complete = Boolean(b.completed_at) && Boolean(b.returned_at);
   const sections = buildSections(d, brand.agreement_extra_terms);
 
   async function emailWithPdf() {
@@ -168,7 +169,7 @@ function AgreementPage() {
             </button>
             {Number(b.paid) > 0 ? <ReceiptDownload kind="hire" id={quoteId} label="Receipt (PDF)" className="rounded-full border border-input px-4 py-2 text-xs font-semibold text-foreground disabled:opacity-50" /> : null}
           </div>
-          {!complete ? <p className="text-xs text-muted-foreground">Download unlocks once both the hirer and the owner have signed. A copy is then emailed to both automatically.</p> : null}
+          {!complete ? <p className="text-xs text-muted-foreground">Download unlocks once the hire is completed (car returned) and both the hirer and the owner have signed. A copy is then emailed to both automatically.</p> : null}
           {pdfErr ? <p className="text-xs text-destructive">{pdfErr}</p> : null}
           {complete ? (
             <div className="flex flex-wrap gap-2">

@@ -50,6 +50,13 @@
       "when": 1792548391756,
       "tag": "0006_hirer_pickup_details",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792549360444,
+      "tag": "0007_corporate_hire_kyc_paylater",
+      "breakpoints": true
     }
   ]
 }
