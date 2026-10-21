@@ -256,10 +256,12 @@ function HirePage() {
   const [notes, setNotes] = useState("");
   const [idPath, setIdPath] = useState<string | null>(null);
   const [licensePath, setLicensePath] = useState<string | null>(null);
+  const [kycPaths, setKycPaths] = useState<Partial<Record<KycKind, string>>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [corporateTerms, setCorporateTerms] = useState<CorporateTerms | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [bookedRef, setBookedRef] = useState<string | null>(null);
 
   useEffect(() => {
     if (!idPath && savedDocuments.data?.idDocumentPath) {
@@ -269,6 +271,18 @@ function HirePage() {
       setLicensePath(savedDocuments.data.licenseDocumentPath);
     }
   }, [idPath, licensePath, savedDocuments.data]);
+
+  // Pre-fill saved company KYC documents for repeat hires.
+  useEffect(() => {
+    if (!savedKyc.data) return;
+    setKycPaths((current) => {
+      const next = { ...current };
+      for (const doc of savedKyc.data) {
+        if (!next[doc.document_kind as KycKind]) next[doc.document_kind as KycKind] = doc.file_path;
+      }
+      return next;
+    });
+  }, [savedKyc.data]);
 
   useEffect(() => {
     let live = true;
