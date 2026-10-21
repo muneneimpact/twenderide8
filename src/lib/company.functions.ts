@@ -122,6 +122,7 @@ export const deleteCompanyDocument = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ kind: z.enum(["certificate", "kra_pin", "cr12", "other"]) }).parse(i))
   .handler(async ({ data, context }) => {
     await removeDocs(context.userId, [data.kind]);
+    await logKycEdit(context.userId, { action: "document_deleted", field: data.kind });
     return { ok: true };
   });
 
@@ -130,12 +131,22 @@ export const deleteCompanyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: before } = await supabaseAdmin
+      .from("profiles")
+      .select("company_name")
+      .eq("id", context.userId)
+      .maybeSingle();
     await removeDocs(context.userId);
     const { error } = await supabaseAdmin
       .from("profiles")
       .update({ company_name: null, company_kra_pin: null, company_billing_email: null, company_registration_number: null })
       .eq("id", context.userId);
     if (error) throw new Error(error.message);
+    await logKycEdit(context.userId, {
+      action: "profile_deleted",
+      field: "company_name",
+      oldValue: before?.company_name ?? null,
+    });
     return { ok: true };
   });
 
