@@ -254,6 +254,30 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_wallet_pins: {
+        Row: {
+          failed_attempts: number
+          locked_until: string | null
+          pin_hash: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          failed_attempts?: number
+          locked_until?: string | null
+          pin_hash: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          failed_attempts?: number
+          locked_until?: string | null
+          pin_hash?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       distance_bands: {
         Row: {
           admin_label: string
@@ -1469,9 +1493,13 @@ export type Database = {
           claimant_id: string
           contact_phone: string | null
           created_at: string
+          customer_confirmed_at: string | null
           description: string
           driver_note: string | null
+          dropoff_note: string | null
+          handover_request: string | null
           id: string
+          phone_shared_at: string | null
           report_id: string
           ride_id: string
           security_details: string | null
@@ -1482,9 +1510,13 @@ export type Database = {
           claimant_id: string
           contact_phone?: string | null
           created_at?: string
+          customer_confirmed_at?: string | null
           description: string
           driver_note?: string | null
+          dropoff_note?: string | null
+          handover_request?: string | null
           id?: string
+          phone_shared_at?: string | null
           report_id: string
           ride_id: string
           security_details?: string | null
@@ -1495,9 +1527,13 @@ export type Database = {
           claimant_id?: string
           contact_phone?: string | null
           created_at?: string
+          customer_confirmed_at?: string | null
           description?: string
           driver_note?: string | null
+          dropoff_note?: string | null
+          handover_request?: string | null
           id?: string
+          phone_shared_at?: string | null
           report_id?: string
           ride_id?: string
           security_details?: string | null
@@ -1520,6 +1556,7 @@ export type Database = {
           description: string
           id: string
           kind: string
+          photo_path: string | null
           reporter_id: string
           reporter_role: string
           ride_ids: string[]
@@ -1531,6 +1568,7 @@ export type Database = {
           description: string
           id?: string
           kind: string
+          photo_path?: string | null
           reporter_id: string
           reporter_role: string
           ride_ids?: string[]
@@ -1542,6 +1580,7 @@ export type Database = {
           description?: string
           id?: string
           kind?: string
+          photo_path?: string | null
           reporter_id?: string
           reporter_role?: string
           ride_ids?: string[]
@@ -3082,6 +3121,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wallet_pin_resets: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          phone: string
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone: string
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone?: string
+          user_id?: string
+          verified_at?: string | null
+        }
+        Relationships: []
       }
       wallets: {
         Row: {

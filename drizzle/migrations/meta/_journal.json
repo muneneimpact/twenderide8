@@ -15,6 +15,13 @@
       "when": 1792540688508,
       "tag": "0001_wallet_topups_promo_funding",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792541699785,
+      "tag": "0002_ratings_wallet_pin_lostfound",
+      "breakpoints": true
     }
   ]
 }
