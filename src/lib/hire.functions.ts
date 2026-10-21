@@ -117,7 +117,7 @@ async function withPhotos(
 const VEHICLE_FIELDS =
   "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 const PUBLIC_HIRE_VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
@@ -147,18 +147,22 @@ export const listHireVehicles = createServerFn({ method: "GET" })
       start_at: string;
       end_at: string | null;
       days: number;
+      status: string;
       payment_status: string;
       payment_hold_expires_at: string | null;
+      pay_later_method: string | null;
     }> = [];
     for (let offset = 0; offset < ids.length; offset += 100) {
       const { data, error } = await supabaseAdmin
         .from("hire_quotes")
-        .select("vehicle_id, start_at, end_at, days, payment_status, payment_hold_expires_at")
+        .select(
+          "vehicle_id, start_at, end_at, days, status, payment_status, payment_hold_expires_at, pay_later_method",
+        )
         .in("vehicle_id", ids.slice(offset, offset + 100))
         .in("status", ["submitted", "quoted", "confirmed"])
         .gte("start_at", new Date(Date.now() - 90 * 86_400_000).toISOString());
       if (error) throw new Error(`Could not load hire availability: ${error.message}`);
-      booked.push(...(data ?? []));
+      booked.push(...((data ?? []) as never));
     }
     return list.map((vehicle) => ({
       ...vehicle,
@@ -167,6 +171,7 @@ export const listHireVehicles = createServerFn({ method: "GET" })
           (row) =>
             row.vehicle_id === vehicle.id &&
             (["legacy", "partial", "paid"].includes(row.payment_status) ||
+              (row.status === "confirmed" && Boolean(row.pay_later_method)) ||
               (row.payment_status === "pending" &&
                 Boolean(
                   row.payment_hold_expires_at &&
