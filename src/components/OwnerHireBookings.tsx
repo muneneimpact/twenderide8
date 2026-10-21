@@ -11,6 +11,7 @@ import {
   ownerApplySavedSignature,
   type OwnerBooking,
 } from "@/lib/hire-owner.functions";
+import { requestHirePaymentReminder } from "@/lib/hire.functions";
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleString("en-KE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -75,6 +76,17 @@ export function OwnerHireBookings() {
   const verify = useMutation({
     mutationFn: (quoteId: string) => verifyFn({ data: { quoteId } }),
     onSuccess: refresh,
+    onError: (e) => setErr((e as Error).message),
+  });
+  const remindFn = useServerFn(requestHirePaymentReminder);
+  const remind = useMutation({
+    mutationFn: (vars: { quoteId: string; amount: number }) =>
+      remindFn({ data: { ...vars, channels: ["sms", "email", "whatsapp"] } }),
+    onSuccess: (r) => {
+      setErr(null);
+      refresh();
+      if (!r.accepted) setErr(r.message);
+    },
     onError: (e) => setErr((e as Error).message),
   });
   const SignTick = ({ b }: { b: OwnerBooking }) => (
