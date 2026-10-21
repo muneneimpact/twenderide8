@@ -9,6 +9,9 @@ import { z } from "zod";
 import { canOwnerDecline } from "./hire-rules";
 
 export interface OwnerBooking {
+  deposit_policy: "upfront" | "handover" | "none";
+  deposit_amount: number;
+  deposit_requested: boolean;
   id: string;
   reference: string;
   vehicle: string;
