@@ -149,18 +149,44 @@ export const retryRideWithCredit = createServerFn({ method: "POST" })
 /** Sends the whole wallet balance back to M-PESA (finance pays it out). */
 export const requestWalletRefund = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ phone: z.string().min(9).max(20) }).parse(i))
+  .inputValidator((i) =>
+    z.object({ phone: z.string().min(9).max(20), amount: z.number().positive().max(70_000).optional(), pin: z.string().optional() }).parse(i),
+  )
   .handler(async ({ data, context }) => {
+    const { assertWalletPin } = await import("./wallet-pin.server");
+    await assertWalletPin(context.userId, data.pin);
     const db = await admin();
     const { normaliseKenyanPhone } = await import("./phone");
     const phone = normaliseKenyanPhone(data.phone);
     const { data: rows } = await db.from("customer_wallet_entries").select("status, kind").eq("user_id", context.userId);
-    if ((rows ?? []).some((r) => r.kind === "refund_payout" && r.status === "pending")) throw new Error("You already have a refund on the way.");
+    if ((rows ?? []).some((r) => r.kind === "refund_payout" && r.status === "pending")) throw new Error("You already have a refund pending. Wait until it is paid.");
     // Only refundable cash can go back to M-PESA; promo credit stays for rides and car hire.
-    const balance = (await balancesFor(context.userId)).cash;
-    if (balance <= 0) throw new Error("Nothing refundable. Promo credit can only pay for rides and car hire.");
-    await move({ userId: context.userId, amount: -balance, kind: "refund_payout", status: "pending", note: "Refund to M-PESA", key: `payout:${context.userId}:${Date.now()}`, phone });
-    return { amount: balance };
+    const cash = (await balancesFor(context.userId)).cash;
+    if (cash <= 0) throw new Error("Nothing refundable. Promo credit can only pay for rides and car hire.");
+    const amount = Math.round((data.amount ?? cash) * 100) / 100;
+    if (amount > cash) throw new Error(`You can refund at most KES ${cash.toLocaleString("en-KE")}.`);
+    await move({ userId: context.userId, amount: -amount, kind: "refund_payout", status: "pending", note: "Refund to M-PESA (pending)", key: `payout:${context.userId}:${Date.now()}`, phone });
+    // Alert finance/super admins by SMS + WhatsApp. Never blocks the request.
+    try {
+      const { textStaffWithLink } = await import("./links.server");
+      const msg = `Twende refund request: KES ${amount.toLocaleString("en-KE")} to ${phone}. Pending until paid.`;
+      const key = `wallet-refund-req:${context.userId}:${Date.now()}`;
+      await textStaffWithLink(["finance_admin", "super_admin"], { message: msg, path: "/admin/finance", eventType: "wallet_refund_request", idempotencyKey: key });
+      const { whatsappGatewayConfigured, whatsappGatewaySend } = await import("./whatsapp-gateway.server");
+      if (whatsappGatewayConfigured()) {
+        const { data: staff } = await db.from("user_roles").select("user_id").in("role", ["finance_admin", "super_admin"]);
+        const ids = [...new Set((staff ?? []).map((s) => s.user_id))];
+        const { data: profs } = ids.length ? await db.from("profiles").select("phone").in("id", ids) : { data: [] };
+        await Promise.allSettled(
+          (profs ?? []).filter((p) => p.phone).map((p) =>
+            whatsappGatewaySend({ to: p.phone!.replace(/^\+/, ""), type: "text", text: { body: `${msg} https://twenderides.lovable.app/admin/finance` } }),
+          ),
+        );
+      }
+    } catch (e) {
+      console.error("refund admin alert failed", e);
+    }
+    return { amount };
   });
 
 export const listWalletPayouts = createServerFn({ method: "POST" })

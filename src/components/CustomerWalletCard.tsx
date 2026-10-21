@@ -50,11 +50,18 @@ export function CustomerWalletCard() {
     if (status.data?.status === "paid") void qc.invalidateQueries({ queryKey: ["customer-wallet"] });
   }, [status.data?.status, qc]);
 
+  const [refundAmt, setRefundAmt] = useState("");
+  const [refundPin, setRefundPin] = useState("");
   const refund = useMutation({
-    mutationFn: () => refundFn({ data: { phone } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["customer-wallet"] }),
+    mutationFn: () => refundFn({ data: { phone, amount: Number(refundAmt), pin: refundPin } }),
+    onSuccess: () => {
+      setRefundPin("");
+      setShowRefund(false);
+      void qc.invalidateQueries({ queryKey: ["customer-wallet"] });
+    },
   });
   const d = wallet.data;
+  const pendingRefund = (d?.entries ?? []).find((e) => e.kind === "refund_payout" && e.status === "pending");
   const balance = d?.balance ?? 0;
   const entries = d?.entries ?? [];
   const promo = d?.promoConfig;
@@ -108,14 +115,29 @@ export function CustomerWalletCard() {
         )}
       </div>
 
-      {(d?.refundable ?? 0) > 0 && (
+      {pendingRefund && (
+        <div className="mt-4 rounded-xl border border-border bg-secondary p-3 text-sm">
+          <p className="font-semibold text-foreground">Refund pending: KES {Math.abs(Number(pendingRefund.amount)).toLocaleString("en-KE")}</p>
+          <p className="text-xs text-muted-foreground">It stays pending until Twende Finance sends it to your M-PESA.</p>
+        </div>
+      )}
+      {(d?.refundable ?? 0) > 0 && !pendingRefund && (
         <div className="mt-4">
           {!showRefund ? (
-            <button onClick={() => setShowRefund(true)} className="text-xs font-semibold text-muted-foreground underline">Refund my money to M-PESA</button>
+            <button onClick={() => { setShowRefund(true); setRefundAmt(String(d?.refundable ?? "")); }} className="text-xs font-semibold text-muted-foreground underline">Refund my money to M-PESA</button>
           ) : (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button onClick={() => refund.mutate()} disabled={refund.isPending || phone.trim().length < 9} className="rounded-md border border-border px-4 py-2 text-sm font-semibold disabled:opacity-60">
-                {refund.isPending ? "Requesting…" : `Refund KES ${(d?.refundable ?? 0).toLocaleString("en-KE")} to ${phone || "M-PESA"}`}
+            <div className="space-y-2">
+              <label className="block text-xs text-muted-foreground">
+                Amount (up to KES {(d?.refundable ?? 0).toLocaleString("en-KE")})
+                <input value={refundAmt} onChange={(e) => setRefundAmt(e.target.value.replace(/[^\d.]/g, ""))} inputMode="decimal" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground" />
+              </label>
+              <button type="button" onClick={() => setRefundAmt(String(d?.refundable ?? ""))} className="text-xs font-semibold underline">Use full amount</button>
+              <label className="block text-xs text-muted-foreground">
+                Wallet PIN
+                <input value={refundPin} onChange={(e) => setRefundPin(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" type="password" autoComplete="off" placeholder="••••" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm tracking-widest text-foreground" />
+              </label>
+              <button onClick={() => refund.mutate()} disabled={refund.isPending || phone.trim().length < 9 || refundPin.length !== 4 || !(Number(refundAmt) > 0) || Number(refundAmt) > (d?.refundable ?? 0)} className="w-full rounded-md border border-border px-4 py-2 text-sm font-semibold disabled:opacity-60">
+                {refund.isPending ? "Requesting…" : `Refund KES ${Number(refundAmt || 0).toLocaleString("en-KE")} to ${phone || "M-PESA"}`}
               </button>
             </div>
           )}
@@ -123,7 +145,7 @@ export function CustomerWalletCard() {
         </div>
       )}
       {refund.isError && <p className="mt-2 text-sm text-destructive">{(refund.error as Error).message}</p>}
-      {refund.isSuccess && <p className="mt-2 text-sm text-primary">Refund requested. Finance will send it to your M-PESA.</p>}
+      {refund.isSuccess && <p className="mt-2 text-sm text-primary">Refund requested — pending until Finance sends it to your M-PESA.</p>}
 
       {entries.length > 0 && (
         <ul className="mt-4 divide-y divide-border text-sm">
