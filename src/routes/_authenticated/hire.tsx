@@ -84,7 +84,9 @@ function overlapsRange(vehicle: Vehicle, start: Date, end: Date) {
 
 function nextAvailableStart(vehicle: Vehicle, days: number, from = new Date()) {
   let cursor = from.getTime();
-  const duration = Math.max(1, days) * DAY;
+  // days <= 0: just "is it free right now / today" (one hour slot), so a car
+  // booked from tomorrow still shows as available today.
+  const duration = days > 0 ? days * DAY : 60 * 60_000;
   const bookings = [...vehicle.bookings].sort(
     (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
   );
@@ -355,10 +357,9 @@ function HirePage() {
     const bBusy = Boolean(scheduleValid && start && endDate && overlapsRange(b, start, endDate));
     if (scheduleValid && aBusy !== bBusy) return aBusy ? 1 : -1;
     const durationDays = days || 1;
-    const refA = scheduleValid && aBusy && endDate ? endDate : new Date();
-    const refB = scheduleValid && bBusy && endDate ? endDate : new Date();
-    const nextA = nextAvailableStart(a, durationDays, refA).getTime();
-    const nextB = nextAvailableStart(b, durationDays, refB).getTime();
+    const dur = scheduleValid ? durationDays : 0;
+    const nextA = nextAvailableStart(a, dur).getTime();
+    const nextB = nextAvailableStart(b, dur).getTime();
     return nextA - nextB || listedDayTotal(a, tab) - listedDayTotal(b, tab);
   });
 
@@ -732,8 +733,8 @@ function HirePage() {
                 );
                 const availabilityFrom = nextAvailableStart(
                   v,
-                  scheduleValid && busy ? days : scheduleValid ? days : 1,
-                  scheduleValid && busy && endDate ? endDate : new Date(),
+                  scheduleValid ? days : 0,
+                  new Date(),
                 );
                 const availabilityLabel = scheduleValid
                   ? busy

@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { getMyCompanyBilling, getRideEtr, listEtrRequests, requestRideEtr, uploadEtrDocument } from "@/lib/etr.functions";
 import { pdfToBase64 } from "@/lib/pdf-docs";
+import { listHireEtrQueue, uploadHireEtr } from "@/lib/company.functions";
 
 /** Customer side: request a KRA ETR for a completed ride; company details are reused from the account. */
 export function RideEtrRequest({ rideId }: { rideId: string }) {
@@ -113,6 +114,49 @@ export function EtrQueue() {
           </li>
         ))}
         {list.isSuccess && !list.data.length ? <li className="py-2 text-xs text-muted-foreground">No ETR requests yet.</li> : null}
+      </ul>
+    </section>
+  );
+}
+
+/** Finance / admin: ETR requests for company car hires. */
+export function HireEtrQueue() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listHireEtrQueue);
+  const uploadFn = useServerFn(uploadHireEtr);
+  const list = useQuery({ queryKey: ["hire-etr-queue"], queryFn: () => listFn() });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  async function attach(id: string, file: File) {
+    setErr(null);
+    if (file.type !== "application/pdf") return setErr("Attach a PDF file.");
+    setBusy(id);
+    try {
+      await uploadFn({ data: { requestId: id, pdfBase64: pdfToBase64(new Uint8Array(await file.arrayBuffer())) } });
+      void qc.invalidateQueries({ queryKey: ["hire-etr-queue"] });
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
+  }
+  const rows = list.data ?? [];
+  return (
+    <section className="surface-card p-4">
+      <h3 className="text-sm font-semibold text-foreground">Car hire ETR requests ({rows.filter((r) => r.status !== "sent").length} waiting)</h3>
+      {err ? <p className="mt-1 text-xs text-destructive">{err}</p> : null}
+      <ul className="mt-2 divide-y divide-border">
+        {rows.map((r) => (
+          <li key={r.id} className="py-2.5 text-xs">
+            <p className="font-semibold text-foreground">{r.company_name} · KRA {r.kra_pin}</p>
+            <p className="text-muted-foreground">Hire {r.reference} · KES {r.paid.toLocaleString()} paid · requested {new Date(r.created_at).toLocaleString("en-KE")}</p>
+            {r.status === "sent" ? (
+              <p className="mt-1 font-semibold text-success">Sent</p>
+            ) : (
+              <label className="mt-1 inline-flex cursor-pointer rounded-full bg-primary px-3 py-1.5 font-semibold text-primary-foreground">
+                {busy === r.id ? "Uploading…" : "Attach ETR PDF"}
+                <input type="file" accept="application/pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void attach(r.id, f); }} />
+              </label>
+            )}
+          </li>
+        ))}
+        {list.isSuccess && !rows.length ? <li className="py-2 text-xs text-muted-foreground">No car hire ETR requests yet.</li> : null}
       </ul>
     </section>
   );

@@ -1,5 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { listMyHireEtr, requestHireEtr } from "@/lib/company.functions";
+import { CompanyProfileCard } from "@/components/CompanyProfileCard";
 
 type Q = {
   id: string;
@@ -37,11 +41,21 @@ export function nextAction(q: Q): string {
 /** Company hirer overview: every booking with agreement, payment and the next step. */
 export function CompanyBookingsDashboard({ quotes }: { quotes: Q[] }) {
   const [tab, setTab] = useState<"active" | "past">("active");
+  const qc = useQueryClient();
+  const etrFn = useServerFn(listMyHireEtr);
+  const reqFn = useServerFn(requestHireEtr);
+  const etrs = useQuery({ queryKey: ["my-hire-etr"], queryFn: () => etrFn() });
+  const askEtr = useMutation({
+    mutationFn: (quoteId: string) => reqFn({ data: { quoteId } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["my-hire-etr"] }),
+  });
   const company = quotes.filter((q) => q.hirer_type === "company");
-  if (!company.length) return null;
+  if (!company.length) return <CompanyProfileCard />;
   const isPast = (q: Q) => Boolean(q.returned_at) || Boolean(q.owner_declined_at) || ["declined", "cancelled", "rejected", "completed"].includes(q.status);
   const list = company.filter((q) => (tab === "past" ? isPast(q) : !isPast(q)));
   return (
+    <>
+    <CompanyProfileCard />
     <section className="surface-card p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-display text-base font-semibold text-foreground">Company bookings</h2>
@@ -83,10 +97,28 @@ export function CompanyBookingsDashboard({ quotes }: { quotes: Q[] }) {
                   Open
                 </Link>
               </div>
+              {paid > 0 ? (() => {
+                const e = etrs.data?.find((x) => x.quoteId === q.id);
+                return (
+                  <div className="mt-2 border-t border-border pt-2 text-xs">
+                    {e?.url ? (
+                      <a href={e.url} target="_blank" rel="noreferrer" className="inline-flex rounded-full bg-primary px-3 py-1 font-semibold text-primary-foreground">Download ETR (PDF)</a>
+                    ) : e ? (
+                      <p className="text-muted-foreground">ETR requested — finance will attach it and text you.</p>
+                    ) : (
+                      <button type="button" disabled={askEtr.isPending} onClick={() => askEtr.mutate(q.id)} className="rounded-full border border-input px-3 py-1 font-semibold text-foreground disabled:opacity-50">
+                        {askEtr.isPending && askEtr.variables === q.id ? "Requesting…" : "Request ETR"}
+                      </button>
+                    )}
+                    {askEtr.isError && askEtr.variables === q.id ? <p className="mt-1 text-destructive">{(askEtr.error as Error).message}</p> : null}
+                  </div>
+                );
+              })() : null}
             </li>
           );
         })}
       </ul>
     </section>
+    </>
   );
 }
