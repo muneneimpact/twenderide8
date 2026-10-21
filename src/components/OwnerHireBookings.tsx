@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import {
   listOwnerBookings,
   markHireHandover,
+  requestHandoverDeposit,
   ownerDeclineHire,
   ownerApplySavedSignature,
   type OwnerBooking,
@@ -27,6 +28,12 @@ export function OwnerHireBookings() {
   const handFn = useServerFn(markHireHandover);
   const declineFn = useServerFn(ownerDeclineHire);
   const signFn = useServerFn(ownerApplySavedSignature);
+  const depositFn = useServerFn(requestHandoverDeposit);
+  const depositReq = useMutation({
+    mutationFn: (quoteId: string) => depositFn({ data: { quoteId } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["owner-hire-bookings"] }),
+    onError: (e: Error) => setErr(e.message),
+  });
   const q = useQuery({ queryKey: ["owner-hire-bookings"], queryFn: () => listFn(), refetchInterval: 30_000 });
   const [declining, setDeclining] = useState<string | null>(null);
   const [reason, setReason] = useState("");
