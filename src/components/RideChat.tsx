@@ -31,7 +31,8 @@ export function RideChat({
   const thread = useQuery({
     queryKey: ["ride-chat", rideId],
     queryFn: () => listFn({ data: { rideId } }),
-    refetchInterval: 8000,
+    // Realtime below is the live path; this is a fast fallback poll.
+    refetchInterval: 3000,
   });
 
   useEffect(() => {
@@ -106,6 +107,20 @@ export function RideChat({
                     : "border border-border bg-card text-foreground"
                 }`}
               >
+                <p
+                  className={`text-[10px] font-semibold ${
+                    message.mine ? "text-primary-foreground/80" : "text-muted-foreground"
+                  }`}
+                >
+                  {message.mine
+                    ? "You"
+                    : (message.senderName ??
+                      (message.senderRole === "driver"
+                        ? "Driver"
+                        : message.senderRole === "ops"
+                          ? "Twende Ops"
+                          : "Customer"))}
+                </p>
                 <p className="whitespace-pre-wrap break-words">{message.body}</p>
                 <p
                   className={`mt-0.5 text-[10px] ${

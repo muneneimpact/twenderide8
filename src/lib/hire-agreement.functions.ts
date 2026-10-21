@@ -262,17 +262,32 @@ export const getHireReceipt = createServerFn({ method: "GET" })
       supabaseAdmin.from("hire_payment_settlements").select("mpesa_receipt, gross_amount, created_at").eq("hire_quote_id", q.id).order("created_at"),
       supabaseAdmin.from("document_branding").select("*").eq("key", "default").maybeSingle(),
       q.vehicle_id ? supabaseAdmin.from("vehicles").select("make, model, plate_number").eq("id", q.vehicle_id).maybeSingle() : Promise.resolve({ data: null }),
-      supabaseAdmin.from("profiles").select("full_name, phone").eq("id", q.requester_id).maybeSingle(),
+      supabaseAdmin.from("profiles").select("full_name, phone, company_name, company_kra_pin, company_registration_number").eq("id", q.requester_id).maybeSingle(),
     ]);
     const end = q.end_at ?? new Date(new Date(q.start_at).getTime() + q.days * 86_400_000).toISOString();
+    // Company bookings are billed to the company, not the person who clicked book.
+    const isCompany = q.hirer_type === "company";
+    const companyName = q.organisation ?? renter?.company_name ?? null;
+    const billedTo = isCompany && companyName ? companyName : (q.renter_name ?? renter?.full_name ?? "Customer");
+    const billingLines: [string, string][] = isCompany && companyName
+      ? [
+          ["Billed to (company)", companyName],
+          ...(q.business_registration_number || renter?.company_registration_number
+            ? [["Registration no.", q.business_registration_number ?? renter?.company_registration_number ?? ""] as [string, string]]
+            : []),
+          ...(renter?.company_kra_pin ? [["Company KRA PIN", renter.company_kra_pin] as [string, string]] : []),
+          ...(q.contact_name ? [["Contact person", q.contact_name] as [string, string]] : []),
+        ]
+      : [];
     return {
       branding: brand,
       receipt: {
         kind: "hire" as const,
         reference: q.reference,
-        customer: q.renter_name ?? renter?.full_name ?? "Customer",
+        customer: billedTo,
         phone: q.contact_phone ?? renter?.phone ?? null,
         lines: [
+          ...billingLines,
           ["Vehicle", vehicle ? `${[vehicle.make, vehicle.model].filter(Boolean).join(" ")} (${vehicle.plate_number})` : "Vehicle"],
           ["Mode", q.drive_mode === "self_drive" ? "Self drive" : "Chauffeured"],
           ["Period", `${new Date(q.start_at).toLocaleString("en-KE")} - ${new Date(end).toLocaleString("en-KE")}`],
