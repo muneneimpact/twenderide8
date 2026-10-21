@@ -360,6 +360,12 @@ function HirePage() {
   });
 
   const chosen = all.find((v) => v.id === vehicleId) ?? null;
+
+  // If the chosen car's owner doesn't allow pay-later, force Pay now.
+  useEffect(() => {
+    if (chosen && chosen.hire_pay_later_allowed === false && !companyPayNow) setCompanyPayNow(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen?.id, chosen?.hire_pay_later_allowed]);
   const opened = all.find((v) => v.id === openId) ?? null;
   const clash = Boolean(
     chosen && scheduleValid && start && endDate && overlapsRange(chosen, start, endDate),
