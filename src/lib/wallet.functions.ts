@@ -244,8 +244,10 @@ export const getTopupStatus = createServerFn({ method: "POST" })
 /** Pays a pending M-PESA ride from the wallet (promo credit first, then cash). */
 export const payRideFromWallet = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ rideId: z.string().uuid() }).parse(i))
+  .inputValidator((i) => z.object({ rideId: z.string().uuid(), pin: z.string().optional() }).parse(i))
   .handler(async ({ data, context }) => {
+    const { assertWalletPin } = await import("./wallet-pin.server");
+    await assertWalletPin(context.userId, data.pin);
     const db = await admin();
     const { data: ride } = await db.from("rides").select("id, reference, customer_id, payment_method, payment_status, total_fare, status").eq("id", data.rideId).maybeSingle();
     if (!ride || ride.customer_id !== context.userId) throw new Error("Ride not found.");
@@ -264,8 +266,10 @@ export const payRideFromWallet = createServerFn({ method: "POST" })
 /** Pays (part of) a car hire booking from the wallet; settles like an M-PESA payment. */
 export const payHireFromWallet = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) => z.object({ quoteId: z.string().uuid(), amount: z.number().positive() }).parse(i))
+  .inputValidator((i) => z.object({ quoteId: z.string().uuid(), amount: z.number().positive(), pin: z.string().optional() }).parse(i))
   .handler(async ({ data, context }) => {
+    const { assertWalletPin } = await import("./wallet-pin.server");
+    await assertWalletPin(context.userId, data.pin);
     const db = await admin();
     const { data: quote } = await db.from("hire_quotes").select("id, reference, requester_id, status, vehicle_id, payment_policy, payment_status, payment_paid_total, quoted_total, estimated_total").eq("id", data.quoteId).maybeSingle();
     if (!quote || quote.requester_id !== context.userId) throw new Error("That hire booking is not yours.");
