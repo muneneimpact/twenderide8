@@ -206,6 +206,15 @@ export function OwnerHireBookings() {
                     Car returned
                   </button>
                 ) : null}
+                {b.pay_later && b.status === "confirmed" && b.paid < b.total ? (
+                  <button
+                    onClick={() => remind.mutate({ quoteId: b.id, amount: b.total - b.paid })}
+                    disabled={remind.isPending}
+                    className="rounded-full border border-primary px-3 py-2 font-semibold text-primary disabled:opacity-50"
+                  >
+                    {remind.isPending ? "Sending…" : `Request payment (KES ${(b.total - b.paid).toLocaleString("en-KE")})`}
+                  </button>
+                ) : null}
                 {b.can_decline ? (
                   <button onClick={() => setDeclining(declining === b.id ? null : b.id)} className="rounded-full border border-destructive px-3 py-2 font-semibold text-destructive">
                     Decline hire
