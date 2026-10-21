@@ -128,7 +128,7 @@ function CompanyKycPage() {
     <AppShell title="Company account">
       <div className="space-y-4 pb-24">
         {isNew ? (
-          <section className="surface-card border-primary/30 p-4">
+          <section className="rounded-2xl border border-dashed border-input bg-card/40 p-4">
             <h2 className="font-display text-lg font-bold text-foreground">Hiring as a company?</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Register your company once: add its details and KYC documents below. They are saved to
@@ -139,7 +139,14 @@ function CompanyKycPage() {
         ) : null}
 
         <section className="surface-card p-4">
-          <h2 className="font-display text-base font-semibold text-foreground">Company details</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-display text-base font-semibold text-foreground">Company details</h2>
+            {(savedTick || profile.data?.companyName) && (
+              <span className="rounded-full bg-success/15 px-2.5 py-1 text-[10px] font-bold text-success">
+                ✓ Saved
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">
             Used on bookings, agreements and ETR receipts. You can edit these later — every change
             is recorded and visible to our admin team.
@@ -159,9 +166,12 @@ function CompanyKycPage() {
             />
             <input
               className="input-base w-full uppercase"
-              placeholder="KRA PIN e.g. P051234567X"
+              placeholder="KRA PIN — A… for personal, P… for company"
               value={f.kraPin}
-              onChange={(e) => setF({ ...f, kraPin: e.target.value })}
+              onChange={(e) => {
+                setSavedTick(false);
+                setF({ ...f, kraPin: e.target.value });
+              }}
             />
             <input
               className="input-base w-full"
@@ -220,7 +230,17 @@ function CompanyKycPage() {
           </div>
         </section>
 
-        {message ? <p className="mx-4 text-xs text-muted-foreground">{message}</p> : null}
+        {message ? (
+          <p
+            className={`mx-4 rounded-xl px-3 py-2 text-xs font-medium ${
+              message.kind === "ok"
+                ? "bg-success/15 text-success"
+                : "bg-destructive/10 text-destructive"
+            }`}
+          >
+            {message.text}
+          </p>
+        ) : null}
 
         <CompanyProfileCard />
 
