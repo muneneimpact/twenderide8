@@ -33,8 +33,8 @@ import { Route as AuthenticatedDriverIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDriverApplyRouteImport } from './routes/_authenticated/driver/apply'
 import { Route as AuthenticatedDriverHireRouteImport } from './routes/_authenticated/driver/hire'
 import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authenticated/driver/wallet'
-import { Route as AuthenticatedHireBookingsRouteImport } from './routes/_authenticated/hire.bookings'
-import { Route as AuthenticatedHireCompanyRouteImport } from './routes/_authenticated/hire.company'
+import { Route as AuthenticatedHireBookingsRouteImport } from './routes/_authenticated/hire_.bookings'
+import { Route as AuthenticatedHireCompanyRouteImport } from './routes/_authenticated/hire_.company'
 import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authenticated/rides/index'
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
 import { Route as ApiPublicBootstrapSuperAdminRouteImport } from './routes/api/public/bootstrap-super-admin'
@@ -175,15 +175,15 @@ const AuthenticatedDriverWalletRoute =
   } as any)
 const AuthenticatedHireBookingsRoute =
   AuthenticatedHireBookingsRouteImport.update({
-    id: '/bookings',
-    path: '/bookings',
-    getParentRoute: () => AuthenticatedHireRoute,
+    id: '/hire_/bookings',
+    path: '/hire/bookings',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedHireCompanyRoute =
   AuthenticatedHireCompanyRouteImport.update({
-    id: '/company',
-    path: '/company',
-    getParentRoute: () => AuthenticatedHireRoute,
+    id: '/hire_/company',
+    path: '/hire/company',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedRidesIndexRoute = AuthenticatedRidesIndexRouteImport.update({
   id: '/rides/',
@@ -238,7 +238,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
-  '/hire': typeof AuthenticatedHireRouteWithChildren
+  '/hire': typeof AuthenticatedHireRoute
   '/lost-found': typeof AuthenticatedLostFoundRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
@@ -273,7 +273,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
-  '/hire': typeof AuthenticatedHireRouteWithChildren
+  '/hire': typeof AuthenticatedHireRoute
   '/lost-found': typeof AuthenticatedLostFoundRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
@@ -310,7 +310,7 @@ export interface FileRoutesById {
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/book': typeof AuthenticatedBookRoute
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
-  '/_authenticated/hire': typeof AuthenticatedHireRouteWithChildren
+  '/_authenticated/hire': typeof AuthenticatedHireRoute
   '/_authenticated/lost-found': typeof AuthenticatedLostFoundRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
@@ -327,8 +327,8 @@ export interface FileRoutesById {
   '/_authenticated/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/_authenticated/driver/hire': typeof AuthenticatedDriverHireRoute
   '/_authenticated/driver/wallet': typeof AuthenticatedDriverWalletRoute
-  '/_authenticated/hire/bookings': typeof AuthenticatedHireBookingsRoute
-  '/_authenticated/hire/company': typeof AuthenticatedHireCompanyRoute
+  '/_authenticated/hire_/bookings': typeof AuthenticatedHireBookingsRoute
+  '/_authenticated/hire_/company': typeof AuthenticatedHireCompanyRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -435,8 +435,8 @@ export interface FileRouteTypes {
     | '/_authenticated/driver/apply'
     | '/_authenticated/driver/hire'
     | '/_authenticated/driver/wallet'
-    | '/_authenticated/hire/bookings'
-    | '/_authenticated/hire/company'
+    | '/_authenticated/hire_/bookings'
+    | '/_authenticated/hire_/company'
     | '/_authenticated/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
     | '/_authenticated/admin/'
@@ -632,19 +632,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDriverWalletRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/hire/bookings': {
-      id: '/_authenticated/hire/bookings'
-      path: '/bookings'
+    '/_authenticated/hire_/bookings': {
+      id: '/_authenticated/hire_/bookings'
+      path: '/hire/bookings'
       fullPath: '/hire/bookings'
       preLoaderRoute: typeof AuthenticatedHireBookingsRouteImport
-      parentRoute: typeof AuthenticatedHireRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/hire/company': {
-      id: '/_authenticated/hire/company'
-      path: '/company'
+    '/_authenticated/hire_/company': {
+      id: '/_authenticated/hire_/company'
+      path: '/hire/company'
       fullPath: '/hire/company'
       preLoaderRoute: typeof AuthenticatedHireCompanyRouteImport
-      parentRoute: typeof AuthenticatedHireRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/rides/': {
       id: '/_authenticated/rides/'
@@ -705,24 +705,11 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedHireRouteChildren {
-  AuthenticatedHireBookingsRoute: typeof AuthenticatedHireBookingsRoute
-  AuthenticatedHireCompanyRoute: typeof AuthenticatedHireCompanyRoute
-}
-
-const AuthenticatedHireRouteChildren: AuthenticatedHireRouteChildren = {
-  AuthenticatedHireBookingsRoute: AuthenticatedHireBookingsRoute,
-  AuthenticatedHireCompanyRoute: AuthenticatedHireCompanyRoute,
-}
-
-const AuthenticatedHireRouteWithChildren =
-  AuthenticatedHireRoute._addFileChildren(AuthenticatedHireRouteChildren)
-
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedBookRoute: typeof AuthenticatedBookRoute
   AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
-  AuthenticatedHireRoute: typeof AuthenticatedHireRouteWithChildren
+  AuthenticatedHireRoute: typeof AuthenticatedHireRoute
   AuthenticatedLostFoundRoute: typeof AuthenticatedLostFoundRoute
   AuthenticatedAdminDocumentsRoute: typeof AuthenticatedAdminDocumentsRoute
   AuthenticatedAdminFinanceRoute: typeof AuthenticatedAdminFinanceRoute
@@ -736,6 +723,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDriverApplyRoute: typeof AuthenticatedDriverApplyRoute
   AuthenticatedDriverHireRoute: typeof AuthenticatedDriverHireRoute
   AuthenticatedDriverWalletRoute: typeof AuthenticatedDriverWalletRoute
+  AuthenticatedHireBookingsRoute: typeof AuthenticatedHireBookingsRoute
+  AuthenticatedHireCompanyRoute: typeof AuthenticatedHireCompanyRoute
   AuthenticatedRidesRideIdRoute: typeof AuthenticatedRidesRideIdRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedDriverIndexRoute: typeof AuthenticatedDriverIndexRoute
@@ -747,7 +736,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedBookRoute: AuthenticatedBookRoute,
   AuthenticatedFleetRoute: AuthenticatedFleetRoute,
-  AuthenticatedHireRoute: AuthenticatedHireRouteWithChildren,
+  AuthenticatedHireRoute: AuthenticatedHireRoute,
   AuthenticatedLostFoundRoute: AuthenticatedLostFoundRoute,
   AuthenticatedAdminDocumentsRoute: AuthenticatedAdminDocumentsRoute,
   AuthenticatedAdminFinanceRoute: AuthenticatedAdminFinanceRoute,
@@ -761,6 +750,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDriverApplyRoute: AuthenticatedDriverApplyRoute,
   AuthenticatedDriverHireRoute: AuthenticatedDriverHireRoute,
   AuthenticatedDriverWalletRoute: AuthenticatedDriverWalletRoute,
+  AuthenticatedHireBookingsRoute: AuthenticatedHireBookingsRoute,
+  AuthenticatedHireCompanyRoute: AuthenticatedHireCompanyRoute,
   AuthenticatedRidesRideIdRoute: AuthenticatedRidesRideIdRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedDriverIndexRoute: AuthenticatedDriverIndexRoute,

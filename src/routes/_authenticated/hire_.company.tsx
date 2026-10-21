@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getCompanyProfile, updateCompanyProfile } from "@/lib/company.functions";
 import { saveBusinessKycDocument } from "@/lib/hire.functions";
 
-export const Route = createFileRoute("/_authenticated/hire/company")({
+export const Route = createFileRoute("/_authenticated/hire_/company")({
   head: () => ({
     meta: [
       { title: "Register your company for car hire | Twende Meru Rides" },

@@ -16,7 +16,7 @@ import {
   respondToHireOffer,
 } from "@/lib/hire.functions";
 
-export const Route = createFileRoute("/_authenticated/hire/bookings")({
+export const Route = createFileRoute("/_authenticated/hire_/bookings")({
   head: () => ({
     meta: [
       { title: "Your car hire bookings | Twende Meru Rides" },
