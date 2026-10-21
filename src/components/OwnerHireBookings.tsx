@@ -131,6 +131,26 @@ export function OwnerHireBookings() {
                 {b.pay_later ? ` · pays ${b.pay_later}` : ""}
                 {b.has_documents ? " · ID on file" : ""}
               </p>
+              {b.pay_later ? (
+                <div className="mt-2 rounded-xl border border-border bg-secondary/40 p-2">
+                  <p className="font-semibold text-foreground">
+                    Company pay-later {b.company_verified ? "· verified ✓" : "· waiting for your verification"}
+                  </p>
+                  {b.business_email ? <p className="text-muted-foreground">Email: {b.business_email}</p> : null}
+                  {b.business_registration ? <p className="text-muted-foreground">Reg. no: {b.business_registration}</p> : null}
+                  {b.kyc.length ? (
+                    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                      {b.kyc.map((doc) => (
+                        <a key={doc.kind} href={doc.url} target="_blank" rel="noreferrer" className="font-semibold text-primary underline">
+                          {doc.label}
+                        </a>
+                      ))}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-destructive">No business documents uploaded yet.</p>
+                  )}
+                </div>
+              ) : null}
               {b.renter_phone ? (
                 <a href={`tel:${b.renter_phone}`} className="mt-1 inline-block font-semibold text-primary">Call renter {b.renter_phone}</a>
               ) : null}
