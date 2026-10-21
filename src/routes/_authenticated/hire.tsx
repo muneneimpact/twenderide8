@@ -193,6 +193,8 @@ function HirePage() {
   const listFn = useServerFn(listMyHireQuotes);
   const savedDocsFn = useServerFn(getMyHireDocuments);
   const saveDocFn = useServerFn(saveMyHireDocument);
+  const savedKycFn = useServerFn(getMyBusinessKyc);
+  const saveKycFn = useServerFn(saveBusinessKycDocument);
   const vehiclesFn = useServerFn(listHireVehicles);
   const respondFn = useServerFn(respondToHireOffer);
   const payFn = useServerFn(payHireBooking);
@@ -207,6 +209,11 @@ function HirePage() {
   const savedDocuments = useQuery({
     queryKey: ["my-hire-documents", accountId],
     queryFn: () => savedDocsFn(),
+    enabled: Boolean(accountId),
+  });
+  const savedKyc = useQuery({
+    queryKey: ["my-business-kyc", accountId],
+    queryFn: () => savedKycFn(),
     enabled: Boolean(accountId),
   });
   const vehicles = useQuery({
