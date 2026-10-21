@@ -38,7 +38,7 @@ export function OwnerHireBookings() {
     mutationFn: (v: {
       quoteId: string;
       step: "handed_over" | "returned";
-      settlement?: { deposit: number; kmDriven: number; fuelCharge: number; penalties: number; notes?: string };
+      settlement?: { deposit: number; kmDriven: number; fuelCharge: number; penalties: number; notes?: string | undefined };
     }) => handFn({ data: v }),
     onSuccess: () => {
       setReturning(null);
