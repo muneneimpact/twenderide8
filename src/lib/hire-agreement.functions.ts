@@ -34,7 +34,7 @@ export const getHireAgreement = createServerFn({ method: "GET" })
     const booked =
       Number(q.payment_paid_total ?? 0) > 0 ||
       q.payment_status === "paid" ||
-      (q.status === "confirmed" && !!q.pay_later_method);
+      Boolean(q.pay_later_method);
     if (!booked && !isOwner) {
       throw new Error("Your agreement is ready once you pay and your booking is confirmed.");
     }
