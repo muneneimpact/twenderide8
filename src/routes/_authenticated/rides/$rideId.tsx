@@ -430,9 +430,7 @@ function RideDetail() {
               >
                 {paying.isPending
                   ? "Sending prompt…"
-                  : awaitingPayment || paymentFailed
-                    ? "Send the prompt again"
-                    : "Pay with M-Pesa"}
+                  : "Pay via M-PESA"}
               </button>
               {!awaitingPayment && <PayRideWithWallet rideId={ride.id} fare={Number(ride.total_fare)} />}
               {paymentFailed && paymentFailure && (

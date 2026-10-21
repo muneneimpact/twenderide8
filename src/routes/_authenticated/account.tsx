@@ -411,6 +411,7 @@ function AccountPage() {
                 <div className="space-y-2">
                   {activeCase.messages.map((m) => (
                     <div key={m.id} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.from === "customer" ? "ml-auto bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
+                      <p className="text-[10px] font-semibold opacity-80">{m.from === "customer" ? "You" : m.author}</p>
                       <p>{m.body}</p>
                       <p className="mt-0.5 text-[10px] opacity-70">{new Date(m.created_at).toLocaleTimeString("en-KE")}</p>
                     </div>

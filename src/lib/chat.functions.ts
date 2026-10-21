@@ -18,6 +18,14 @@ export const listRideMessages = createServerFn({ method: "POST" })
       .order("created_at", { ascending: true })
       .limit(200);
     if (error) throw new Error(error.message);
+    // Names come through the privileged client because profiles RLS only
+    // exposes a user's own row; both chat parties may see each other's name.
+    const senderIds = [...new Set((rows ?? []).map((row) => row.sender_id))];
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: profiles } = senderIds.length
+      ? await supabaseAdmin.from("profiles").select("id, full_name").in("id", senderIds)
+      : { data: [] as Array<{ id: string; full_name: string | null }> };
+    const names = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
     return {
       me: context.userId,
       messages: (rows ?? []).map((row) => ({
@@ -25,6 +33,7 @@ export const listRideMessages = createServerFn({ method: "POST" })
         body: row.body,
         senderId: row.sender_id,
         senderRole: row.sender_role as "customer" | "driver" | "ops",
+        senderName: names.get(row.sender_id) ?? null,
         createdAt: row.created_at,
         mine: row.sender_id === context.userId,
       })),
