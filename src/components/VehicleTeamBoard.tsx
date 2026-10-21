@@ -1,7 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { assignDriverToVehicle, getMyVehicleTeam, revokeDriverFromVehicle } from "@/lib/vehicle-team.functions";
+import { assignDriverToVehicle, getMyVehicleTeam, onboardDriverForVehicle, revokeDriverFromVehicle } from "@/lib/vehicle-team.functions";
 import { CarBadge } from "@/components/CarBadge";
 
 /** Owners assign drivers to their vehicles and follow what each driver has handled. */
@@ -15,6 +15,18 @@ export function VehicleTeamBoard() {
   const assign = useMutation({
     mutationFn: (vehicleId: string) => assignFn({ data: { vehicleId, phone: phone[vehicleId] ?? "" } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["vehicle-team"] }),
+  });
+  const onboardFn = useServerFn(onboardDriverForVehicle);
+  const [newName, setNewName] = useState<Record<string, string>>({});
+  const [newPhone, setNewPhone] = useState<Record<string, string>>({});
+  const onboard = useMutation({
+    mutationFn: (vehicleId: string) =>
+      onboardFn({ data: { vehicleId, fullName: newName[vehicleId] ?? "", phone: newPhone[vehicleId] ?? "" } }),
+    onSuccess: (_r, vehicleId) => {
+      setNewName({ ...newName, [vehicleId]: "" });
+      setNewPhone({ ...newPhone, [vehicleId]: "" });
+      qc.invalidateQueries({ queryKey: ["vehicle-team"] });
+    },
   });
   const revoke = useMutation({
     mutationFn: (assignmentId: string) => revokeFn({ data: { assignmentId } }),
@@ -45,6 +57,16 @@ export function VehicleTeamBoard() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {a.completed} trips done · KES {a.earned.toFixed(0)} total (KES {a.cash.toFixed(0)} cash) · {a.cancelled} cancelled
                   </p>
+                  <p className="mt-1 text-xs font-semibold text-foreground">
+                    {a.approval === "approved" ? "Approved to drive" : "Waiting for Twende approval"}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {a.docs.map((d) => (
+                      <span key={d.label} className={`rounded-full px-2 py-0.5 text-[11px] ${d.status === "approved" ? "bg-primary/15 text-primary" : d.status === "rejected" ? "bg-destructive/15 text-destructive" : "bg-background text-muted-foreground"}`}>
+                        {d.label}: {d.status === "missing" ? "not sent" : d.status}
+                      </span>
+                    ))}
+                  </div>
                   {a.recent.length ? (
                     <ul className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
                       {a.recent.map((r) => (
@@ -61,9 +83,27 @@ export function VehicleTeamBoard() {
                 <button onClick={() => assign.mutate(v.id)} disabled={assign.isPending}
                   className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60">Assign</button>
               </div>
+              <div className="mt-3 rounded-xl border border-dashed border-border p-3">
+                <p className="text-xs font-semibold text-foreground">Onboard a new driver for this vehicle</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  They sign in with this phone number, upload their ID, driving licence and PSV licence, and can drive once Twende approves. They only see this vehicle.
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <input value={newName[v.id] ?? ""} onChange={(e) => setNewName({ ...newName, [v.id]: e.target.value })}
+                    placeholder="Full name" className="min-w-0 rounded-2xl border border-input bg-background px-3 py-2 text-sm" />
+                  <input value={newPhone[v.id] ?? ""} onChange={(e) => setNewPhone({ ...newPhone, [v.id]: e.target.value })}
+                    placeholder="Phone e.g. 0712 345678" inputMode="tel" className="min-w-0 rounded-2xl border border-input bg-background px-3 py-2 text-sm" />
+                  <button onClick={() => onboard.mutate(v.id)} disabled={onboard.isPending}
+                    className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+                    {onboard.isPending ? "Adding…" : "Onboard"}
+                  </button>
+                </div>
+              </div>
             </div>
           );
         })}
+        {onboard.isError ? <p className="text-xs text-destructive">{(onboard.error as Error).message}</p> : null}
+        {onboard.isSuccess ? <p className="text-xs text-primary">Driver added. We've texted them a sign-in link.</p> : null}
         {assign.isError ? <p className="text-xs text-destructive">{(assign.error as Error).message}</p> : null}
       </div>
     </section>
