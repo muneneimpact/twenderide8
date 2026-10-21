@@ -523,6 +523,23 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       if (!verified?.length) throw new Error("Verify the business email with the code we sent first.");
       if (new Date(corporate.payLaterDueDate).getTime() < Date.now() - 86_400_000)
         throw new Error("Choose a payment date from today onwards.");
+      // Company KYC: at least one business document, uploaded now or saved earlier.
+      const kycPaths = (data.kycDocuments ?? []).map((d) => d.path);
+      for (const path of kycPaths) {
+        if (!path.startsWith(`${context.userId}/biz-`) || path.includes(".."))
+          throw new Error("Upload your business documents again.");
+      }
+      if (kycPaths.length === 0) {
+        const { data: saved } = await supabaseAdmin
+          .from("business_kyc_documents")
+          .select("id")
+          .eq("user_id", context.userId)
+          .limit(1);
+        if (!saved?.length)
+          throw new Error(
+            "Upload at least one business document (certificate of registration, KRA PIN certificate or CR12) to hire as a company.",
+          );
+      }
     }
     for (const path of [data.idDocumentPath, data.licenseDocumentPath]) {
       if (path && !path.startsWith(`${context.userId}/`))
@@ -554,7 +571,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       const { data: vehicle } = await supabaseAdmin
         .from("vehicles")
         .select(
-          "id, vehicle_class, hire_daily_rate, hire_chauffeur_daily_rate, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_mode, hire_available, hire_approval_status, status",
+          "id, vehicle_class, hire_daily_rate, hire_chauffeur_daily_rate, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_mode, hire_available, hire_approval_status, status",
         )
         .eq("id", data.vehicleId)
         .maybeSingle();
@@ -568,6 +585,11 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       }
       if (vehicle.hire_mode !== "both" && vehicle.hire_mode !== data.driveMode) {
         throw new Error("That car is not listed for the selected hire type.");
+      }
+      if (corporate && !vehicle.hire_pay_later_allowed) {
+        throw new Error(
+          "This owner allows immediate payments only — please choose Pay now (M-PESA) to book this car.",
+        );
       }
       dailyRate = vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate);
       chauffeurDailyRate = Number(vehicle.hire_chauffeur_daily_rate ?? CHAUFFEUR_DAY_RATE);
