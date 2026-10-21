@@ -64,6 +64,13 @@
       "when": 1792551100379,
       "tag": "0008_hire_etr_and_company_reg",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792552999873,
+      "tag": "0009_business_kyc_edit_trail",
+      "breakpoints": true
     }
   ]
 }
