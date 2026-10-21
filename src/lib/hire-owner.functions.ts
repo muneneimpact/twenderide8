@@ -75,13 +75,35 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
       .order("start_at", { ascending: true })
       .limit(300);
     const list = (rows ?? []).filter(
-      (r) => r.status === "confirmed" || ["paid", "partial"].includes(r.payment_status ?? ""),
+      (r) =>
+        r.status === "confirmed" ||
+        ["paid", "partial"].includes(r.payment_status ?? "") ||
+        (r.status === "submitted" && Boolean(r.pay_later_method)),
     );
     const vIds = [...new Set(list.map((r) => r.vehicle_id).filter((x): x is string => Boolean(x)))];
     const { data: vehicles } = vIds.length
       ? await supabaseAdmin.from("vehicles").select("id, make, model, plate_number").in("id", vIds)
       : { data: [] as Array<{ id: string; make: string | null; model: string | null; plate_number: string }> };
     const vmap = new Map((vehicles ?? []).map((v) => [v.id, `${[v.make, v.model].filter(Boolean).join(" ")} ${v.plate_number}`.trim()]));
+    // Company KYC documents for pay-later bookings, with short-lived private links.
+    const kycUserIds = [...new Set(list.filter((r) => r.pay_later_method).map((r) => r.requester_id))];
+    const kycByUser = new Map<string, Array<{ kind: string; label: string; url: string }>>();
+    if (kycUserIds.length) {
+      const { data: docs } = await supabaseAdmin
+        .from("business_kyc_documents")
+        .select("user_id, document_kind, file_path")
+        .in("user_id", kycUserIds);
+      const paths = (docs ?? []).map((d) => d.file_path);
+      const signed = paths.length
+        ? ((await supabaseAdmin.storage.from("hire-documents").createSignedUrls(paths, 1800)).data ?? [])
+        : [];
+      const urlOf = (p: string) => signed.find((s) => s.path === p)?.signedUrl ?? "";
+      for (const d of docs ?? []) {
+        const arr = kycByUser.get(d.user_id) ?? [];
+        arr.push({ kind: d.document_kind, label: KYC_LABELS[d.document_kind] ?? "Business document", url: urlOf(d.file_path) });
+        kycByUser.set(d.user_id, arr);
+      }
+    }
     return list.map((r) => ({
       id: r.id,
       reference: r.reference,
@@ -98,6 +120,10 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
       total: Number(r.quoted_total ?? r.estimated_total),
       paid: Number(r.payment_paid_total ?? 0),
       pay_later: r.pay_later_method ? `${r.pay_later_method.replace("_", " ")} by ${r.pay_later_due_date}` : null,
+      company_verified: Boolean(r.company_verified_at),
+      business_email: r.business_email ?? null,
+      business_registration: r.business_registration_number ?? null,
+      kyc: kycByUser.get(r.requester_id) ?? [],
       handed_over_at: r.handed_over_at,
       returned_at: r.returned_at,
       can_decline:
@@ -111,6 +137,46 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
       deposit_amount: Number(r.deposit_amount ?? 0),
       deposit_requested: Boolean(r.deposit_requested_at),
     }));
+  });
+
+/** Owner verifies a company's KYC and confirms the pay-later booking; the dates then block. */
+export const ownerConfirmCompanyBooking = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ quoteId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const q = await loadBookingFor(context.userId, data.quoteId);
+    if (!q.pay_later_method) throw new Error("This booking is not a company pay-later booking.");
+    if (q.status !== "submitted") throw new Error("This booking was already handled.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: kyc } = await supabaseAdmin
+      .from("business_kyc_documents")
+      .select("id")
+      .eq("user_id", q.requester_id)
+      .limit(1);
+    if (!kyc?.length)
+      throw new Error("This company has not uploaded any business documents yet.");
+    const now = new Date().toISOString();
+    const { error } = await supabaseAdmin
+      .from("hire_quotes")
+      .update({ status: "confirmed", company_verified_at: now, company_verified_by: context.userId } as never)
+      .eq("id", q.id)
+      .eq("status", "submitted");
+    if (error) {
+      if (error.message.includes("already booked"))
+        throw new Error("Those dates were just taken by another booking. Decline this one instead.");
+      throw new Error(error.message);
+    }
+    const { notify, audit } = await import("./notifications.server");
+    await audit(context.userId, "hire_company_verified", "hire_quote", q.id, {});
+    await notify({
+      userId: q.requester_id,
+      templateCode: "hire_company_verified",
+      title: "Company verified — booking confirmed",
+      body: `Twende: ${q.organisation ?? "your company"} was verified for hire ${q.reference}. Your dates are now reserved. Pay by ${q.pay_later_method.replace("_", " ")} on ${q.pay_later_due_date}.`,
+      critical: true,
+      dedupeKey: `hire-company-verified:${q.id}`,
+    }).catch(() => undefined);
+    return { ok: true };
   });
 
 export const markHireHandover = createServerFn({ method: "POST" })
