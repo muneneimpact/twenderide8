@@ -1,3 +1,4 @@
+import { RatingsBoard } from "@/components/RatingsBoard";
 import { addDriverToCase } from "@/lib/lost-found.functions";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -331,6 +332,7 @@ function SupportOps() {
             </div>
           </section>
         ) : null}
+        <RatingsBoard />
       </div>
     </AppShell>
   );
