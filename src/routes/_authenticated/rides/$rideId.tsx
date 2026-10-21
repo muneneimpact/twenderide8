@@ -9,7 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
 import { MapPanel } from "@/components/MapPanel";
 import { supabase } from "@/integrations/supabase/client";
-import { cancelRide, getRide, rateRide, requestUnfulfilledRefund } from "@/lib/rides.functions";
+import { cancelRide, getRide, requestUnfulfilledRefund } from "@/lib/rides.functions";
 import { getPaymentStatus, startStkPush } from "@/lib/payments.functions";
 import { playAlert } from "@/lib/audio";
 import { CarBadge } from "@/components/CarBadge";
@@ -76,8 +76,6 @@ function RideDetail() {
   const fetchPayment = useServerFn(getPaymentStatus);
   const cancelFn = useServerFn(cancelRide);
   const pushFn = useServerFn(startStkPush);
-  const rateFn = useServerFn(rateRide);
-  const [score, setScore] = useState(5);
   const [reasonCode, setReasonCode] = useState(cancelReasons[0]!);
   const [reasonNote, setReasonNote] = useState("");
   const [showCancel, setShowCancel] = useState(false);
@@ -176,9 +174,6 @@ function RideDetail() {
     },
   });
 
-  const rating = useMutation({
-    mutationFn: () => rateFn({ data: { rideId, score } }),
-  });
 
   const liveStatus = rideQuery.data?.ride.status;
   useEffect(() => {
