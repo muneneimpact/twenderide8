@@ -30,7 +30,7 @@ export async function notifyOwnerOfBooking(quoteId: string, detail: string) {
     ownerId = f?.owner_id ?? null;
   }
   const recipients = [...new Set([ownerId, q.assigned_driver_id].filter((x): x is string => Boolean(x)))];
-  const text = `Twende Meru: new hire ${q.reference} for ${v?.plate_number ?? "your car"} from ${new Date(q.start_at).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })} (${detail}). Act now: https://twenderides.lovable.app/driver/hire?section=bookings`;
+  const text = `Twende Meru: new hire ${q.reference} for ${v?.plate_number ?? "your car"} from ${new Date(q.start_at).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })} (${detail}). Act now: https://twenderide8.lovable.app/driver/hire?section=bookings`;
   const { notify } = await import("./notifications.server");
   const { sendTransactionalSms } = await import("./comms.server");
   for (const userId of recipients) {

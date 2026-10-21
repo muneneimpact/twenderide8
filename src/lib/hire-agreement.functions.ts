@@ -197,7 +197,7 @@ export const emailHireAgreement = createServerFn({ method: "POST" })
           period: `${new Date(q.start_at).toLocaleString("en-KE")} – ${new Date(end).toLocaleString("en-KE")}`,
           total: `KES ${Number(q.quoted_total ?? q.estimated_total).toLocaleString("en-KE")}`,
           mpesaReceipt: s?.[0]?.mpesa_receipt ?? null,
-          link: `https://twenderides.lovable.app/hire/agreement/${q.id}`,
+          link: `https://twenderide8.lovable.app/hire/agreement/${q.id}`,
         },
       },
       eventType: "hire_agreement_email",

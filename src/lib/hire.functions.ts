@@ -1414,7 +1414,7 @@ async function smsPayoutSummary(ownerId: string, key: string, headline: string, 
       to: prof.phone,
       eventType: "hire_payout_summary",
       idempotencyKey: key,
-      message: `Twende: ${headline} Requested: ${k(requested)}. Total paid to you: ${k(Number(bal?.paid_out_total ?? 0))}. Pending: ${k(pending)}. Balance available: ${k(Math.max(0, balance - pending))}. Statement: https://twenderides.lovable.app/driver/hire?section=finances`,
+      message: `Twende: ${headline} Requested: ${k(requested)}. Total paid to you: ${k(Number(bal?.paid_out_total ?? 0))}. Pending: ${k(pending)}. Balance available: ${k(Math.max(0, balance - pending))}. Statement: https://twenderide8.lovable.app/driver/hire?section=finances`,
     });
   } catch (e) {
     console.error("payout sms failed", e);

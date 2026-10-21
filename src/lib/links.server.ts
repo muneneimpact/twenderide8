@@ -1,5 +1,5 @@
 /** Server-only helpers: every SMS carries a one-tap link to the screen where the person acts. */
-export const APP_URL = "https://twenderides.lovable.app";
+export const APP_URL = "https://twenderide8.lovable.app";
 
 export function appLink(path: string): string {
   return `${APP_URL}${path.startsWith("/") ? path : `/${path}`}`;
