@@ -1,6 +1,3 @@
-import { HirerVehicleDetails } from "@/components/HirerVehicleDetails";
-import { CompanyBookingsDashboard } from "@/components/CompanyBookingsDashboard";
-import { PayHireWithWallet } from "@/components/CustomerWalletCard";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
 import { createFileRoute } from "@tanstack/react-router";
@@ -13,16 +10,13 @@ import { AppShell } from "@/components/AppShell";
 import { PlaceSearch } from "@/components/PlaceSearch";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
-import { ReceiptDownload } from "@/components/ReceiptDownload";
 import {
   estimateHireTotal,
   getMyBusinessKyc,
   checkHirePaymentNow,
   getMyHireDocuments,
   listHireVehicles,
-  listMyHireQuotes,
   payHireBooking,
-  respondToHireOffer,
   saveBusinessKycDocument,
   saveMyHireDocument,
   submitHireQuote,
@@ -56,13 +50,6 @@ export const Route = createFileRoute("/_authenticated/hire")({
   }),
   component: HirePage,
 });
-
-const STATUS_COPY: Record<string, string> = {
-  submitted: "Waiting for offers",
-  quoted: "Offer waiting for you",
-  confirmed: "Confirmed",
-  declined: "Not available",
-};
 
 const DAY = 86_400_000;
 
@@ -194,23 +181,15 @@ function insuranceLabel(value: string | null) {
 function HirePage() {
   const queryClient = useQueryClient();
   const submitFn = useServerFn(submitHireQuote);
-  const listFn = useServerFn(listMyHireQuotes);
   const savedDocsFn = useServerFn(getMyHireDocuments);
   const saveDocFn = useServerFn(saveMyHireDocument);
   const savedKycFn = useServerFn(getMyBusinessKyc);
   const saveKycFn = useServerFn(saveBusinessKycDocument);
   const checkPaymentFn = useServerFn(checkHirePaymentNow);
   const vehiclesFn = useServerFn(listHireVehicles);
-  const respondFn = useServerFn(respondToHireOffer);
   const payFn = useServerFn(payHireBooking);
   const [accountId, setAccountId] = useState<string | null>(null);
-  const [detailsId, setDetailsId] = useState<string | null>(null);
 
-  const quotes = useQuery({
-    queryKey: ["hire-quotes"],
-    queryFn: () => listFn(),
-    refetchInterval: 15_000,
-  });
   const savedDocuments = useQuery({
     queryKey: ["my-hire-documents", accountId],
     queryFn: () => savedDocsFn(),

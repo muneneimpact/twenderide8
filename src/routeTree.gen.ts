@@ -33,6 +33,8 @@ import { Route as AuthenticatedDriverIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDriverApplyRouteImport } from './routes/_authenticated/driver/apply'
 import { Route as AuthenticatedDriverHireRouteImport } from './routes/_authenticated/driver/hire'
 import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authenticated/driver/wallet'
+import { Route as AuthenticatedHireBookingsRouteImport } from './routes/_authenticated/hire.bookings'
+import { Route as AuthenticatedHireCompanyRouteImport } from './routes/_authenticated/hire.company'
 import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authenticated/rides/index'
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
 import { Route as ApiPublicBootstrapSuperAdminRouteImport } from './routes/api/public/bootstrap-super-admin'
@@ -171,6 +173,18 @@ const AuthenticatedDriverWalletRoute =
     path: '/driver/wallet',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedHireBookingsRoute =
+  AuthenticatedHireBookingsRouteImport.update({
+    id: '/bookings',
+    path: '/bookings',
+    getParentRoute: () => AuthenticatedHireRoute,
+  } as any)
+const AuthenticatedHireCompanyRoute =
+  AuthenticatedHireCompanyRouteImport.update({
+    id: '/company',
+    path: '/company',
+    getParentRoute: () => AuthenticatedHireRoute,
+  } as any)
 const AuthenticatedRidesIndexRoute = AuthenticatedRidesIndexRouteImport.update({
   id: '/rides/',
   path: '/rides/',
@@ -224,7 +238,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
-  '/hire': typeof AuthenticatedHireRoute
+  '/hire': typeof AuthenticatedHireRouteWithChildren
   '/lost-found': typeof AuthenticatedLostFoundRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
@@ -241,6 +255,8 @@ export interface FileRoutesByFullPath {
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/hire': typeof AuthenticatedDriverHireRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
+  '/hire/bookings': typeof AuthenticatedHireBookingsRoute
+  '/hire/company': typeof AuthenticatedHireCompanyRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -257,7 +273,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
-  '/hire': typeof AuthenticatedHireRoute
+  '/hire': typeof AuthenticatedHireRouteWithChildren
   '/lost-found': typeof AuthenticatedLostFoundRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
@@ -274,6 +290,8 @@ export interface FileRoutesByTo {
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/hire': typeof AuthenticatedDriverHireRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
+  '/hire/bookings': typeof AuthenticatedHireBookingsRoute
+  '/hire/company': typeof AuthenticatedHireCompanyRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -292,7 +310,7 @@ export interface FileRoutesById {
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/book': typeof AuthenticatedBookRoute
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
-  '/_authenticated/hire': typeof AuthenticatedHireRoute
+  '/_authenticated/hire': typeof AuthenticatedHireRouteWithChildren
   '/_authenticated/lost-found': typeof AuthenticatedLostFoundRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
@@ -309,6 +327,8 @@ export interface FileRoutesById {
   '/_authenticated/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/_authenticated/driver/hire': typeof AuthenticatedDriverHireRoute
   '/_authenticated/driver/wallet': typeof AuthenticatedDriverWalletRoute
+  '/_authenticated/hire/bookings': typeof AuthenticatedHireBookingsRoute
+  '/_authenticated/hire/company': typeof AuthenticatedHireCompanyRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -344,6 +364,8 @@ export interface FileRouteTypes {
     | '/driver/apply'
     | '/driver/hire'
     | '/driver/wallet'
+    | '/hire/bookings'
+    | '/hire/company'
     | '/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
     | '/admin/'
@@ -377,6 +399,8 @@ export interface FileRouteTypes {
     | '/driver/apply'
     | '/driver/hire'
     | '/driver/wallet'
+    | '/hire/bookings'
+    | '/hire/company'
     | '/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
     | '/admin'
@@ -411,6 +435,8 @@ export interface FileRouteTypes {
     | '/_authenticated/driver/apply'
     | '/_authenticated/driver/hire'
     | '/_authenticated/driver/wallet'
+    | '/_authenticated/hire/bookings'
+    | '/_authenticated/hire/company'
     | '/_authenticated/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
     | '/_authenticated/admin/'
@@ -606,6 +632,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDriverWalletRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/hire/bookings': {
+      id: '/_authenticated/hire/bookings'
+      path: '/bookings'
+      fullPath: '/hire/bookings'
+      preLoaderRoute: typeof AuthenticatedHireBookingsRouteImport
+      parentRoute: typeof AuthenticatedHireRoute
+    }
+    '/_authenticated/hire/company': {
+      id: '/_authenticated/hire/company'
+      path: '/company'
+      fullPath: '/hire/company'
+      preLoaderRoute: typeof AuthenticatedHireCompanyRouteImport
+      parentRoute: typeof AuthenticatedHireRoute
+    }
     '/_authenticated/rides/': {
       id: '/_authenticated/rides/'
       path: '/rides'
@@ -665,11 +705,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedHireRouteChildren {
+  AuthenticatedHireBookingsRoute: typeof AuthenticatedHireBookingsRoute
+  AuthenticatedHireCompanyRoute: typeof AuthenticatedHireCompanyRoute
+}
+
+const AuthenticatedHireRouteChildren: AuthenticatedHireRouteChildren = {
+  AuthenticatedHireBookingsRoute: AuthenticatedHireBookingsRoute,
+  AuthenticatedHireCompanyRoute: AuthenticatedHireCompanyRoute,
+}
+
+const AuthenticatedHireRouteWithChildren =
+  AuthenticatedHireRoute._addFileChildren(AuthenticatedHireRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedBookRoute: typeof AuthenticatedBookRoute
   AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
-  AuthenticatedHireRoute: typeof AuthenticatedHireRoute
+  AuthenticatedHireRoute: typeof AuthenticatedHireRouteWithChildren
   AuthenticatedLostFoundRoute: typeof AuthenticatedLostFoundRoute
   AuthenticatedAdminDocumentsRoute: typeof AuthenticatedAdminDocumentsRoute
   AuthenticatedAdminFinanceRoute: typeof AuthenticatedAdminFinanceRoute
@@ -694,7 +747,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedBookRoute: AuthenticatedBookRoute,
   AuthenticatedFleetRoute: AuthenticatedFleetRoute,
-  AuthenticatedHireRoute: AuthenticatedHireRoute,
+  AuthenticatedHireRoute: AuthenticatedHireRouteWithChildren,
   AuthenticatedLostFoundRoute: AuthenticatedLostFoundRoute,
   AuthenticatedAdminDocumentsRoute: AuthenticatedAdminDocumentsRoute,
   AuthenticatedAdminFinanceRoute: AuthenticatedAdminFinanceRoute,
