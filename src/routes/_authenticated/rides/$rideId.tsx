@@ -1,3 +1,4 @@
+import { PayRideWithWallet } from "@/components/CustomerWalletCard";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { getRideCreditState, keepRideAsCredit, retryRideWithCredit } from "@/lib/wallet.functions";
 import { useServerFn } from "@tanstack/react-start";
