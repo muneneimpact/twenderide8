@@ -216,7 +216,7 @@ export const listMyVehicles = createServerFn({ method: "GET" })
       ? await supabaseAdmin
           .from("hire_quotes")
           .select(
-            "vehicle_id, start_at, end_at, days, status, payment_status, payment_hold_expires_at",
+            "vehicle_id, start_at, end_at, days, status, payment_status, payment_hold_expires_at, pay_later_method",
           )
           .in("vehicle_id", vehicleIds)
           .in("status", ["submitted", "quoted", "confirmed"])
@@ -230,6 +230,7 @@ export const listMyVehicles = createServerFn({ method: "GET" })
             status: string;
             payment_status: string;
             payment_hold_expires_at: string | null;
+            pay_later_method: string | null;
           }>,
         };
     return list.map((vehicle) => ({
@@ -239,6 +240,7 @@ export const listMyVehicles = createServerFn({ method: "GET" })
           (booking) =>
             booking.vehicle_id === vehicle.id &&
             (["legacy", "partial", "paid"].includes(booking.payment_status) ||
+              (booking.status === "confirmed" && Boolean(booking.pay_later_method)) ||
               (booking.payment_status === "pending" &&
                 Boolean(
                   booking.payment_hold_expires_at &&
@@ -287,6 +289,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         submitForHireReview: z.boolean().optional(),
         depositPolicy: z.enum(["upfront", "handover", "none"]).optional(),
         depositAmount: z.number().min(0).max(1_000_000).optional(),
+        payLaterAllowed: z.boolean().optional(),
       })
       .parse(input),
   )
