@@ -45,7 +45,20 @@ function CompanyKycPage() {
 
   const [f, setF] = useState({ companyName: "", kraPin: "", billingEmail: "", registrationNumber: "" });
   const [uploading, setUploading] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [savedTick, setSavedTick] = useState(false);
+
+  /** Server validation errors arrive as a JSON array; show just the message. */
+  function friendlyError(e: unknown): string {
+    const raw = (e as Error).message ?? "Something went wrong. Please try again.";
+    try {
+      const parsed = JSON.parse(raw) as Array<{ message?: string }>;
+      if (Array.isArray(parsed) && parsed[0]?.message) return parsed[0].message;
+    } catch {
+      /* not JSON — already plain text */
+    }
+    return raw;
+  }
 
   useEffect(() => {
     if (profile.data) {
