@@ -73,6 +73,7 @@ export const createLostFoundReport = createServerFn({ method: "POST" })
         as: z.enum(["customer", "driver"]),
         rideIds: z.array(z.string().uuid()).min(1).max(10),
         description: z.string().trim().min(10).max(1000),
+        photoDataUrl: z.string().max(7_000_000).regex(/^data:image\/(jpeg|png|webp);base64,/).optional(),
       })
       .parse(input),
   )
@@ -88,6 +89,7 @@ export const createLostFoundReport = createServerFn({ method: "POST" })
     if ((owned ?? []).length !== data.rideIds.length) throw new Error("Pick only your own completed trips.");
     if (data.as === "customer" && data.rideIds.length > 1)
       throw new Error("Choose the single trip where the item was lost.");
+    if (data.as === "customer" && data.photoDataUrl) throw new Error("Only the driver adds a photo.");
     const { data: report, error } = await context.supabase.from("lost_found_reports").insert({
       reporter_id: context.userId,
       reporter_role: data.as,
@@ -96,6 +98,15 @@ export const createLostFoundReport = createServerFn({ method: "POST" })
       description: data.description,
     }).select("id").single();
     if (error) throw new Error(error.message);
+    if (data.as === "driver" && data.photoDataUrl) {
+      // Private: only the finding driver and staff can open it. The passenger never sees it.
+      const [meta, b64] = data.photoDataUrl.split(",");
+      const type = meta!.slice(5, meta!.indexOf(";"));
+      const bin = Uint8Array.from(atob(b64!), (ch) => ch.charCodeAt(0));
+      const path = `lost-found/${report.id}.${type.split("/")[1]}`;
+      const { error: upErr } = await supabaseAdmin.storage.from("driver-documents").upload(path, bin, { contentType: type, upsert: true });
+      if (!upErr) await supabaseAdmin.from("lost_found_reports").update({ photo_path: path }).eq("id", report.id);
+    }
     if (data.as === "driver") {
       // Tell each passenger on those trips — without revealing what was found.
       const { data: rides } = await supabaseAdmin.from("rides").select("id, customer_id").in("id", data.rideIds);
@@ -343,17 +354,25 @@ export const listFoundForMe = createServerFn({ method: "POST" })
     const rideIds = (rides ?? []).map((r) => r.id);
     if (!rideIds.length) return [];
     const { data: reports } = await supabaseAdmin
-      .from("lost_found_reports").select("id, ride_ids, status, created_at")
+      .from("lost_found_reports").select("id, ride_ids, status, created_at, reporter_id")
       .eq("kind", "found").in("status", ["open", "matched"]).overlaps("ride_ids", rideIds);
-    const { data: claims } = (reports ?? []).length
-      ? await supabaseAdmin.from("lost_found_claims").select("report_id, status, driver_note")
+    // Never the driver's description or photo — the claim stays blind.
+    const { data: claimRows } = (reports ?? []).length
+      ? await supabaseAdmin.from("lost_found_claims").select("report_id, status, driver_note, handover_request, dropoff_note, phone_shared_at")
           .eq("claimant_id", context.userId).in("report_id", (reports ?? []).map((r) => r.id))
-      : { data: [] as Array<{ report_id: string; status: string; driver_note: string | null }> };
+      : { data: [] };
+    const sharedIds = (reports ?? []).filter((r) => (claimRows ?? []).some((c) => c.report_id === r.id && c.phone_shared_at && c.status === "approved"));
+    const driverIds = [...new Set(sharedIds.map((r) => r.reporter_id))];
+    const { data: phones } = driverIds.length ? await supabaseAdmin.from("profiles").select("id, phone").in("id", driverIds) : { data: [] as { id: string; phone: string | null }[] };
     const mine = new Set(rideIds);
     const labels = await tripLabels(rideIds);
     return (reports ?? []).map((r) => {
       const rideId = r.ride_ids.find((id) => mine.has(id))!;
-      const claim = (claims ?? []).find((c) => c.report_id === r.id) ?? null;
+      const c = (claimRows ?? []).find((x) => x.report_id === r.id) ?? null;
+      const claim = c ? {
+        status: c.status, driver_note: c.driver_note, handover_request: c.handover_request, dropoff_note: c.dropoff_note,
+        driver_phone: c.phone_shared_at && c.status === "approved" ? ((phones ?? []).find((p) => p.id === r.reporter_id)?.phone ?? null) : null,
+      } : null;
       return { id: r.id, ride_id: rideId, trip: labels.get(rideId) ?? null, found_at: r.created_at, claim };
     });
   });
@@ -401,7 +420,7 @@ export const listClaimsOnMyFinds = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: reports } = await supabaseAdmin.from("lost_found_reports").select("id, description")
+    const { data: reports } = await supabaseAdmin.from("lost_found_reports").select("id, description, photo_path")
       .eq("reporter_id", context.userId).eq("kind", "found");
     if (!(reports ?? []).length) return [];
     const { data: claims } = await supabaseAdmin.from("lost_found_claims").select("*")
@@ -409,15 +428,27 @@ export const listClaimsOnMyFinds = createServerFn({ method: "POST" })
     const ids = [...new Set((claims ?? []).map((c) => c.claimant_id))];
     const { data: people } = ids.length ? await supabaseAdmin.from("profiles").select("id, full_name").in("id", ids) : { data: [] };
     const labels = await tripLabels((claims ?? []).map((c) => c.ride_id));
-    return (claims ?? []).map((c) => ({
-      id: c.id, status: c.status, description: c.description, contact_phone: c.contact_phone,
-      security_details: c.security_details, driver_note: c.driver_note, created_at: c.created_at,
-      claimant: (people ?? []).find((p) => p.id === c.claimant_id)?.full_name ?? "Passenger",
-      trip: labels.get(c.ride_id)?.label ?? null,
-      your_item: (reports ?? []).find((r) => r.id === c.report_id)?.description ?? "",
-    }));
+    const paths = (reports ?? []).map((r) => r.photo_path).filter((p): p is string => Boolean(p));
+    const signed = paths.length ? (await supabaseAdmin.storage.from("driver-documents").createSignedUrls(paths, 1800)).data ?? [] : [];
+    const urlFor = new Map(signed.map((s) => [s.path, s.signedUrl]));
+    return (claims ?? []).map((c) => {
+      const rep = (reports ?? []).find((r) => r.id === c.report_id);
+      return {
+        id: c.id, status: c.status, description: c.description, contact_phone: c.contact_phone,
+        security_details: c.security_details, driver_note: c.driver_note, created_at: c.created_at,
+        claimant: (people ?? []).find((p) => p.id === c.claimant_id)?.full_name ?? "Passenger",
+        trip: labels.get(c.ride_id)?.label ?? null,
+        your_item: rep?.description ?? "",
+        your_photo: rep?.photo_path ? (urlFor.get(rep.photo_path) ?? null) : null,
+        handover_request: c.handover_request, dropoff_note: c.dropoff_note, phone_shared: Boolean(c.phone_shared_at),
+      };
+    });
   });
 
+/**
+ * The finding driver judges a claim. "approved" here means "this almost
+ * matches — ask the passenger to confirm"; the claim waits for the customer.
+ */
 export const decideFoundClaim = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -429,16 +460,80 @@ export const decideFoundClaim = createServerFn({ method: "POST" })
     if (!claim) throw new Error("Claim not found.");
     const { data: report } = await supabaseAdmin.from("lost_found_reports").select("reporter_id").eq("id", claim.report_id).maybeSingle();
     if (report?.reporter_id !== context.userId) throw new Error("Only the driver who found the item can decide.");
-    await supabaseAdmin.from("lost_found_claims").update({ status: data.decision, driver_note: data.note ?? null, updated_at: new Date().toISOString() }).eq("id", claim.id);
-    if (data.decision === "approved") {
-      await supabaseAdmin.from("lost_found_reports").update({ status: "matched", updated_at: new Date().toISOString() }).eq("id", claim.report_id);
-    }
+    const status = data.decision === "approved" ? "awaiting_customer" : data.decision;
+    await supabaseAdmin.from("lost_found_claims").update({ status, driver_note: data.note ?? null, updated_at: new Date().toISOString() }).eq("id", claim.id);
     const msg = data.decision === "approved"
-      ? "Your driver matched your claim. Meet them to collect it; you will unlock the item in person to confirm it is yours."
+      ? "Your driver thinks the item matches your description. Open Lost & found to confirm it is yours."
       : data.decision === "more_info" ? "Your driver needs more details to confirm the item." : "Your driver could not match your description to the item.";
-    const { notify } = await import("./notifications.server");
-    await notify({ userId: claim.claimant_id, templateCode: "lost_found_claim_decided", title: "Lost & found update", body: msg, rideId: claim.ride_id });
-    const { textUserWithLink } = await import("./links.server");
-    await textUserWithLink({ userId: claim.claimant_id, message: `Twende: ${msg}`, path: "/lost-found", eventType: "lost_found_claim_decided", idempotencyKey: `lf-dec:${claim.id}:${data.decision}:${Date.now()}` });
+    await tellUser(claim.claimant_id, claim.ride_id, msg, `lf-dec:${claim.id}:${status}`);
+    return { ok: true };
+  });
+
+async function tellUser(userId: string, rideId: string | null, msg: string, key: string) {
+  const { notify } = await import("./notifications.server");
+  await notify({ userId, templateCode: "lost_found_update", title: "Lost & found update", body: msg, rideId: rideId ?? null });
+  const { textUserWithLink } = await import("./links.server");
+  await textUserWithLink({ userId, message: `Twende: ${msg}`, path: "/lost-found", eventType: "lost_found_update", idempotencyKey: `${key}:${Date.now()}` });
+}
+
+async function claimForDriver(claimId: string, userId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: claim } = await supabaseAdmin.from("lost_found_claims").select("*").eq("id", claimId).maybeSingle();
+  if (!claim) throw new Error("Claim not found.");
+  const { data: report } = await supabaseAdmin.from("lost_found_reports").select("reporter_id").eq("id", claim.report_id).maybeSingle();
+  if (report?.reporter_id !== userId) throw new Error("Only the driver who found the item can do this.");
+  return { claim, db: supabaseAdmin };
+}
+
+/** Passenger confirms the item the driver matched is theirs. */
+export const confirmFoundClaim = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ reportId: z.string().uuid(), confirm: z.boolean() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: claim } = await supabaseAdmin.from("lost_found_claims").select("id, report_id, ride_id, status")
+      .eq("report_id", data.reportId).eq("claimant_id", context.userId).maybeSingle();
+    if (!claim || claim.status !== "awaiting_customer") throw new Error("Nothing to confirm yet.");
+    const now = new Date().toISOString();
+    await supabaseAdmin.from("lost_found_claims").update({
+      status: data.confirm ? "approved" : "rejected", customer_confirmed_at: data.confirm ? now : null, updated_at: now,
+    }).eq("id", claim.id);
+    const { data: report } = await supabaseAdmin.from("lost_found_reports").select("reporter_id").eq("id", claim.report_id).maybeSingle();
+    if (data.confirm) await supabaseAdmin.from("lost_found_reports").update({ status: "matched", updated_at: now }).eq("id", claim.report_id);
+    if (report) await tellUser(report.reporter_id, claim.ride_id,
+      data.confirm ? "The passenger confirmed the item is theirs. Wait for their handover request." : "The passenger says the item is not theirs.",
+      `lf-conf:${claim.id}`);
+    return { ok: true };
+  });
+
+/** After confirmation the passenger asks for a drop-off, or for the driver's number. */
+export const requestFoundHandover = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ reportId: z.string().uuid(), kind: z.enum(["dropoff", "phone"]), note: z.string().trim().max(300).optional() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: claim } = await supabaseAdmin.from("lost_found_claims").select("id, report_id, ride_id, status")
+      .eq("report_id", data.reportId).eq("claimant_id", context.userId).maybeSingle();
+    if (!claim || claim.status !== "approved") throw new Error("Confirm the item first.");
+    if (data.kind === "dropoff" && (!data.note || data.note.length < 4)) throw new Error("Say where the driver should drop it.");
+    await supabaseAdmin.from("lost_found_claims").update({
+      handover_request: data.kind, ...(data.kind === "dropoff" ? { dropoff_note: data.note ?? null } : {}), updated_at: new Date().toISOString(),
+    }).eq("id", claim.id);
+    const { data: report } = await supabaseAdmin.from("lost_found_reports").select("reporter_id").eq("id", claim.report_id).maybeSingle();
+    if (report) await tellUser(report.reporter_id, claim.ride_id,
+      data.kind === "dropoff" ? `The passenger asks you to drop the item at: ${data.note}` : "The passenger asks for your phone number to arrange collection. Allow it in Lost & found.",
+      `lf-ho:${claim.id}:${data.kind}`);
+    return { ok: true };
+  });
+
+/** Only the driver can reveal their phone number to the confirmed owner. */
+export const shareDriverPhoneForClaim = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ claimId: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { claim, db } = await claimForDriver(data.claimId, context.userId);
+    if (claim.status !== "approved") throw new Error("The passenger must confirm the item first.");
+    await db.from("lost_found_claims").update({ phone_shared_at: new Date().toISOString() }).eq("id", claim.id);
+    await tellUser(claim.claimant_id, claim.ride_id, "Your driver shared their phone number. Open Lost & found to call them.", `lf-phone:${claim.id}`);
     return { ok: true };
   });

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCustomerWallet, getTopupStatus, listWalletPayouts, payHireFromWallet, payRideFromWallet, requestWalletRefund, reviewWalletPayout, startWalletTopup } from "@/lib/wallet.functions";
+import { confirmWalletPinReset, createWalletPin, getWalletPinStatus, requestWalletPinReset } from "@/lib/wallet-pin.functions";
 
 const LABEL: Record<string, string> = {
   ride_credit: "Held from ride with no driver",
@@ -145,22 +146,40 @@ export function CustomerWalletCard() {
   );
 }
 
+function PinField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="password"
+      inputMode="numeric"
+      autoComplete="off"
+      maxLength={4}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 4))}
+      placeholder="Wallet PIN"
+      aria-label="Wallet PIN"
+      className="w-28 rounded-md border border-input bg-background px-3 py-2 text-center text-sm tracking-[0.4em]"
+    />
+  );
+}
+
 export function PayRideWithWallet({ rideId, fare }: { rideId: string; fare: number }) {
   const qc = useQueryClient();
   const wallet = useWallet();
   const payFn = useServerFn(payRideFromWallet);
+  const [pin, setPin] = useState("");
   const pay = useMutation({
-    mutationFn: () => payFn({ data: { rideId } }),
+    mutationFn: () => payFn({ data: { rideId, pin } }),
     onSuccess: () => qc.invalidateQueries(),
   });
   const bal = wallet.data?.balance ?? 0;
   if (bal < fare) return bal > 0 ? <p className="mt-2 text-xs text-muted-foreground">Wallet: KES {bal.toLocaleString("en-KE")} — not enough for this ride.</p> : null;
   return (
-    <div className="mt-2">
-      <button onClick={() => pay.mutate()} disabled={pay.isPending} className="w-full rounded-md border border-primary px-4 py-3 text-sm font-semibold text-primary disabled:opacity-60">
-        {pay.isPending ? "Paying…" : `Pay KES ${fare.toLocaleString("en-KE")} from Twende wallet`}
+    <div className="mt-2 flex gap-2">
+      <PinField value={pin} onChange={setPin} />
+      <button onClick={() => pay.mutate()} disabled={pay.isPending || pin.length !== 4} className="flex-1 rounded-md border border-primary px-4 py-3 text-sm font-semibold text-primary disabled:opacity-60">
+        {pay.isPending ? "Paying…" : `Pay KES ${fare.toLocaleString("en-KE")} from wallet`}
       </button>
-      {pay.isError && <p className="mt-1 text-sm text-destructive">{(pay.error as Error).message}</p>}
+      {pay.isError && <p className="mt-1 w-full text-sm text-destructive">{(pay.error as Error).message}</p>}
     </div>
   );
 }
@@ -169,19 +188,75 @@ export function PayHireWithWallet({ quoteId, amount }: { quoteId: string; amount
   const qc = useQueryClient();
   const wallet = useWallet();
   const payFn = useServerFn(payHireFromWallet);
+  const [pin, setPin] = useState("");
   const pay = useMutation({
-    mutationFn: () => payFn({ data: { quoteId, amount } }),
+    mutationFn: () => payFn({ data: { quoteId, amount, pin } }),
     onSuccess: () => qc.invalidateQueries(),
   });
   const bal = wallet.data?.balance ?? 0;
   if (bal < amount || amount <= 0) return null;
   return (
     <>
-      <button onClick={() => pay.mutate()} disabled={pay.isPending} className="rounded-full border border-primary px-3 py-2 text-xs font-semibold text-primary disabled:opacity-60">
+      <PinField value={pin} onChange={setPin} />
+      <button onClick={() => pay.mutate()} disabled={pay.isPending || pin.length !== 4} className="rounded-full border border-primary px-3 py-2 text-xs font-semibold text-primary disabled:opacity-60">
         {pay.isPending ? "Paying…" : `Pay KES ${amount.toLocaleString("en-KE")} from wallet`}
       </button>
       {pay.isError && <p className="w-full text-xs text-destructive">{(pay.error as Error).message}</p>}
     </>
+  );
+}
+
+export function WalletPinCard() {
+  const qc = useQueryClient();
+  const statusFn = useServerFn(getWalletPinStatus);
+  const createFn = useServerFn(createWalletPin);
+  const resetFn = useServerFn(requestWalletPinReset);
+  const confirmFn = useServerFn(confirmWalletPinReset);
+  const status = useQuery({ queryKey: ["wallet-pin"], queryFn: () => statusFn() });
+  const [pin, setPin] = useState("");
+  const [pin2, setPin2] = useState("");
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [mode, setMode] = useState<"idle" | "phone" | "code">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+  const done = (m: string) => { setMsg(m); setPin(""); setPin2(""); setCode(""); setMode("idle"); void qc.invalidateQueries({ queryKey: ["wallet-pin"] }); };
+  const create = useMutation({ mutationFn: () => createFn({ data: { pin } }), onSuccess: () => done("Wallet PIN saved."), onError: (e) => setMsg((e as Error).message) });
+  const reset = useMutation({ mutationFn: () => resetFn({ data: { phone } }), onSuccess: () => { setMode("code"); setMsg("Code sent by SMS."); }, onError: (e) => setMsg((e as Error).message) });
+  const confirm = useMutation({ mutationFn: () => confirmFn({ data: { code, pin } }), onSuccess: () => done("PIN changed."), onError: (e) => setMsg((e as Error).message) });
+  const match = pin.length === 4 && pin === pin2;
+  const hasPin = status.data?.hasPin;
+  return (
+    <section className="mt-3 rounded-2xl border border-border bg-card p-4">
+      <p className="text-sm font-semibold text-foreground">Wallet PIN</p>
+      {status.isLoading ? null : !hasPin ? (
+        <>
+          <p className="mt-1 text-xs text-muted-foreground">Create a 4-digit PIN. You'll enter it every time you pay from your wallet.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <PinField value={pin} onChange={setPin} />
+            <PinField value={pin2} onChange={setPin2} />
+            <button onClick={() => create.mutate()} disabled={!match || create.isPending} className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">Save PIN</button>
+          </div>
+        </>
+      ) : mode === "idle" ? (
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">PIN is set{status.data?.lockedUntil && new Date(status.data.lockedUntil) > new Date() ? " — locked after wrong tries" : ""}.</p>
+          <button onClick={() => { setMode("phone"); setMsg(null); }} className="rounded-md border border-border px-3 py-2 text-xs font-semibold">Change PIN</button>
+        </div>
+      ) : mode === "phone" ? (
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Your account phone number" className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          <button onClick={() => reset.mutate()} disabled={reset.isPending || phone.trim().length < 9} className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">{reset.isPending ? "Sending…" : "Send code"}</button>
+        </div>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="6-digit code" className="w-32 rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          <PinField value={pin} onChange={setPin} />
+          <PinField value={pin2} onChange={setPin2} />
+          <button onClick={() => confirm.mutate()} disabled={!match || code.length !== 6 || confirm.isPending} className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">Set new PIN</button>
+        </div>
+      )}
+      {msg && <p className="mt-2 text-xs text-muted-foreground">{msg}</p>}
+    </section>
   );
 }
 

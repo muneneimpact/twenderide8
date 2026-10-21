@@ -1,4 +1,5 @@
 import { PayRideWithWallet } from "@/components/CustomerWalletCard";
+import { RateTrip, TripComplaint } from "@/components/RideFeedback";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { getRideCreditState, keepRideAsCredit, retryRideWithCredit } from "@/lib/wallet.functions";
 import { useServerFn } from "@tanstack/react-start";
@@ -8,7 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
 import { MapPanel } from "@/components/MapPanel";
 import { supabase } from "@/integrations/supabase/client";
-import { cancelRide, getRide, rateRide, requestUnfulfilledRefund } from "@/lib/rides.functions";
+import { cancelRide, getRide, requestUnfulfilledRefund } from "@/lib/rides.functions";
 import { getPaymentStatus, startStkPush } from "@/lib/payments.functions";
 import { playAlert } from "@/lib/audio";
 import { CarBadge } from "@/components/CarBadge";
@@ -75,8 +76,6 @@ function RideDetail() {
   const fetchPayment = useServerFn(getPaymentStatus);
   const cancelFn = useServerFn(cancelRide);
   const pushFn = useServerFn(startStkPush);
-  const rateFn = useServerFn(rateRide);
-  const [score, setScore] = useState(5);
   const [reasonCode, setReasonCode] = useState(cancelReasons[0]!);
   const [reasonNote, setReasonNote] = useState("");
   const [showCancel, setShowCancel] = useState(false);
@@ -175,9 +174,6 @@ function RideDetail() {
     },
   });
 
-  const rating = useMutation({
-    mutationFn: () => rateFn({ data: { rideId, score } }),
-  });
 
   const liveStatus = rideQuery.data?.ride.status;
   useEffect(() => {
@@ -588,36 +584,8 @@ function RideDetail() {
           </>
         ) : null}
 
-        {ride.status === "trip_completed" && (
-          <section className="mt-4 rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">Rate your driver</h3>
-            <div className="mt-2 flex gap-2">
-              {[1, 2, 3, 4, 5].map((value) => (
-                <button
-                  key={value}
-                  onClick={() => setScore(value)}
-                  className={`h-10 flex-1 rounded-md text-sm font-semibold ${
-                    score >= value
-                      ? "bg-gold text-gold-foreground"
-                      : "bg-secondary text-secondary-foreground"
-                  }`}
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => rating.mutate()}
-              disabled={rating.isPending || rating.isSuccess}
-              className="mt-3 w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              {rating.isSuccess ? "Thank you" : rating.isPending ? "Sending…" : "Submit rating"}
-            </button>
-            {rating.isError && (
-              <p className="mt-2 text-sm text-destructive">{(rating.error as Error).message}</p>
-            )}
-          </section>
-        )}
+        {ride.status === "trip_completed" && <RateTrip rideId={ride.id} />}
+        {ride.driver_id && <TripComplaint rideId={ride.id} reference={ride.reference} />}
 
         <section className="mt-4 rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Ride timeline</h3>

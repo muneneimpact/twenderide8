@@ -927,19 +927,20 @@ export const rateRide = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: ride } = await context.supabase
       .from("rides")
-      .select("id, driver_id, customer_id")
+      .select("id, driver_id, customer_id, status")
       .eq("id", data.rideId)
       .maybeSingle();
     if (!ride?.driver_id) throw new Error("This ride cannot be rated.");
+    if (ride.status !== "trip_completed") throw new Error("You can rate once the trip ends.");
     const ratee = context.userId === ride.customer_id ? ride.driver_id : ride.customer_id;
     const { error } = await context.supabase.from("ratings").insert({
       ride_id: ride.id,
       rater_id: context.userId,
       ratee_id: ratee,
       score: data.score,
-      comment: data.comment ?? null,
+      comment: data.comment?.trim() || null,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(error.code === "23505" ? "You already rated this trip." : error.message);
     return { ok: true };
   });
 
