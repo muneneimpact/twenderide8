@@ -4,6 +4,26 @@ import { z } from "zod";
 
 const KRA = /^[AP]\d{9}[A-Z]$/;
 
+/** Record one company-details change so admins can review the full edit trail. */
+async function logKycEdit(
+  userId: string,
+  entry: { action: string; field?: string; oldValue?: string | null; newValue?: string | null },
+) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  await supabaseAdmin
+    .from("business_kyc_edits")
+    .insert({
+      user_id: userId,
+      actor_id: userId,
+      action: entry.action,
+      field: entry.field ?? null,
+      old_value: entry.oldValue ?? null,
+      new_value: entry.newValue ?? null,
+    })
+    .then(() => null)
+    .catch(() => null);
+}
+
 /** Company details + saved KYC documents stored on the account (works on any phone). */
 export const getCompanyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -49,6 +69,11 @@ export const updateCompanyProfile = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: before } = await supabaseAdmin
+      .from("profiles")
+      .select("company_name, company_kra_pin, company_billing_email, company_registration_number")
+      .eq("id", context.userId)
+      .maybeSingle();
     const { error } = await supabaseAdmin
       .from("profiles")
       .update({
@@ -59,6 +84,22 @@ export const updateCompanyProfile = createServerFn({ method: "POST" })
       })
       .eq("id", context.userId);
     if (error) throw new Error(error.message);
+    const diffs: Array<[string, string | null, string | null]> = [
+      ["company_name", before?.company_name ?? null, data.companyName],
+      ["company_kra_pin", before?.company_kra_pin ?? null, data.kraPin || null],
+      ["company_billing_email", before?.company_billing_email ?? null, data.billingEmail || null],
+      ["company_registration_number", before?.company_registration_number ?? null, data.registrationNumber || null],
+    ];
+    for (const [field, oldValue, newValue] of diffs) {
+      if ((oldValue ?? "") !== (newValue ?? "")) {
+        await logKycEdit(context.userId, {
+          action: before?.company_name ? "profile_updated" : "profile_created",
+          field,
+          oldValue,
+          newValue,
+        });
+      }
+    }
     return { ok: true };
   });
 
