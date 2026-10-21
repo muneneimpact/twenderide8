@@ -36,3 +36,6 @@
 - [x] Admin funding by group with KES 1 + SMS code approval on 0723175181
 - [x] Wallet-only top-up bonus promo
 - [x] Company booking dashboard: active/past hires, agreement status, payment status, next action
+- [x] Company details on hire dashboard: view, edit, delete details & saved documents
+- [x] Company ETR request per paid car hire; finance attaches PDF
+- [x] Car availability: a car booked from a later date shows available on earlier free days

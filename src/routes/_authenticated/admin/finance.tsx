@@ -6,7 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { AdminHireFinanceBoard } from "@/components/AdminHireFinanceBoard";
 import { PeriodSummary } from "@/components/PeriodSummary";
-import { EtrQueue } from "@/components/EtrPanels";
+import { EtrQueue, HireEtrQueue } from "@/components/EtrPanels";
 import { adjustWallet, getFinanceBoard, reviewWithdrawal } from "@/lib/admin.functions";
 import { WalletPayoutsBoard } from "@/components/CustomerWalletCard";
 import { WalletFundingBoard } from "@/components/WalletFundingBoard";
@@ -116,6 +116,7 @@ function FinanceBoard() {
           ]}
         />
         <EtrQueue />
+        <HireEtrQueue />
         <WalletFundingBoard />
         <WalletPayoutsBoard />
         <AdminHireFinanceBoard />
