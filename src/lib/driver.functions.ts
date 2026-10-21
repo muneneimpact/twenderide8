@@ -175,6 +175,22 @@ export const setDriverOnline = createServerFn({ method: "POST" })
           blockers.push(`Your vehicle is hired until ${new Date(returnAt).toLocaleString("en-KE")}. Ride offers are paused until it is returned.`);
         }
       }
+      // Expired compliance documents (licence, PSV, insurance, inspection) block going online.
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const today = new Date().toISOString().slice(0, 10);
+      const subjectFilter = driver.active_vehicle_id
+        ? `subject_user_id.eq.${userId},subject_vehicle_id.eq.${driver.active_vehicle_id}`
+        : `subject_user_id.eq.${userId}`;
+      const { data: expired } = await supabaseAdmin
+        .from("documents")
+        .select("expires_on, document_types(label, expires)")
+        .or(subjectFilter)
+        .lt("expires_on", today);
+      for (const doc of expired ?? []) {
+        const type = (doc as { document_types?: { label?: string; expires?: boolean } | null }).document_types;
+        if (type?.expires === false) continue;
+        blockers.push(`${type?.label ?? "A compliance document"} expired on ${doc.expires_on}. Upload a renewed copy to go online.`);
+      }
       if (blockers.length) return { online: false, blockers };
     }
 
