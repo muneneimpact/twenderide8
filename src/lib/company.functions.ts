@@ -10,18 +10,18 @@ async function logKycEdit(
   entry: { action: string; field?: string; oldValue?: string | null; newValue?: string | null },
 ) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  await supabaseAdmin
-    .from("business_kyc_edits")
-    .insert({
+  try {
+    await supabaseAdmin.from("business_kyc_edits").insert({
       user_id: userId,
       actor_id: userId,
       action: entry.action,
       field: entry.field ?? null,
       old_value: entry.oldValue ?? null,
       new_value: entry.newValue ?? null,
-    })
-    .then(() => null)
-    .catch(() => null);
+    });
+  } catch {
+    // The edit trail is best-effort; never block the actual change.
+  }
 }
 
 /** Company details + saved KYC documents stored on the account (works on any phone). */

@@ -875,19 +875,19 @@ export const saveBusinessKycDocument = createServerFn({ method: "POST" })
       { onConflict: "user_id,document_kind" },
     );
     if (error) throw new Error(`Could not save business document: ${error.message}`);
-    // Edit trail for admins: record the upload/replace.
-    await supabaseAdmin
-      .from("business_kyc_edits")
-      .insert({
+    // Edit trail for admins: record the upload/replace (best-effort).
+    try {
+      await supabaseAdmin.from("business_kyc_edits").insert({
         user_id: context.userId,
         actor_id: context.userId,
         action: existing ? "document_replaced" : "document_uploaded",
         field: data.kind,
         old_value: existing?.file_path ?? null,
         new_value: data.filePath,
-      })
-      .then(() => null)
-      .catch(() => null);
+      });
+    } catch {
+      // Never block a document save on the audit trail.
+    }
     return { ok: true, filePath: data.filePath };
   });
 
