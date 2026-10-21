@@ -530,17 +530,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         if (!path.startsWith(`${context.userId}/biz-`) || path.includes(".."))
           throw new Error("Upload your business documents again.");
       }
-      if (kycPaths.length === 0) {
-        const { data: saved } = await supabaseAdmin
-          .from("business_kyc_documents")
-          .select("id")
-          .eq("user_id", context.userId)
-          .limit(1);
-        if (!saved?.length)
-          throw new Error(
-            "Upload at least one business document (certificate of registration, KRA PIN certificate or CR12) to hire as a company.",
-          );
-      }
+      // Business documents are optional: companies add what they have and staff/owners review them.
     }
     for (const path of [data.idDocumentPath, data.licenseDocumentPath]) {
       if (path && !path.startsWith(`${context.userId}/`))
@@ -931,6 +921,49 @@ export const listMyHireQuotes = createServerFn({ method: "GET" })
       ...quote,
       offers: (offers ?? []).filter((offer) => offer.quote_id === quote.id),
     }));
+  });
+
+/** Payment card poll: asks the gateway directly so a lost callback never leaves the hirer waiting. */
+export const checkHirePaymentNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ quoteId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: quote } = await supabaseAdmin
+      .from("hire_quotes")
+      .select("id, requester_id, payment_status")
+      .eq("id", data.quoteId)
+      .maybeSingle();
+    if (!quote || quote.requester_id !== context.userId) throw new Error("Booking not found.");
+    const { data: intent } = await supabaseAdmin
+      .from("payment_intents")
+      .select("status, provider_reference, created_at")
+      .eq("hire_quote_id", quote.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let status = String(intent?.status ?? quote.payment_status);
+    if (
+      intent?.provider_reference &&
+      ["pending", "initiating", "awaiting_confirmation", "processing", "timed_out"].includes(status) &&
+      Date.now() - new Date(intent.created_at).getTime() > 6_000
+    ) {
+      try {
+        const { getTransaction } = await import("./adapters/palpluss.server");
+        const { applyGatewayTransaction } = await import("./payments.server");
+        const tx = await getTransaction(intent.provider_reference);
+        if (tx && tx.status !== "PENDING") {
+          await applyGatewayTransaction(tx);
+          if (tx.status === "SUCCESS") status = "paid";
+          else if (["FAILED", "CANCELLED"].includes(tx.status)) status = "failed";
+        }
+      } catch (e) {
+        console.error("hire payment check failed", e);
+      }
+    }
+    if (status === "paid") return "paid" as const;
+    if (["failed", "cancelled"].includes(status)) return "failed" as const;
+    return "pending" as const;
   });
 
 /** Ops queue: every request, newest first. */

@@ -1598,11 +1598,7 @@ function HirePage() {
         phone={paymentPhone || null}
         check={async (): Promise<PayState> => {
           if (!payCard) return "pending";
-          const { data } = await supabase.from("hire_quotes").select("payment_status").eq("id", payCard.quoteId).maybeSingle();
-          const st = String(data?.payment_status ?? "pending");
-          if (["paid", "partial", "partially_paid"].includes(st)) return "paid";
-          if (["failed", "timed_out", "cancelled"].includes(st)) return "failed";
-          return "pending";
+          return checkPaymentFn({ data: { quoteId: payCard.quoteId } });
         }}
         onSuccess={() => {
           const id = payCard?.quoteId;
