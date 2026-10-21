@@ -322,11 +322,11 @@ export function HireVehicleManager({
                 ) : null}
               </div>
               <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground">
-                Add photos
+                Take photo
                 <input
                   type="file"
                   accept="image/*"
-                  multiple
+                  capture="environment"
                   className="hidden"
                   onChange={(event) => {
                     const files = Array.from(event.target.files ?? []);

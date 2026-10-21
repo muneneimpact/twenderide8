@@ -97,14 +97,14 @@ export function CustomerWalletCard() {
           </button>
         </div>
         {topup.isError && <p className="mt-2 text-sm text-destructive">{(topup.error as Error).message}</p>}
-        {intentId && (
-          <p className={`mt-2 text-sm ${tStatus === "paid" ? "text-primary" : ["failed", "cancelled", "timed_out"].includes(tStatus ?? "") ? "text-destructive" : "text-muted-foreground"}`}>
-            {tStatus === "paid"
-              ? "Top-up received. Your wallet is updated."
-              : ["failed", "cancelled", "timed_out"].includes(tStatus ?? "")
-                ? status.data?.reason ?? "The M-PESA payment did not go through. Nothing was added."
-                : "Check your phone and enter your M-PESA PIN. Money is added only after M-PESA confirms."}
-          </p>
+        {(topup.isPending || intentId) && (
+          <TopupProgress
+            sending={topup.isPending}
+            status={tStatus}
+            reason={status.data?.reason ?? null}
+            amount={amount}
+            onClose={() => setIntentId(null)}
+          />
         )}
       </div>
 
@@ -143,6 +143,37 @@ export function CustomerWalletCard() {
         </ul>
       )}
     </section>
+  );
+}
+
+function TopupProgress({ sending, status, reason, amount, onClose }: { sending: boolean; status: string | undefined; reason: string | null; amount: number; onClose: () => void }) {
+  const failed = ["failed", "cancelled", "timed_out"].includes(status ?? "");
+  const paid = status === "paid";
+  const step = sending ? 0 : paid ? 3 : failed ? -1 : 1;
+  const steps = ["Sending M-PESA prompt", "Waiting for your PIN", "Confirming with M-PESA", "Added to wallet"];
+  return (
+    <div role="status" aria-live="polite" className={`mt-3 rounded-xl border p-3 ${paid ? "border-primary bg-primary/10" : failed ? "border-destructive bg-destructive/10" : "border-border bg-secondary"}`}>
+      <div className="flex items-center gap-3">
+        {!paid && !failed && <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />}
+        <p className={`text-sm font-semibold ${paid ? "text-primary" : failed ? "text-destructive" : "text-foreground"}`}>
+          {paid ? `KES ${amount.toLocaleString("en-KE")} added to your wallet` : failed ? "Top-up didn't go through" : sending ? "Sending the prompt to your phone…" : "Check your phone and enter your M-PESA PIN"}
+        </p>
+      </div>
+      {failed ? (
+        <p className="mt-1 text-xs text-muted-foreground">{reason ?? "Nothing was added. You can try again."}</p>
+      ) : (
+        <ol className="mt-3 space-y-1.5">
+          {steps.map((s, i) => (
+            <li key={s} className={`flex items-center gap-2 text-xs ${i <= step ? "text-foreground" : "text-muted-foreground"}`}>
+              <span className={`grid h-4 w-4 place-items-center rounded-full text-[9px] ${i < step || paid ? "bg-primary text-primary-foreground" : i === step ? "animate-pulse bg-primary/60" : "bg-border"}`}>{i < step || paid ? "✓" : ""}</span>
+              {s}
+            </li>
+          ))}
+        </ol>
+      )}
+      {paid && <p className="mt-2 text-xs text-muted-foreground">We've sent you an SMS and WhatsApp confirmation.</p>}
+      {(paid || failed) && <button onClick={onClose} className="mt-2 text-xs font-semibold underline">Close</button>}
+    </div>
   );
 }
 

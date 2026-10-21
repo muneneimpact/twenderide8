@@ -83,13 +83,30 @@ export async function handleWalletIntentPaid(intent: IntentRow, receipt: string 
       await walletMove({ userId: intent.customer_id, amount: bonus, kind: "topup_bonus", key: `bonus:${intent.id}`, note: "Wallet top-up bonus (rides & car hire only)", refundable: false });
     }
     const { notify } = await import("./notifications.server");
+    const { appLink } = await import("./links.server");
+    const { data: all } = await supabaseAdmin.from("customer_wallet_entries").select("amount, status, refundable").eq("user_id", intent.customer_id);
+    const { walletBalances } = await import("./wallet-rules");
+    const newBalance = walletBalances(all ?? []).total;
+    const body = `Twende wallet topped up: KES ${amount.toLocaleString("en-KE")} added${receipt ? ` (M-PESA ${receipt})` : ""}.${bonus > 0 ? ` Bonus KES ${bonus} for rides & car hire.` : ""} New balance KES ${newBalance.toLocaleString("en-KE")}. ${appLink("/account")}`;
+    // In-app + push + SMS (critical).
     await notify({
       userId: intent.customer_id,
       templateCode: "wallet_topup",
       title: "Wallet topped up",
-      body: `KES ${amount.toLocaleString("en-KE")} added to your Twende wallet${receipt ? ` (M-PESA ${receipt})` : ""}.${bonus > 0 ? ` Bonus KES ${bonus} for rides & car hire.` : ""}`,
+      body,
+      critical: true,
       dedupeKey: `wallet-topup:${intent.id}`,
     });
+    // WhatsApp too, best effort — never blocks the credit.
+    try {
+      const { whatsappGatewayConfigured, whatsappGatewaySend } = await import("./whatsapp-gateway.server");
+      const { data: p } = await supabaseAdmin.from("profiles").select("phone").eq("id", intent.customer_id).maybeSingle();
+      if (whatsappGatewayConfigured() && p?.phone) {
+        await whatsappGatewaySend({ to: p.phone.replace(/^\+/, ""), type: "text", text: { body } });
+      }
+    } catch (e) {
+      console.error("wallet top-up WhatsApp failed", e);
+    }
     return;
   }
 
