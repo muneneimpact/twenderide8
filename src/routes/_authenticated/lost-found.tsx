@@ -14,8 +14,29 @@ import {
   listClaimsOnMyFinds,
   decideFoundClaim,
   postDriverCaseMessage,
+  confirmFoundClaim,
+  requestFoundHandover,
+  shareDriverPhoneForClaim,
   type LostFoundView,
 } from "@/lib/lost-found.functions";
+
+/** Downscale a camera photo to a ~1200px JPEG data URL before upload. */
+function shrink(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 1200 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
 
 export const Route = createFileRoute("/_authenticated/lost-found")({
   head: () => ({
@@ -88,12 +109,22 @@ function LostFoundPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["lf-claims-on-finds"] }),
   });
 
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [drop, setDrop] = useState<Record<string, string>>({});
+  const confirmFn = useServerFn(confirmFoundClaim);
+  const handoverFn = useServerFn(requestFoundHandover);
+  const shareFn = useServerFn(shareDriverPhoneForClaim);
+  const refreshFound = () => void qc.invalidateQueries({ queryKey: ["lf-found-for-me"] });
+  const confirm = useMutation({ mutationFn: (v: { reportId: string; confirm: boolean }) => confirmFn({ data: v }), onSuccess: refreshFound, onError: (e) => setMsg((e as Error).message) });
+  const handover = useMutation({ mutationFn: (v: { reportId: string; kind: "dropoff" | "phone"; note?: string }) => handoverFn({ data: v }), onSuccess: () => { setMsg("Request sent to your driver."); refreshFound(); }, onError: (e) => setMsg((e as Error).message) });
+  const share = useMutation({ mutationFn: (claimId: string) => shareFn({ data: { claimId } }), onSuccess: () => void qc.invalidateQueries({ queryKey: ["lf-claims-on-finds"] }) });
   const submit = useMutation({
-    mutationFn: () => createFn({ data: { as, rideIds: picked, description } }),
+    mutationFn: () => createFn({ data: { as, rideIds: picked, description, photoDataUrl: as === "driver" ? (photo ?? undefined) : undefined } }),
     onSuccess: () => {
       setMsg("Report sent. Our team will match it and contact you.");
       setPicked([]);
       setDescription("");
+      setPhoto(null);
       void qc.invalidateQueries({ queryKey: ["lf-mine"] });
     },
     onError: (e) => setMsg((e as Error).message),
@@ -166,6 +197,13 @@ function LostFoundPage() {
             placeholder={as === "customer" ? "e.g. Black Samsung phone in a red case" : "e.g. A phone was left on the back seat"}
             className="input-base mt-3 w-full"
           />
+          {as === "driver" ? (
+            <label className="mt-2 block rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+              {photo ? <img src={photo} alt="Found item" className="mb-2 h-32 w-full rounded-md object-cover" /> : null}
+              {photo ? "Retake photo" : "Take a photo of the item (only you and Twende staff see it)"}
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void shrink(f).then(setPhoto); }} />
+            </label>
+          ) : null}
           <button
             onClick={() => submit.mutate()}
             disabled={!picked.length || description.trim().length < 10 || submit.isPending}
@@ -195,7 +233,31 @@ function LostFoundPage() {
                 return (
                   <li key={f.id} className="rounded-xl border border-border p-3 text-xs">
                     <p className="font-semibold text-foreground">Trip: {f.trip?.label ?? "Your trip"} · {f.trip ? new Date(f.trip.when).toLocaleDateString("en-KE") : ""}</p>
-                    {f.claim && f.claim.status !== "more_info" ? (
+                    {f.claim?.status === "awaiting_customer" ? (
+                      <div className="mt-2 space-y-2">
+                        <p className="text-foreground">Your driver thinks this matches your description{f.claim.driver_note ? `: ${f.claim.driver_note}` : "."} Is it yours?</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => confirm.mutate({ reportId: f.id, confirm: true })} className="flex-1 rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground">Yes, it's mine</button>
+                          <button onClick={() => confirm.mutate({ reportId: f.id, confirm: false })} className="flex-1 rounded-full border border-border px-3 py-2 font-semibold">Not mine</button>
+                        </div>
+                      </div>
+                    ) : f.claim?.status === "approved" ? (
+                      <div className="mt-2 space-y-2">
+                        <p className="font-semibold text-foreground">Confirmed. How do you want to get it back?</p>
+                        {f.claim.driver_phone ? (
+                          <p>Driver's phone: <a className="font-semibold underline" href={`tel:${f.claim.driver_phone}`}>{f.claim.driver_phone}</a></p>
+                        ) : f.claim.handover_request === "phone" ? (
+                          <p className="text-muted-foreground">Waiting for the driver to allow you to see their number.</p>
+                        ) : null}
+                        {f.claim.handover_request === "dropoff" ? <p className="text-muted-foreground">Drop-off asked at: {f.claim.dropoff_note}</p> : null}
+                        <input value={drop[f.id] ?? ""} onChange={(e) => setDrop((d) => ({ ...d, [f.id]: e.target.value }))} className="input-base w-full" placeholder="Where should the driver drop it?" />
+                        <div className="flex gap-2">
+                          <button onClick={() => handover.mutate({ reportId: f.id, kind: "dropoff", note: drop[f.id] })} disabled={(drop[f.id] ?? "").trim().length < 4} className="flex-1 rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">Request drop-off</button>
+                          {!f.claim.driver_phone ? <button onClick={() => handover.mutate({ reportId: f.id, kind: "phone" })} className="flex-1 rounded-full border border-border px-3 py-2 font-semibold">Ask for driver's number</button> : null}
+                        </div>
+                        <p className="rounded-lg bg-warning/10 p-2 text-[11px] text-foreground">You'll unlock a phone in person at handover — never send your PIN.</p>
+                      </div>
+                    ) : f.claim && f.claim.status !== "more_info" ? (
                       <p className="mt-1 capitalize text-muted-foreground">Claim {f.claim.status}{f.claim.driver_note ? ` — ${f.claim.driver_note}` : ""}</p>
                     ) : (
                       <div className="mt-2 space-y-2">
@@ -221,7 +283,8 @@ function LostFoundPage() {
             <ul className="mt-2 space-y-2">
               {claimsOnFinds.data.map((c) => (
                 <li key={c.id} className="rounded-xl border border-border p-3 text-xs">
-                  <p className="font-semibold text-foreground">{c.claimant} · {c.trip ?? ""} · <span className="capitalize">{c.status.replace("_", " ")}</span></p>
+                  <p className="font-semibold text-foreground">{c.claimant} · {c.trip ?? ""} · <span className="capitalize">{c.status === "awaiting_customer" ? "waiting for passenger to confirm" : c.status.replace("_", " ")}</span></p>
+                  {c.your_photo ? <img src={c.your_photo} alt="Item you found (only you see this)" className="mt-2 h-32 w-full rounded-lg object-cover" /> : null}
                   <p className="mt-1 text-muted-foreground">You logged: {c.your_item}</p>
                   <p className="mt-1 text-foreground">They say: {c.description}</p>
                   {c.contact_phone ? <p className="mt-1">Phone to call: <a className="underline" href={`tel:${c.contact_phone}`}>{c.contact_phone}</a></p> : null}
@@ -230,10 +293,21 @@ function LostFoundPage() {
                     <div className="mt-2 space-y-2">
                       <input value={decNote[c.id] ?? ""} onChange={(e) => setDecNote((n) => ({ ...n, [c.id]: e.target.value }))} className="input-base w-full" placeholder="Note or extra check you need (optional)" />
                       <div className="flex gap-2">
-                        <button onClick={() => decide.mutate({ claimId: c.id, decision: "approved" })} className="flex-1 rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground">It matches</button>
+                        <button onClick={() => decide.mutate({ claimId: c.id, decision: "approved" })} className="flex-1 rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground">Send to confirm</button>
                         <button onClick={() => decide.mutate({ claimId: c.id, decision: "more_info" })} className="flex-1 rounded-full border border-border px-3 py-2 font-semibold">Need more</button>
                         <button onClick={() => decide.mutate({ claimId: c.id, decision: "rejected" })} className="flex-1 rounded-full border border-destructive px-3 py-2 font-semibold text-destructive">No match</button>
                       </div>
+                    </div>
+                  ) : null}
+                  {c.status === "approved" ? (
+                    <div className="mt-2 space-y-1 rounded-lg bg-secondary p-2">
+                      <p className="font-semibold text-foreground">Passenger confirmed it is theirs.</p>
+                      {c.handover_request === "dropoff" ? <p>Drop it at: {c.dropoff_note}</p> : null}
+                      {c.handover_request === "phone" && !c.phone_shared ? (
+                        <button onClick={() => share.mutate(c.id)} disabled={share.isPending} className="w-full rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground">Allow them to see my phone number</button>
+                      ) : null}
+                      {c.phone_shared ? <p className="text-muted-foreground">Your number is visible to them.</p> : null}
+                      <p className="text-[11px] text-muted-foreground">They unlock any phone in front of you at handover.</p>
                     </div>
                   ) : null}
                 </li>
