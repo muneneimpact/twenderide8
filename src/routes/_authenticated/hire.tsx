@@ -1,3 +1,4 @@
+import { PayHireWithWallet } from "@/components/CustomerWalletCard";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
 import { createFileRoute } from "@tanstack/react-router";
