@@ -858,6 +858,12 @@ export const saveBusinessKycDocument = createServerFn({ method: "POST" })
       throw new Error("The uploaded document could not be found. Please upload it again.");
     }
     if (data.remember === false) return { ok: true, filePath: data.filePath };
+    const { data: existing } = await supabaseAdmin
+      .from("business_kyc_documents")
+      .select("file_path")
+      .eq("user_id", context.userId)
+      .eq("document_kind", data.kind)
+      .maybeSingle();
     const { error } = await supabaseAdmin.from("business_kyc_documents").upsert(
       {
         user_id: context.userId,
@@ -869,6 +875,19 @@ export const saveBusinessKycDocument = createServerFn({ method: "POST" })
       { onConflict: "user_id,document_kind" },
     );
     if (error) throw new Error(`Could not save business document: ${error.message}`);
+    // Edit trail for admins: record the upload/replace.
+    await supabaseAdmin
+      .from("business_kyc_edits")
+      .insert({
+        user_id: context.userId,
+        actor_id: context.userId,
+        action: existing ? "document_replaced" : "document_uploaded",
+        field: data.kind,
+        old_value: existing?.file_path ?? null,
+        new_value: data.filePath,
+      })
+      .then(() => null)
+      .catch(() => null);
     return { ok: true, filePath: data.filePath };
   });
 
