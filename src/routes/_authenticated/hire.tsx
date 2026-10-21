@@ -424,6 +424,48 @@ function HirePage() {
     );
   }
 
+  async function uploadBiz(kind: KycKind, file: File) {
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage("Each document must be 10 MB or smaller.");
+      return;
+    }
+    if (file.type && !file.type.startsWith("image/") && file.type !== "application/pdf") {
+      setMessage("Upload a photo or PDF of the document.");
+      return;
+    }
+    setUploading(`biz-${kind}`);
+    setMessage(null);
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) {
+      setUploading(null);
+      return;
+    }
+    const path = `${auth.user.id}/biz-${kind}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, "")}`;
+    const { error } = await supabase.storage
+      .from("hire-documents")
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (error) {
+      setUploading(null);
+      setMessage(error.message);
+      return;
+    }
+    try {
+      await saveKycFn({ data: { kind, filePath: path, remember: rememberDocs } });
+      setKycPaths((current) => ({ ...current, [kind]: path }));
+      void queryClient.invalidateQueries({ queryKey: ["my-business-kyc"] });
+      setMessage(
+        rememberDocs
+          ? "Business document saved to your account for future hires."
+          : "Business document attached to this booking only.",
+      );
+    } catch (error) {
+      await supabase.storage.from("hire-documents").remove([path]);
+      setMessage((error as Error).message);
+    } finally {
+      setUploading(null);
+    }
+  }
+
   async function upload(kind: "id" | "license", file: File) {
     if (file.size > 10 * 1024 * 1024) {
       setMessage("Each document must be 10 MB or smaller.");
