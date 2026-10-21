@@ -1,0 +1,2 @@
+ALTER TABLE public.hire_quotes ADD COLUMN IF NOT EXISTS hirer_inspection jsonb;
+COMMENT ON COLUMN public.hire_quotes.hirer_inspection IS 'Hirer''s own pickup/return readings: {pickup:{odometer,fuel,notes,photos[],at,device}, return:{...}}';

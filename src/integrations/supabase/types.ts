@@ -1254,6 +1254,7 @@ export type Database = {
           end_at: string | null
           estimated_total: number
           handed_over_at: string | null
+          hirer_inspection: Json | null
           hirer_type: string
           id: string
           id_document_path: string | null
@@ -1335,6 +1336,7 @@ export type Database = {
           end_at?: string | null
           estimated_total?: number
           handed_over_at?: string | null
+          hirer_inspection?: Json | null
           hirer_type?: string
           id?: string
           id_document_path?: string | null
@@ -1416,6 +1418,7 @@ export type Database = {
           end_at?: string | null
           estimated_total?: number
           handed_over_at?: string | null
+          hirer_inspection?: Json | null
           hirer_type?: string
           id?: string
           id_document_path?: string | null

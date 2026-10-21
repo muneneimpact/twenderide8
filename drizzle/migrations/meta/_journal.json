@@ -43,6 +43,13 @@
       "when": 1792546623290,
       "tag": "0005_whatsapp_default_consent_and_document_types",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792548391756,
+      "tag": "0006_hirer_pickup_details",
+      "breakpoints": true
     }
   ]
 }
