@@ -179,7 +179,7 @@ export const requestWalletRefund = createServerFn({ method: "POST" })
         const { data: profs } = ids.length ? await db.from("profiles").select("phone").in("id", ids) : { data: [] };
         await Promise.allSettled(
           (profs ?? []).filter((p) => p.phone).map((p) =>
-            whatsappGatewaySend({ to: p.phone!.replace(/^\+/, ""), type: "text", text: { body: `${msg} https://twenderides.lovable.app/admin/finance` } }),
+            whatsappGatewaySend({ to: p.phone!.replace(/^\+/, ""), type: "text", text: { body: `${msg} https://twenderide8.lovable.app/admin/finance` } }),
           ),
         );
       }

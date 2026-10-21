@@ -764,6 +764,32 @@ export const saveMyHireDocument = createServerFn({ method: "POST" })
 export const listMyHireQuotes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // Safety net: don't rely only on the gateway callback. Ask the gateway
+    // directly about this customer's hire payments still waiting > 15s.
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: waiting } = await supabaseAdmin
+        .from("payment_intents")
+        .select("provider_reference, created_at")
+        .eq("customer_id", context.userId)
+        .not("hire_quote_id", "is", null)
+        .in("status", ["pending", "initiating", "awaiting_confirmation", "processing"])
+        .gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString())
+        .limit(5);
+      const due = (waiting ?? []).filter(
+        (w) => w.provider_reference && Date.now() - new Date(w.created_at).getTime() > 15_000,
+      );
+      if (due.length) {
+        const { getTransaction } = await import("./adapters/palpluss.server");
+        const { applyGatewayTransaction } = await import("./payments.server");
+        for (const w of due) {
+          const tx = await getTransaction(w.provider_reference!);
+          if (tx && tx.status !== "PENDING") await applyGatewayTransaction(tx);
+        }
+      }
+    } catch (e) {
+      console.error("hire payment status check failed", e);
+    }
     const { data } = await context.supabase
       .from("hire_quotes")
       .select("*")
@@ -1414,7 +1440,7 @@ async function smsPayoutSummary(ownerId: string, key: string, headline: string, 
       to: prof.phone,
       eventType: "hire_payout_summary",
       idempotencyKey: key,
-      message: `Twende: ${headline} Requested: ${k(requested)}. Total paid to you: ${k(Number(bal?.paid_out_total ?? 0))}. Pending: ${k(pending)}. Balance available: ${k(Math.max(0, balance - pending))}. Statement: https://twenderides.lovable.app/driver/hire?section=finances`,
+      message: `Twende: ${headline} Requested: ${k(requested)}. Total paid to you: ${k(Number(bal?.paid_out_total ?? 0))}. Pending: ${k(pending)}. Balance available: ${k(Math.max(0, balance - pending))}. Statement: https://twenderide8.lovable.app/driver/hire?section=finances`,
     });
   } catch (e) {
     console.error("payout sms failed", e);

@@ -24,7 +24,7 @@ export const DEFAULT_BRANDING: Branding = {
   phone: null,
   email: "ride@twendemeru.co.ke",
   kra_pin: null,
-  website: "twenderides.lovable.app",
+  website: "twenderide8.lovable.app",
   logo_data_url: null,
   extra_logos: [],
   accent_color: "#0F766E",
