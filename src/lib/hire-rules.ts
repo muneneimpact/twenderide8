@@ -31,3 +31,18 @@ export function isBusinessEmail(email: string): boolean {
   if (FREE_MAIL.has(domain)) return false;
   return /\.[a-z]{2,}$/.test(domain);
 }
+
+/** Daily included mileage and excess rate for car hire. */
+export const HIRE_INCLUDED_KM_PER_DAY = 300;
+export const HIRE_EXCESS_KM_RATE = 30;
+
+/** Split the refundable deposit at return: what is kept, returned, and still owed. */
+export function settleHireReturn(input: { deposit: number; days: number; kmDriven: number; fuelCharge: number; penalties: number }) {
+  const allowance = HIRE_INCLUDED_KM_PER_DAY * Math.max(1, input.days);
+  const excessKm = Math.max(0, Math.round(input.kmDriven - allowance));
+  const excessCharge = excessKm * HIRE_EXCESS_KM_RATE;
+  const deductions = excessCharge + Math.max(0, input.fuelCharge) + Math.max(0, input.penalties);
+  const deposit = Math.max(0, input.deposit);
+  const kept = Math.min(deposit, deductions);
+  return { allowance, excessKm, excessCharge, deductions, kept, returned: deposit - kept, balanceDue: deductions - kept };
+}

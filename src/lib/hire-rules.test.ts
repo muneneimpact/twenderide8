@@ -29,3 +29,20 @@ describe("business email", () => {
     expect(isBusinessEmail("jane@gmail.com")).toBe(false);
   });
 });
+
+import { settleHireReturn } from "./hire-rules";
+describe("hire return deposit settlement", () => {
+  it("charges KES 30 per km above 300 km a day", () => {
+    const r = settleHireReturn({ deposit: 10000, days: 2, kmDriven: 700, fuelCharge: 0, penalties: 0 });
+    expect(r.excessCharge).toBe(3000);
+    expect(r.returned).toBe(7000);
+  });
+  it("returns the whole deposit when nothing is owed", () => {
+    expect(settleHireReturn({ deposit: 5000, days: 1, kmDriven: 250, fuelCharge: 0, penalties: 0 }).returned).toBe(5000);
+  });
+  it("keeps the whole deposit and records the balance still owed", () => {
+    const r = settleHireReturn({ deposit: 2000, days: 1, kmDriven: 300, fuelCharge: 1500, penalties: 1000 });
+    expect(r.kept).toBe(2000);
+    expect(r.balanceDue).toBe(500);
+  });
+});
