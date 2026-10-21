@@ -32,6 +32,7 @@ export function OwnerHireBookings() {
   const declineFn = useServerFn(ownerDeclineHire);
   const signFn = useServerFn(ownerApplySavedSignature);
   const depositFn = useServerFn(requestHandoverDeposit);
+  const verifyFn = useServerFn(ownerConfirmCompanyBooking);
   const depositReq = useMutation({
     mutationFn: (quoteId: string) => depositFn({ data: { quoteId } }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["owner-hire-bookings"] }),
@@ -68,6 +69,11 @@ export function OwnerHireBookings() {
 
   const sign = useMutation({
     mutationFn: (quoteId: string) => signFn({ data: { quoteId } }),
+    onSuccess: refresh,
+    onError: (e) => setErr((e as Error).message),
+  });
+  const verify = useMutation({
+    mutationFn: (quoteId: string) => verifyFn({ data: { quoteId } }),
     onSuccess: refresh,
     onError: (e) => setErr((e as Error).message),
   });
