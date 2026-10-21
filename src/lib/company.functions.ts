@@ -67,13 +67,13 @@ export const updateCompanyProfile = createServerFn({ method: "POST" })
       .maybeSingle();
     const { data: saved, error } = await supabaseAdmin
       .from("profiles")
-      .update({
+      .upsert({
+        id: context.userId,
         company_name: data.companyName,
         company_kra_pin: data.kraPin || null,
         company_billing_email: data.billingEmail || null,
         company_registration_number: data.registrationNumber || null,
-      })
-      .eq("id", context.userId)
+      }, { onConflict: "id" })
       .select("id")
       .maybeSingle();
     if (error) throw new Error(error.message);
