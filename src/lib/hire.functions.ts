@@ -995,14 +995,16 @@ export const requestHirePaymentReminder = createServerFn({ method: "POST" })
     const { data: quote } = await supabaseAdmin
       .from("hire_quotes")
       .select(
-        "id, reference, requester_id, vehicle_id, estimated_total, quoted_total, days, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, payment_hold_expires_at, status, contact_phone, contact_email",
+        "id, reference, requester_id, vehicle_id, estimated_total, quoted_total, days, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, payment_hold_expires_at, status, contact_phone, contact_email, pay_later_method",
       )
       .eq("id", data.quoteId)
       .maybeSingle();
     if (!quote?.vehicle_id || quote.payment_policy === "legacy" || quote.status !== "confirmed") {
       throw new Error("Only paid, confirmed car-hire bookings can be sent a payment reminder.");
     }
-    if (!["partial"].includes(quote.payment_status))
+    // Pay-later company bookings can be reminded even before any payment (status "pending").
+    const payLater = Boolean(quote.pay_later_method);
+    if (!["partial"].includes(quote.payment_status) && !(payLater && quote.payment_status === "pending"))
       throw new Error("This hire booking has no outstanding installment.");
     const { data: vehicle } = await supabaseAdmin
       .from("vehicles")
