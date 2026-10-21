@@ -171,10 +171,10 @@ export const requestWalletRefund = createServerFn({ method: "POST" })
       const { textStaffWithLink } = await import("./links.server");
       const msg = `Twende refund request: KES ${amount.toLocaleString("en-KE")} to ${phone}. Pending until paid.`;
       const key = `wallet-refund-req:${context.userId}:${Date.now()}`;
-      await textStaffWithLink(["finance_admin", "super_admin"], { message: msg, path: "/admin/finance", eventType: "wallet_refund_request", idempotencyKey: key });
+      await textStaffWithLink(["ops_admin", "finance_admin", "super_admin"], { message: msg, path: "/admin/finance", eventType: "wallet_refund_request", idempotencyKey: key });
       const { whatsappGatewayConfigured, whatsappGatewaySend } = await import("./whatsapp-gateway.server");
       if (whatsappGatewayConfigured()) {
-        const { data: staff } = await db.from("user_roles").select("user_id").in("role", ["finance_admin", "super_admin"]);
+        const { data: staff } = await db.from("user_roles").select("user_id").in("role", ["ops_admin", "finance_admin", "super_admin"]);
         const ids = [...new Set((staff ?? []).map((s) => s.user_id))];
         const { data: profs } = ids.length ? await db.from("profiles").select("phone").in("id", ids) : { data: [] };
         await Promise.allSettled(
@@ -192,8 +192,8 @@ export const requestWalletRefund = createServerFn({ method: "POST" })
 export const listWalletPayouts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { requireRole, FINANCE } = await import("./authz.server");
-    await requireRole(context.userId, FINANCE);
+    const { requireRole, STAFF } = await import("./authz.server");
+    await requireRole(context.userId, STAFF);
     const db = await admin();
     const { data } = await db
       .from("customer_wallet_entries")
@@ -208,8 +208,8 @@ export const reviewWalletPayout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ id: z.string().uuid(), decision: z.enum(["paid", "rejected"]), reference: z.string().max(60).optional() }).parse(i))
   .handler(async ({ data, context }) => {
-    const { requireRole, FINANCE } = await import("./authz.server");
-    await requireRole(context.userId, FINANCE);
+    const { requireRole, STAFF } = await import("./authz.server");
+    await requireRole(context.userId, STAFF);
     if (data.decision === "paid" && !data.reference?.trim()) throw new Error("Enter the M-PESA code you paid with.");
     const db = await admin();
     const { data: row, error } = await db
