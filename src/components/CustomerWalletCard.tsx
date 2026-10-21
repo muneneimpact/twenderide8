@@ -69,16 +69,19 @@ export function CustomerWalletCard() {
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Twende wallet</p>
-      <p className="mt-1 text-3xl font-bold text-foreground">KES {balance.toLocaleString("en-KE")}</p>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-        <div className="rounded-lg bg-secondary p-2">
-          <p className="text-muted-foreground">Your money (refundable)</p>
-          <p className="font-semibold text-foreground">KES {(d?.refundable ?? 0).toLocaleString("en-KE")}</p>
+      <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Twende wallet balance</p>
+      <p className="mt-1 text-5xl font-extrabold tracking-tight text-foreground">
+        <span className="mr-1 text-2xl font-bold text-muted-foreground">KES</span>
+        {balance.toLocaleString("en-KE")}
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-secondary p-3">
+          <p className="text-xs text-muted-foreground">Your money (refundable)</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">KES {(d?.refundable ?? 0).toLocaleString("en-KE")}</p>
         </div>
-        <div className="rounded-lg bg-secondary p-2">
-          <p className="text-muted-foreground">Promo credit (rides & car hire)</p>
-          <p className="font-semibold text-foreground">KES {(d?.promo ?? 0).toLocaleString("en-KE")}</p>
+        <div className="rounded-xl bg-secondary p-3">
+          <p className="text-xs text-muted-foreground">Promo credit (rides & car hire)</p>
+          <p className="mt-1 text-2xl font-bold text-primary">KES {(d?.promo ?? 0).toLocaleString("en-KE")}</p>
         </div>
       </div>
 
