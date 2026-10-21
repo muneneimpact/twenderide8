@@ -267,6 +267,10 @@ export const reviewApproval = createServerFn({ method: "POST" })
           })
           .eq("id", data.id);
         if (error) throw new Error(error.message);
+        if (data.decision === "rejected") {
+          const { smsDocumentRejected } = await import("./sms-events.server");
+          await smsDocumentRejected(data.id, data.note ?? "Not accepted");
+        }
       } else {
         const { error } = await supabaseAdmin
           .from(table)

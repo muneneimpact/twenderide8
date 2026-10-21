@@ -331,6 +331,8 @@ export const createDeliveryQuote = createServerFn({ method: "POST" })
         vehicleClass: z.enum(["go", "plus", "comfort", "xl", "boda", "e_boda"]),
         deliveryFleetId: z.string().uuid(),
         pickupNotes: z.string().max(400).optional().nullable(),
+        recipientName: z.string().trim().max(80).optional().nullable(),
+        recipientPhone: z.string().trim().regex(/^(\+?254|0)[17]\d{8}$/, "Enter the receiver's Kenyan phone number."),
       })
       .parse(input),
   )
@@ -389,6 +391,8 @@ export const createDeliveryQuote = createServerFn({ method: "POST" })
         vehicle_class: data.vehicleClass,
         trip_kind: "delivery",
         delivery_fleet_id: fleet.id,
+        recipient_name: data.recipientName || null,
+        recipient_phone: data.recipientPhone,
         pickup_lat: data.pickup.lat,
         pickup_lng: data.pickup.lng,
         pickup_address: data.pickup.address ?? null,

@@ -99,21 +99,67 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
 export const markHireHandover = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ quoteId: z.string().uuid(), step: z.enum(["handed_over", "returned"]) }).parse(input),
+    z
+      .object({
+        quoteId: z.string().uuid(),
+        step: z.enum(["handed_over", "returned"]),
+        settlement: z
+          .object({
+            deposit: z.number().min(0).max(1_000_000),
+            kmDriven: z.number().min(0).max(100_000),
+            fuelCharge: z.number().min(0).max(1_000_000),
+            penalties: z.number().min(0).max(1_000_000),
+            notes: z.string().trim().max(500).optional(),
+          })
+          .optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const q = await loadBookingFor(context.userId, data.quoteId);
     if (q.status !== "confirmed") throw new Error("Only confirmed bookings can be handed over.");
     if (data.step === "returned" && !q.handed_over_at) throw new Error("Mark the handover first.");
+    if (data.step === "returned" && !data.settlement) throw new Error("Enter the deposit and return readings.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch = data.step === "handed_over" ? { handed_over_at: new Date().toISOString() } : { returned_at: new Date().toISOString() };
-    await supabaseAdmin.from("hire_quotes").update(patch).eq("id", q.id);
-    const { notify } = await import("./notifications.server");
+    const kes = (n: number) => `KES ${Math.round(n).toLocaleString("en-KE")}`;
+    let body = `Hire ${q.reference}: the car has been handed over to you. Drive safely!`;
+    let patch: Record<string, unknown> = { handed_over_at: new Date().toISOString() };
+    if (data.step === "returned" && data.settlement) {
+      const { settleHireReturn } = await import("./hire-rules");
+      const s = data.settlement;
+      const r = settleHireReturn({ deposit: s.deposit, days: Number(q.days ?? 1), kmDriven: s.kmDriven, fuelCharge: s.fuelCharge, penalties: s.penalties });
+      patch = {
+        returned_at: new Date().toISOString(),
+        return_deposit_held: s.deposit,
+        return_km_driven: s.kmDriven,
+        return_excess_km_charge: r.excessCharge,
+        return_fuel_charge: s.fuelCharge,
+        return_penalties: s.penalties,
+        return_deposit_kept: r.kept,
+        return_deposit_returned: r.returned,
+        return_balance_due: r.balanceDue,
+        return_notes: s.notes || null,
+      };
+      const parts = [
+        r.excessCharge > 0 ? `extra ${r.excessKm} km ${kes(r.excessCharge)}` : null,
+        s.fuelCharge > 0 ? `fuel ${kes(s.fuelCharge)}` : null,
+        s.penalties > 0 ? `fines/parking ${kes(s.penalties)}` : null,
+      ].filter(Boolean);
+      body =
+        `Twende: hire ${q.reference} returned. Deposit ${kes(s.deposit)}. ` +
+        (parts.length ? `Kept ${kes(r.kept)} (${parts.join(", ")}). ` : "Nothing kept. ") +
+        `Coming back to you: ${kes(r.returned)}.` +
+        (r.balanceDue > 0 ? ` Still owed: ${kes(r.balanceDue)}.` : "");
+    }
+    await supabaseAdmin.from("hire_quotes").update(patch as never).eq("id", q.id);
+    const { notify, audit } = await import("./notifications.server");
+    if (data.step === "returned") await audit(context.userId, "hire_return_settled", "hire_quote", q.id, patch);
     await notify({
       userId: q.requester_id,
       templateCode: `hire_${data.step}`,
-      title: data.step === "handed_over" ? "Car handed over" : "Car returned",
-      body: `Hire ${q.reference}: ${data.step === "handed_over" ? "the car has been handed over to you. Drive safely!" : "the car has been returned. Thank you for hiring with Twende."}`,
+      title: data.step === "handed_over" ? "Car handed over" : "Car returned — deposit summary",
+      body,
+      critical: data.step === "returned",
       dedupeKey: `hire-${data.step}:${q.id}`,
     }).catch(() => undefined);
     return { ok: true };

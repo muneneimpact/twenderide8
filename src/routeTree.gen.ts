@@ -37,6 +37,7 @@ import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
 import { Route as ApiPublicBootstrapSuperAdminRouteImport } from './routes/api/public/bootstrap-super-admin'
 import { Route as AuthenticatedHireAgreementQuoteIdRouteImport } from './routes/_authenticated/hire_.agreement.$quoteId'
+import { Route as ApiPublicComplianceExpiryRemindersRouteImport } from './routes/api/public/compliance/expiry-reminders'
 import { Route as ApiPublicPaymentsCallbackRouteImport } from './routes/api/public/payments/callback'
 import { Route as ApiPublicPaymentsReconcileRouteImport } from './routes/api/public/payments/reconcile'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
@@ -193,6 +194,12 @@ const AuthenticatedHireAgreementQuoteIdRoute =
     path: '/hire/agreement/$quoteId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicComplianceExpiryRemindersRoute =
+  ApiPublicComplianceExpiryRemindersRouteImport.update({
+    id: '/api/public/compliance/expiry-reminders',
+    path: '/api/public/compliance/expiry-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPaymentsCallbackRoute =
   ApiPublicPaymentsCallbackRouteImport.update({
     id: '/api/public/payments/callback',
@@ -240,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/driver/': typeof AuthenticatedDriverIndexRoute
   '/rides/': typeof AuthenticatedRidesIndexRoute
   '/hire/agreement/$quoteId': typeof AuthenticatedHireAgreementQuoteIdRoute
+  '/api/public/compliance/expiry-reminders': typeof ApiPublicComplianceExpiryRemindersRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
   '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -272,6 +280,7 @@ export interface FileRoutesByTo {
   '/driver': typeof AuthenticatedDriverIndexRoute
   '/rides': typeof AuthenticatedRidesIndexRoute
   '/hire/agreement/$quoteId': typeof AuthenticatedHireAgreementQuoteIdRoute
+  '/api/public/compliance/expiry-reminders': typeof ApiPublicComplianceExpiryRemindersRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
   '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -306,6 +315,7 @@ export interface FileRoutesById {
   '/_authenticated/driver/': typeof AuthenticatedDriverIndexRoute
   '/_authenticated/rides/': typeof AuthenticatedRidesIndexRoute
   '/_authenticated/hire_/agreement/$quoteId': typeof AuthenticatedHireAgreementQuoteIdRoute
+  '/api/public/compliance/expiry-reminders': typeof ApiPublicComplianceExpiryRemindersRoute
   '/api/public/payments/callback': typeof ApiPublicPaymentsCallbackRoute
   '/api/public/payments/reconcile': typeof ApiPublicPaymentsReconcileRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/driver/'
     | '/rides/'
     | '/hire/agreement/$quoteId'
+    | '/api/public/compliance/expiry-reminders'
     | '/api/public/payments/callback'
     | '/api/public/payments/reconcile'
     | '/api/public/whatsapp/webhook'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/driver'
     | '/rides'
     | '/hire/agreement/$quoteId'
+    | '/api/public/compliance/expiry-reminders'
     | '/api/public/payments/callback'
     | '/api/public/payments/reconcile'
     | '/api/public/whatsapp/webhook'
@@ -405,6 +417,7 @@ export interface FileRouteTypes {
     | '/_authenticated/driver/'
     | '/_authenticated/rides/'
     | '/_authenticated/hire_/agreement/$quoteId'
+    | '/api/public/compliance/expiry-reminders'
     | '/api/public/payments/callback'
     | '/api/public/payments/reconcile'
     | '/api/public/whatsapp/webhook'
@@ -417,6 +430,7 @@ export interface RootRouteChildren {
   AuthDriversRoute: typeof AuthDriversRoute
   AuthIndexRoute: typeof AuthIndexRoute
   ApiPublicBootstrapSuperAdminRoute: typeof ApiPublicBootstrapSuperAdminRoute
+  ApiPublicComplianceExpiryRemindersRoute: typeof ApiPublicComplianceExpiryRemindersRoute
   ApiPublicPaymentsCallbackRoute: typeof ApiPublicPaymentsCallbackRoute
   ApiPublicPaymentsReconcileRoute: typeof ApiPublicPaymentsReconcileRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
@@ -620,6 +634,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHireAgreementQuoteIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/compliance/expiry-reminders': {
+      id: '/api/public/compliance/expiry-reminders'
+      path: '/api/public/compliance/expiry-reminders'
+      fullPath: '/api/public/compliance/expiry-reminders'
+      preLoaderRoute: typeof ApiPublicComplianceExpiryRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/callback': {
       id: '/api/public/payments/callback'
       path: '/api/public/payments/callback'
@@ -705,6 +726,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthDriversRoute: AuthDriversRoute,
   AuthIndexRoute: AuthIndexRoute,
   ApiPublicBootstrapSuperAdminRoute: ApiPublicBootstrapSuperAdminRoute,
+  ApiPublicComplianceExpiryRemindersRoute:
+    ApiPublicComplianceExpiryRemindersRoute,
   ApiPublicPaymentsCallbackRoute: ApiPublicPaymentsCallbackRoute,
   ApiPublicPaymentsReconcileRoute: ApiPublicPaymentsReconcileRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,

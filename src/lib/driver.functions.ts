@@ -411,6 +411,11 @@ export const advanceRide = createServerFn({ method: "POST" })
       note: data.note ?? null,
     });
 
+    if (data.next === "trip_started" || data.next === "trip_completed") {
+      const { smsDeliveryRecipient } = await import("./sms-events.server");
+      await smsDeliveryRecipient(ride.id, data.next === "trip_started" ? "picked_up" : "delivered");
+    }
+
     if (data.next === "trip_completed") {
       const settlement = await settleRide(ride.id);
       // Release any job the driver lined up behind this trip: it becomes their

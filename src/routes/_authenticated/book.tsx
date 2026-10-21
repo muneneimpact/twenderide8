@@ -111,6 +111,8 @@ function BookPage() {
   const [stops, setStops] = useState<Point[]>([]);
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>("go");
   const [pickupNotes, setPickupNotes] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"stk_push" | "cash">("stk_push");
   const [paymentTouched, setPaymentTouched] = useState(false);
   const [tripKind, setTripKind] = useState<"ride" | "delivery">("ride");
@@ -282,6 +284,8 @@ function BookPage() {
                 vehicleClass,
                 deliveryFleetId: selectedDelivery!.fleetId,
                 pickupNotes: pickupNotes.trim() ? pickupNotes.trim() : null,
+                recipientName: recipientName.trim() || null,
+                recipientPhone: recipientPhone.replace(/\s/g, ""),
               },
             })
           : await quoteFn({
@@ -916,6 +920,27 @@ function BookPage() {
               className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
             />
           </label>
+
+          {tripKind === "delivery" ? (
+            <div className="mt-4 grid gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                Who is receiving the package? We text them when it's picked up and delivered.
+              </span>
+              <input
+                value={recipientName}
+                onChange={(event) => setRecipientName(event.target.value)}
+                placeholder="Receiver's name"
+                className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+              />
+              <input
+                value={recipientPhone}
+                onChange={(event) => setRecipientPhone(event.target.value)}
+                inputMode="tel"
+                placeholder="Receiver's phone, e.g. 0712 345 678"
+                className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          ) : null}
 
           {/* The coupon box stays out of the way until it's wanted. */}
           {tripKind === "ride" ? (

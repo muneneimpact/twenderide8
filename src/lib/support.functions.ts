@@ -237,6 +237,10 @@ export const setSupportCaseStatus = createServerFn({ method: "POST" })
       .eq("id", data.caseId);
     if (error) throw new Error(error.message);
     await audit(context.userId, `support_case_${data.status}`, "support_case", data.caseId);
+    if (data.status === "resolved") {
+      const { smsComplaintResolved } = await import("./sms-events.server");
+      await smsComplaintResolved(data.caseId);
+    }
     return { ok: true };
   });
 

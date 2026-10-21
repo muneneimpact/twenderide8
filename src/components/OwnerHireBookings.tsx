@@ -30,11 +30,20 @@ export function OwnerHireBookings() {
   const q = useQuery({ queryKey: ["owner-hire-bookings"], queryFn: () => listFn(), refetchInterval: 30_000 });
   const [declining, setDeclining] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [returning, setReturning] = useState<string | null>(null);
+  const [ret, setRet] = useState({ deposit: "", km: "", fuel: "0", fines: "0", notes: "" });
   const [err, setErr] = useState<string | null>(null);
   const refresh = () => void qc.invalidateQueries({ queryKey: ["owner-hire-bookings"] });
   const hand = useMutation({
-    mutationFn: (v: { quoteId: string; step: "handed_over" | "returned" }) => handFn({ data: v }),
-    onSuccess: refresh,
+    mutationFn: (v: {
+      quoteId: string;
+      step: "handed_over" | "returned";
+      settlement?: { deposit: number; kmDriven: number; fuelCharge: number; penalties: number; notes?: string | undefined };
+    }) => handFn({ data: v }),
+    onSuccess: () => {
+      setReturning(null);
+      refresh();
+    },
     onError: (e) => setErr((e as Error).message),
   });
   const decline = useMutation({
@@ -120,7 +129,7 @@ export function OwnerHireBookings() {
                   </button>
                 ) : null}
                 {b.handed_over_at && !b.returned_at ? (
-                  <button onClick={() => hand.mutate({ quoteId: b.id, step: "returned" })} disabled={hand.isPending} className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">
+                  <button onClick={() => setReturning(returning === b.id ? null : b.id)} disabled={hand.isPending} className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">
                     Car returned
                   </button>
                 ) : null}
@@ -130,6 +139,37 @@ export function OwnerHireBookings() {
                   </button>
                 ) : null}
               </div>
+              {returning === b.id ? (
+                <div className="mt-2 grid gap-2 rounded-xl border border-border p-3">
+                  <p className="font-semibold">Return check — the renter gets an SMS with what was kept and returned</p>
+                  {([
+                    ["deposit", "Deposit held (KES)"],
+                    ["km", "Km driven this hire"],
+                    ["fuel", "Missing fuel charge (KES)"],
+                    ["fines", "Traffic / parking fines (KES)"],
+                  ] as const).map(([k, l]) => (
+                    <label key={k} className="grid gap-1 text-sm">
+                      {l}
+                      <input inputMode="numeric" value={ret[k]} onChange={(e) => setRet({ ...ret, [k]: e.target.value.replace(/[^0-9.]/g, "") })} className="input-base" />
+                    </label>
+                  ))}
+                  <input value={ret.notes} onChange={(e) => setRet({ ...ret, notes: e.target.value })} placeholder="Notes (optional)" className="input-base" />
+                  <p className="text-xs text-muted-foreground">300 km a day is included; extra km is KES 30 each.</p>
+                  <button
+                    disabled={hand.isPending || ret.deposit === "" || ret.km === ""}
+                    onClick={() =>
+                      hand.mutate({
+                        quoteId: b.id,
+                        step: "returned",
+                        settlement: { deposit: Number(ret.deposit), kmDriven: Number(ret.km), fuelCharge: Number(ret.fuel || 0), penalties: Number(ret.fines || 0), notes: ret.notes || undefined },
+                      })
+                    }
+                    className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50"
+                  >
+                    Confirm return & send summary
+                  </button>
+                </div>
+              ) : null}
               {declining === b.id ? (
                 <div className="mt-2 flex gap-2">
                   <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (shared with Twende)" className="input-base flex-1" />

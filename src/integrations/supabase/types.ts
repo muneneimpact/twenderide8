@@ -485,6 +485,7 @@ export type Database = {
           created_at: string
           document_type_id: string
           expires_on: string | null
+          expiry_reminders_sent: string[]
           file_path: string | null
           id: string
           issued_on: string | null
@@ -502,6 +503,7 @@ export type Database = {
           created_at?: string
           document_type_id: string
           expires_on?: string | null
+          expiry_reminders_sent?: string[]
           file_path?: string | null
           id?: string
           issued_on?: string | null
@@ -519,6 +521,7 @@ export type Database = {
           created_at?: string
           document_type_id?: string
           expires_on?: string | null
+          expiry_reminders_sent?: string[]
           file_path?: string | null
           id?: string
           issued_on?: string | null
@@ -1282,6 +1285,15 @@ export type Database = {
           renter_id_number: string | null
           renter_name: string | null
           requester_id: string
+          return_balance_due: number | null
+          return_deposit_held: number | null
+          return_deposit_kept: number | null
+          return_deposit_returned: number | null
+          return_excess_km_charge: number | null
+          return_fuel_charge: number | null
+          return_km_driven: number | null
+          return_notes: string | null
+          return_penalties: number | null
           returned_at: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -1351,6 +1363,15 @@ export type Database = {
           renter_id_number?: string | null
           renter_name?: string | null
           requester_id: string
+          return_balance_due?: number | null
+          return_deposit_held?: number | null
+          return_deposit_kept?: number | null
+          return_deposit_returned?: number | null
+          return_excess_km_charge?: number | null
+          return_fuel_charge?: number | null
+          return_km_driven?: number | null
+          return_notes?: string | null
+          return_penalties?: number | null
           returned_at?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -1420,6 +1441,15 @@ export type Database = {
           renter_id_number?: string | null
           renter_name?: string | null
           requester_id?: string
+          return_balance_due?: number | null
+          return_deposit_held?: number | null
+          return_deposit_kept?: number | null
+          return_deposit_returned?: number | null
+          return_excess_km_charge?: number | null
+          return_fuel_charge?: number | null
+          return_km_driven?: number | null
+          return_notes?: string | null
+          return_penalties?: number | null
           returned_at?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -2576,6 +2606,8 @@ export type Database = {
           pickup_notes: string | null
           polyline: string | null
           pricing_snapshot: Json
+          recipient_name: string | null
+          recipient_phone: string | null
           route_provider: string
           route_response: Json
           stops: Json
@@ -2606,6 +2638,8 @@ export type Database = {
           pickup_notes?: string | null
           polyline?: string | null
           pricing_snapshot: Json
+          recipient_name?: string | null
+          recipient_phone?: string | null
           route_provider?: string
           route_response?: Json
           stops?: Json
@@ -2636,6 +2670,8 @@ export type Database = {
           pickup_notes?: string | null
           polyline?: string | null
           pricing_snapshot?: Json
+          recipient_name?: string | null
+          recipient_phone?: string | null
           route_provider?: string
           route_response?: Json
           stops?: Json
