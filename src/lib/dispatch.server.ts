@@ -225,7 +225,18 @@ export async function dispatchRide(
       }
     }),
   );
-  ranked.sort((a, b) => a.eta_minutes - b.eta_minutes || a.road_km - b.road_km);
+  {
+    // Good ratings move a nearby driver up the offer list (see dispatch-rank).
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { rankByEtaAndRating } = await import("./dispatch-rank");
+    const { data: stats } = await supabaseAdmin
+      .from("drivers")
+      .select("id, rating, completed_rides")
+      .in("id", ranked.map((d) => d.driver_id));
+    const byId = new Map((stats ?? []).map((s) => [s.id, s]));
+    const withStats = ranked.map((d) => ({ ...d, rating: Number(byId.get(d.driver_id)?.rating ?? 0), completed_rides: byId.get(d.driver_id)?.completed_rides ?? 0 }));
+    ranked.splice(0, ranked.length, ...rankByEtaAndRating(withStats));
+  }
 
   const best = ranked[0]!;
   const offerCount =
