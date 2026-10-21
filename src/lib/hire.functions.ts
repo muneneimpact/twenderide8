@@ -113,9 +113,9 @@ async function withPhotos(
 }
 
 const VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 const PUBLIC_HIRE_VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
@@ -278,6 +278,8 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         insuranceDetails: z.string().trim().max(200).nullable().optional(),
         minimumAge: z.number().int().min(18).max(100).nullable().optional(),
         submitForHireReview: z.boolean().optional(),
+        depositPolicy: z.enum(["upfront", "handover", "none"]).optional(),
+        depositAmount: z.number().min(0).max(1_000_000).optional(),
       })
       .parse(input),
   )
@@ -309,6 +311,12 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
     const patch: Record<string, unknown> = {};
     if (data.hireMode !== undefined) patch["hire_mode"] = data.hireMode;
     if (data.paymentPolicy !== undefined) patch["hire_payment_policy"] = data.paymentPolicy;
+    if (data.depositPolicy !== undefined) {
+      if (data.depositPolicy !== "none" && !(data.depositAmount && data.depositAmount > 0))
+        throw new Error("Enter the deposit amount, or choose No deposit.");
+      patch["hire_deposit_policy"] = data.depositPolicy;
+      patch["hire_deposit_amount"] = data.depositPolicy === "none" ? 0 : data.depositAmount;
+    }
     if (data.dailyRate !== undefined) patch["hire_daily_rate"] = data.dailyRate;
     if (data.chauffeurDailyRate !== undefined)
       patch["hire_chauffeur_daily_rate"] = data.chauffeurDailyRate;
@@ -516,11 +524,13 @@ export const submitHireQuote = createServerFn({ method: "POST" })
     let chauffeurDailyRate: number | null = null;
     let vehicleClass = data.vehicleClass;
     let paymentPolicy: HirePaymentPolicy | "legacy" = "legacy";
+    let depositPolicy: "upfront" | "handover" | "none" = "none";
+    let depositAmount = 0;
     if (data.vehicleId) {
       const { data: vehicle } = await supabaseAdmin
         .from("vehicles")
         .select(
-          "id, vehicle_class, hire_daily_rate, hire_chauffeur_daily_rate, hire_payment_policy, hire_mode, hire_available, hire_approval_status, status",
+          "id, vehicle_class, hire_daily_rate, hire_chauffeur_daily_rate, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_mode, hire_available, hire_approval_status, status",
         )
         .eq("id", data.vehicleId)
         .maybeSingle();
@@ -539,11 +549,14 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       chauffeurDailyRate = Number(vehicle.hire_chauffeur_daily_rate ?? CHAUFFEUR_DAY_RATE);
       vehicleClass = vehicle.vehicle_class as VehicleClass;
       paymentPolicy = vehicle.hire_payment_policy === "full" ? "full" : "daily_flexible";
+      const v = vehicle as unknown as { hire_deposit_policy?: string; hire_deposit_amount?: number };
+      depositPolicy = v.hire_deposit_policy === "upfront" || v.hire_deposit_policy === "handover" ? v.hire_deposit_policy : "none";
+      depositAmount = depositPolicy === "none" ? 0 : Math.max(0, Number(v.hire_deposit_amount ?? 0));
       const { assertVehicleHasNoLiveRide } = await import("./vehicle-hire-lock.server");
       await assertVehicleHasNoLiveRide(data.vehicleId, startAt);
     }
 
-    const estimate = estimateHireTotal({
+    const hireEstimate = estimateHireTotal({
       vehicleClass,
       driveMode: data.driveMode,
       days,
@@ -551,6 +564,9 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       dailyRate,
       chauffeurDailyRate,
     });
+    // Upfront deposits are collected with the first booking payment; handover deposits are added at pickup.
+    const upfrontDeposit = depositPolicy === "upfront" ? depositAmount : 0;
+    const estimate = hireEstimate + upfrontDeposit;
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("phone")
@@ -562,7 +578,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       if (!rawPhone) throw new Error("Enter an M-Pesa phone number to pay for this booking.");
       paymentPhone = normaliseKenyanPhone(rawPhone);
     }
-    const minimum = paymentPolicy === "daily_flexible" ? Math.ceil(estimate / days) : estimate;
+    const minimum = paymentPolicy === "daily_flexible" ? Math.ceil(hireEstimate / days) + upfrontDeposit : estimate;
     const commissionPercent = data.vehicleId
       ? await (await import("./hire-payments.server")).getHireCommissionPercent()
       : null;
@@ -589,6 +605,8 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         stops: data.stops as never,
         notes: data.notes ?? null,
         estimated_total: estimate,
+        deposit_policy: depositPolicy,
+        deposit_amount: depositAmount,
         end_at: endAt.toISOString(),
         hirer_type: data.hirerType,
         renter_name: data.renterName ?? null,
