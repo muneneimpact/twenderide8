@@ -187,6 +187,7 @@ function HirePage() {
   const respondFn = useServerFn(respondToHireOffer);
   const payFn = useServerFn(payHireBooking);
   const [accountId, setAccountId] = useState<string | null>(null);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
 
   const quotes = useQuery({
     queryKey: ["hire-quotes"],
@@ -1127,7 +1128,21 @@ function HirePage() {
                           className="rounded-full border border-input px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-50"
                         />
                       ) : null}
+                      <button
+                        onClick={() => setDetailsId(detailsId === q.id ? null : q.id)}
+                        className="rounded-full border border-input px-3 py-1.5 text-xs font-semibold text-foreground"
+                      >
+                        {detailsId === q.id ? "Close car details" : "Add car details (odometer, fuel)"}
+                      </button>
                     </div>
+                  ) : null}
+                  {detailsId === q.id ? (
+                    <HirerVehicleDetails
+                      quoteId={q.id}
+                      saved={(q.hirer_inspection ?? null) as never}
+                      ownerOdometer={q.inspection_odometer ?? null}
+                      ownerFuel={(q as { inspection_fuel?: string | null }).inspection_fuel ?? null}
+                    />
                   ) : null}
                   {q.vehicle_id && q.payment_policy !== "legacy"
                     ? (() => {
