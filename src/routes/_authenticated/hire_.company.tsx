@@ -74,19 +74,23 @@ function CompanyKycPage() {
   const save = useMutation({
     mutationFn: () => saveFn({ data: f }),
     onSuccess: () => {
-      setMessage("Company details saved to your account.");
+      setMessage({ kind: "ok", text: "Company details saved to your account — they will pre-fill every business booking." });
+      setSavedTick(true);
       void qc.invalidateQueries({ queryKey: ["company-profile"] });
     },
-    onError: (e) => setMessage((e as Error).message),
+    onError: (e) => {
+      setSavedTick(false);
+      setMessage({ kind: "err", text: friendlyError(e) });
+    },
   });
 
   async function uploadDoc(kind: string, file: File) {
     if (file.size > 10 * 1024 * 1024) {
-      setMessage("Each document must be 10 MB or smaller.");
+      setMessage({ kind: "err", text: "Each document must be 10 MB or smaller." });
       return;
     }
     if (file.type && !file.type.startsWith("image/") && file.type !== "application/pdf") {
-      setMessage("Upload a photo or PDF of the document.");
+      setMessage({ kind: "err", text: "Upload a photo or PDF of the document." });
       return;
     }
     setUploading(kind);
@@ -102,17 +106,17 @@ function CompanyKycPage() {
       .upload(path, file, { upsert: true, contentType: file.type });
     if (error) {
       setUploading(null);
-      setMessage(error.message);
+      setMessage({ kind: "err", text: friendlyError(error) });
       return;
     }
     try {
       await saveDocFn({ data: { kind: kind as never, filePath: path, remember: true } });
-      setMessage("Document saved to your account — it will be reviewed for approval.");
+      setMessage({ kind: "ok", text: "Document saved to your account — it will be reviewed for approval." });
       void qc.invalidateQueries({ queryKey: ["company-profile"] });
       void qc.invalidateQueries({ queryKey: ["my-business-kyc"] });
     } catch (e) {
       await supabase.storage.from("hire-documents").remove([path]);
-      setMessage((e as Error).message);
+      setMessage({ kind: "err", text: friendlyError(e) });
     } finally {
       setUploading(null);
     }
