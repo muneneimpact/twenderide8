@@ -62,6 +62,7 @@ export interface HireVehicleRow {
   hire_mode: string | null;
   hire_payment_policy: HirePaymentPolicy;
   hire_deposit_policy?: string | null;
+  hire_pay_later_allowed?: boolean | null;
   hire_deposit_amount?: number | null;
   hire_daily_rate: number | null;
   hire_cancellation_policy: string;

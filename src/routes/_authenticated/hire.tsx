@@ -15,14 +15,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { ReceiptDownload } from "@/components/ReceiptDownload";
 import {
   estimateHireTotal,
+  getMyBusinessKyc,
   getMyHireDocuments,
   listHireVehicles,
   listMyHireQuotes,
   payHireBooking,
   respondToHireOffer,
+  saveBusinessKycDocument,
   saveMyHireDocument,
   submitHireQuote,
 } from "@/lib/hire.functions";
+
+type KycKind = "certificate" | "kra_pin" | "cr12" | "other";
+const KYC_SLOTS: Array<{ kind: KycKind; label: string }> = [
+  { kind: "certificate", label: "Certificate of registration" },
+  { kind: "kra_pin", label: "KRA PIN certificate" },
+  { kind: "cr12", label: "CR12 / directors list" },
+];
 
 export const Route = createFileRoute("/_authenticated/hire")({
   head: () => ({
