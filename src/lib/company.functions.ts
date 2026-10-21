@@ -253,9 +253,41 @@ export const uploadHireEtr = createServerFn({ method: "POST" })
     await textUserWithLink({
       userId: req.requester_id,
       message: `Twende: your ETR for car hire ${q?.reference ?? ""} is ready. Download it here:`,
-      path: "/hire",
+      path: "/hire/bookings",
       eventType: "etr_sent",
       idempotencyKey: `hire-etr-sent:${req.id}:${Date.now()}`,
     }).catch(() => null);
     return { ok: true };
+  });
+
+/** Staff view of every company-details / KYC change, newest first. */
+export const listCompanyKycEdits = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole, STAFF } = await import("./authz.server");
+    await requireRole(context.userId, STAFF);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("business_kyc_edits")
+      .select("id, user_id, action, field, old_value, new_value, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const ids = [...new Set((data ?? []).map((r) => r.user_id))];
+    const { data: profiles } = ids.length
+      ? await supabaseAdmin.from("profiles").select("id, full_name, phone, company_name").in("id", ids)
+      : { data: [] as Array<{ id: string; full_name: string | null; phone: string | null; company_name: string | null }> };
+    return (data ?? []).map((r) => {
+      const p = (profiles ?? []).find((x) => x.id === r.user_id);
+      return {
+        id: r.id,
+        action: r.action,
+        field: r.field,
+        oldValue: r.old_value,
+        newValue: r.new_value,
+        createdAt: r.created_at,
+        userName: p?.full_name ?? "Unknown",
+        userPhone: p?.phone ?? "",
+        companyName: p?.company_name ?? "",
+      };
+    });
   });
