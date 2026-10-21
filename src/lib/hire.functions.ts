@@ -327,6 +327,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       patch["hire_deposit_policy"] = data.depositPolicy;
       patch["hire_deposit_amount"] = data.depositPolicy === "none" ? 0 : data.depositAmount;
     }
+    if (data.payLaterAllowed !== undefined) patch["hire_pay_later_allowed"] = data.payLaterAllowed;
     if (data.dailyRate !== undefined) patch["hire_daily_rate"] = data.dailyRate;
     if (data.chauffeurDailyRate !== undefined)
       patch["hire_chauffeur_daily_rate"] = data.chauffeurDailyRate;
@@ -489,6 +490,16 @@ export const submitHireQuote = createServerFn({ method: "POST" })
             signerName: z.string().trim().min(3).max(120),
             signature: z.string().min(20).max(200_000),
           })
+          .optional(),
+        kycDocuments: z
+          .array(
+            z.object({
+              kind: z.enum(["certificate", "kra_pin", "cr12", "other"]),
+              path: z.string().min(1).max(400),
+              remember: z.boolean().optional(),
+            }),
+          )
+          .max(6)
           .optional(),
       })
       .parse(input),
