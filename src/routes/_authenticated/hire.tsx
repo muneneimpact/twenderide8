@@ -599,6 +599,8 @@ function HirePage() {
     onError: (error) => setMessage((error as Error).message),
   });
 
+  const payLaterBlocked = Boolean(chosen && chosen.hire_pay_later_allowed === false);
+  const kycCount = Object.values(kycPaths).filter(Boolean).length;
   const missing: string[] = [];
   if (!vehicleId) missing.push("choose a vehicle");
   if (!scheduleValid) missing.push("choose a future pickup and return time within 90 days");
@@ -609,6 +611,8 @@ function HirePage() {
   if (hirerType === "company" && !organisation.trim()) missing.push("enter the company name");
   if (usePayLater && !corporateTerms)
     missing.push("verify the business email, pick a payment date and sign the agreement");
+  if (usePayLater && kycCount === 0 && !savedKyc.isPending)
+    missing.push("upload at least one business document (certificate, KRA PIN or CR12)");
   if (!idPath && !savedDocuments.isPending) missing.push("upload your ID");
   if (tab === "self_drive" && !licensePath && !savedDocuments.isPending)
     missing.push("upload your driving licence");
