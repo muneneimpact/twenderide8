@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-
-const KRA = /^[AP]\d{9}[A-Z]$/;
+import { companyProfileSchema } from "./company-profile-schema";
 
 /** Record one company-details change so admins can review the full edit trail. */
 async function logKycEdit(
@@ -57,24 +56,7 @@ export const getCompanyProfile = createServerFn({ method: "POST" })
 
 export const updateCompanyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
-    z
-      .object({
-        companyName: z.string().trim().min(2).max(160),
-      kraPin: z
-        .string()
-        .trim()
-        .toUpperCase()
-        .regex(
-          KRA,
-          "That KRA PIN doesn't look right. Personal PINs start with A and company PINs with P, followed by 9 numbers and a letter — e.g. A001234567X or P051234567X.",
-        )
-        .or(z.literal("")),
-        billingEmail: z.string().trim().email().or(z.literal("")),
-        registrationNumber: z.string().trim().max(80),
-      })
-      .parse(i),
-  )
+  .inputValidator((i) => companyProfileSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: before } = await supabaseAdmin

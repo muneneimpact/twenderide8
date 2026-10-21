@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { companyProfileSchema, type CompanyProfileDetails } from "@/lib/company-profile-schema";
 import { AppShell } from "@/components/AppShell";
 import { CompanyProfileCard } from "@/components/CompanyProfileCard";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +49,18 @@ function CompanyKycPage() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [savedTick, setSavedTick] = useState(false);
+  const dirty = useRef(false);
+  const latest = useRef(f);
+  const attempted = useRef("");
+
+  function edit(field: keyof CompanyProfileDetails, value: string) {
+    const next = { ...latest.current, [field]: value };
+    latest.current = next;
+    dirty.current = true;
+    setSavedTick(false);
+    setMessage(null);
+    setF(next);
+  }
 
   /** Server validation errors arrive as a JSON array; show just the message. */
   function friendlyError(e: unknown): string {
@@ -61,21 +75,26 @@ function CompanyKycPage() {
   }
 
   useEffect(() => {
-    if (profile.data) {
-      setF({
+    if (profile.data && !dirty.current) {
+      const details = {
         companyName: profile.data.companyName,
         kraPin: profile.data.kraPin,
         billingEmail: profile.data.billingEmail,
         registrationNumber: profile.data.registrationNumber,
-      });
+      };
+      latest.current = details;
+      setF(details);
+      setSavedTick(Boolean(details.companyName));
     }
   }, [profile.data]);
 
   const save = useMutation({
-    mutationFn: () => saveFn({ data: f }),
-    onSuccess: () => {
-      setMessage({ kind: "ok", text: "Company details saved to your account — they will pre-fill every business booking." });
-      setSavedTick(true);
+    mutationFn: (details: CompanyProfileDetails) => saveFn({ data: details }),
+    onSuccess: (_, details) => {
+      const unchanged = JSON.stringify(latest.current) === JSON.stringify(details);
+      dirty.current = !unchanged;
+      setSavedTick(unchanged);
+      if (unchanged) setMessage({ kind: "ok", text: "Company details saved to your account." });
       void qc.invalidateQueries({ queryKey: ["company-profile"] });
     },
     onError: (e) => {
@@ -83,6 +102,22 @@ function CompanyKycPage() {
       setMessage({ kind: "err", text: friendlyError(e) });
     },
   });
+
+  useEffect(() => {
+    if (!profile.isSuccess || !dirty.current || save.isPending) return;
+    const snapshot = JSON.stringify(f);
+    if (attempted.current === snapshot) return;
+    const timer = window.setTimeout(() => {
+      const validated = companyProfileSchema.safeParse(f);
+      if (!validated.success) {
+        setMessage({ kind: "err", text: validated.error.issues[0]?.message ?? "Check your company details." });
+        return;
+      }
+      attempted.current = snapshot;
+      save.mutate({ ...f });
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [f, profile.isSuccess, save.isPending, save.mutate]);
 
   async function uploadDoc(kind: string, file: File) {
     if (file.size > 10 * 1024 * 1024) {
@@ -141,11 +176,9 @@ function CompanyKycPage() {
         <section className="surface-card p-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-base font-semibold text-foreground">Company details</h2>
-            {(savedTick || profile.data?.companyName) && (
-              <span className="rounded-full bg-success/15 px-2.5 py-1 text-[10px] font-bold text-success">
-                ✓ Saved
-              </span>
-            )}
+            <span role="status" className={`px-2.5 py-1 text-xs font-bold ${savedTick ? "text-success" : "text-muted-foreground"}`}>
+              {save.isPending ? "Saving…" : savedTick ? "✓ Saved" : dirty.current ? "Not saved yet" : ""}
+            </span>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             Used on bookings, agreements and ETR receipts. You can edit these later — every change
@@ -155,39 +188,44 @@ function CompanyKycPage() {
             <input
               className="input-base w-full"
               placeholder="Company name"
+              aria-label="Company name"
+              disabled={!profile.isSuccess}
               value={f.companyName}
-              onChange={(e) => setF({ ...f, companyName: e.target.value })}
+              onChange={(e) => edit("companyName", e.target.value)}
             />
             <input
               className="input-base w-full"
               placeholder="Registration number"
+              aria-label="Registration number"
+              disabled={!profile.isSuccess}
               value={f.registrationNumber}
-              onChange={(e) => setF({ ...f, registrationNumber: e.target.value })}
+              onChange={(e) => edit("registrationNumber", e.target.value)}
             />
             <input
               className="input-base w-full uppercase"
               placeholder="Company KRA PIN — e.g. P051234567X"
+              aria-label="Company KRA PIN"
+              disabled={!profile.isSuccess}
               value={f.kraPin}
-              onChange={(e) => {
-                setSavedTick(false);
-                setF({ ...f, kraPin: e.target.value });
-              }}
+              onChange={(e) => edit("kraPin", e.target.value)}
             />
             <input
               className="input-base w-full"
               type="email"
               placeholder="Billing email"
+              aria-label="Billing email"
+              disabled={!profile.isSuccess}
               value={f.billingEmail}
-              onChange={(e) => setF({ ...f, billingEmail: e.target.value })}
+              onChange={(e) => edit("billingEmail", e.target.value)}
             />
-            <button
+            <Button
               type="button"
-              onClick={() => save.mutate()}
-              disabled={save.isPending || f.companyName.trim().length < 2}
+              onClick={() => save.mutate({ ...f })}
+              disabled={!profile.isSuccess || save.isPending || f.companyName.trim().length < 2}
               className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
               {save.isPending ? "Saving…" : "Save company details"}
-            </button>
+            </Button>
           </div>
         </section>
 
