@@ -697,12 +697,32 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
 
+    // Persist company KYC documents (and remember them for future hires when asked).
+    if (corporate && data.kycDocuments?.length) {
+      for (const doc of data.kycDocuments) {
+        if (doc.remember === false) continue;
+        await supabaseAdmin.from("business_kyc_documents").upsert(
+          {
+            user_id: context.userId,
+            document_kind: doc.kind,
+            file_path: doc.path,
+            saved_for_future: true,
+            updated_at: new Date().toISOString(),
+          } as never,
+          { onConflict: "user_id,document_kind" },
+        );
+      }
+    }
+
     let payment: Awaited<
       ReturnType<typeof import("./hire-payments.server").startHirePayment>
     > | null = null;
     if (corporate && data.vehicleId) {
       const { notifyOwnerOfBooking } = await import("./hire-owner.server");
-      await notifyOwnerOfBooking(row.id, `pay later by ${corporate.payLaterMethod.replace("_", " ")} on ${corporate.payLaterDueDate}`);
+      await notifyOwnerOfBooking(
+        row.id,
+        `company pay-later booking — verify their documents, then confirm. They pay by ${corporate.payLaterMethod.replace("_", " ")} on ${corporate.payLaterDueDate}`,
+      );
     } else if (data.vehicleId && paymentPhone) {
       try {
         const payments = await import("./hire-payments.server");
