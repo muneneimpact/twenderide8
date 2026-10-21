@@ -668,7 +668,9 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         commission_percent_snapshot: commissionPercent,
         ...(corporate
           ? {
-              status: data.vehicleId ? "confirmed" : "submitted",
+              // Pay-later bookings wait for the owner to verify the company's KYC;
+              // the dates are blocked only once the owner confirms.
+              status: "submitted",
               pay_later_method: corporate.payLaterMethod,
               pay_later_due_date: corporate.payLaterDueDate,
               business_email: corporate.businessEmail.toLowerCase(),
