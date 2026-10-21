@@ -31,7 +31,8 @@ export async function sendHirePaymentReminderTemplate(input: {
       .maybeSingle(),
     supabaseAdmin.from("profiles").select("phone, full_name").eq("id", input.userId).maybeSingle(),
   ]);
-  if (preference?.whatsapp_enabled !== true || !preference.whatsapp_opted_in_at) {
+  // Consent is on by default; only an explicit opt-out stops WhatsApp.
+  if (preference && preference.whatsapp_enabled === false) {
     return { status: "consent_not_enabled" as const };
   }
   if (!profile?.phone) return { status: "no_phone" as const };

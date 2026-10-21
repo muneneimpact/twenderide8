@@ -106,7 +106,7 @@ export function PushSettings() {
         <Row
           label="Twende Meru Rides WhatsApp service consent"
           hint={`I agree Twende Meru Rides may send hire payment reminders and important account updates to my profile number. No marketing. ${prefs.data?.phone ? `Number: ${prefs.data.phone}.` : "Add a mobile number to your profile first."}`}
-          checked={prefs.data?.whatsapp_enabled === true}
+          checked={prefs.data?.whatsapp_enabled !== false}
           onChange={(next) => save.mutate({ whatsapp_enabled: next })}
           busy={save.isPending || !prefs.data?.phone}
         />

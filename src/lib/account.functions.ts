@@ -264,7 +264,7 @@ export const getNotificationPreferences = createServerFn({ method: "POST" })
           user_id: context.userId,
           sms_enabled: true,
           email_enabled: true,
-          whatsapp_enabled: false,
+          whatsapp_enabled: true,
           whatsapp_opted_in_at: null,
           push_enabled: false,
           push_permission: "default",
