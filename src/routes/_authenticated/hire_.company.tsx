@@ -166,7 +166,7 @@ function CompanyKycPage() {
             />
             <input
               className="input-base w-full uppercase"
-              placeholder="KRA PIN — A… for personal, P… for company"
+              placeholder="Company KRA PIN — e.g. P051234567X"
               value={f.kraPin}
               onChange={(e) => {
                 setSavedTick(false);
