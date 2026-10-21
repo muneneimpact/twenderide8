@@ -13,6 +13,7 @@ type Draft = {
   hireMode: HireMode;
   paymentPolicy: "full" | "daily_flexible";
   depositPolicy: "upfront" | "handover" | "none";
+  payLaterAllowed: boolean;
   depositAmount: string;
   description: string;
   features: string;
@@ -114,6 +115,7 @@ export function HireVehicleManager({
           paymentPolicy: draft.paymentPolicy,
           depositPolicy: draft.depositPolicy,
           depositAmount: draft.depositPolicy === "none" ? 0 : Number(draft.depositAmount || 0),
+          payLaterAllowed: draft.payLaterAllowed,
           description: draft.description.trim() || null,
           features: draft.features.trim() || null,
           rules: draft.rules.trim() || null,
