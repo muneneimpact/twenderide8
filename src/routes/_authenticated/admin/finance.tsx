@@ -117,6 +117,7 @@ function FinanceBoard() {
         />
         <EtrQueue />
         <HireEtrQueue />
+        <CompanyKycActivity />
         <WalletFundingBoard />
         <WalletPayoutsBoard />
         <AdminHireFinanceBoard />

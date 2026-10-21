@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { getMyCompanyBilling, getRideEtr, listEtrRequests, requestRideEtr, uploadEtrDocument } from "@/lib/etr.functions";
 import { pdfToBase64 } from "@/lib/pdf-docs";
-import { listHireEtrQueue, uploadHireEtr } from "@/lib/company.functions";
+import { listCompanyKycEdits, listHireEtrQueue, uploadHireEtr } from "@/lib/company.functions";
 
 /** Customer side: request a KRA ETR for a completed ride; company details are reused from the account. */
 export function RideEtrRequest({ rideId }: { rideId: string }) {
@@ -157,6 +157,58 @@ export function HireEtrQueue() {
           </li>
         ))}
         {list.isSuccess && !rows.length ? <li className="py-2 text-xs text-muted-foreground">No car hire ETR requests yet.</li> : null}
+      </ul>
+    </section>
+  );
+}
+
+/** Staff: full change history of company details & KYC documents. */
+export function CompanyKycActivity() {
+  const listFn = useServerFn(listCompanyKycEdits);
+  const list = useQuery({ queryKey: ["company-kyc-edits"], queryFn: () => listFn() });
+  const rows = list.data ?? [];
+  const ACTION: Record<string, string> = {
+    profile_created: "Registered company details",
+    profile_updated: "Edited company details",
+    profile_deleted: "Deleted company details",
+    document_uploaded: "Uploaded document",
+    document_replaced: "Replaced document",
+    document_deleted: "Deleted document",
+  };
+  const FIELD: Record<string, string> = {
+    company_name: "Company name",
+    company_kra_pin: "KRA PIN",
+    company_billing_email: "Billing email",
+    company_registration_number: "Reg. number",
+    certificate: "Certificate of registration",
+    kra_pin: "KRA PIN certificate",
+    cr12: "CR12",
+    other: "Other document",
+  };
+  return (
+    <section className="surface-card p-4">
+      <h3 className="text-sm font-semibold text-foreground">Company KYC change history</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Every edit a business makes to its saved company details and documents.
+      </p>
+      <ul className="mt-2 divide-y divide-border">
+        {rows.map((r) => (
+          <li key={r.id} className="py-2 text-xs">
+            <p className="font-semibold text-foreground">
+              {r.companyName || r.userName} · {ACTION[r.action] ?? r.action}
+            </p>
+            <p className="text-muted-foreground">
+              {r.field ? `${FIELD[r.field] ?? r.field}: ` : ""}
+              {r.oldValue ? `${r.oldValue} → ` : ""}
+              {r.newValue ?? ""}
+              {" · "}
+              {new Date(r.createdAt).toLocaleString("en-KE")}
+            </p>
+          </li>
+        ))}
+        {list.isSuccess && !rows.length ? (
+          <li className="py-2 text-xs text-muted-foreground">No company changes recorded yet.</li>
+        ) : null}
       </ul>
     </section>
   );
