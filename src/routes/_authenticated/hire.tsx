@@ -1123,17 +1123,45 @@ function HirePage() {
                   {[
                     { k: true, t: "Pay now (M-PESA)", d: "No email check needed" },
                     { k: false, t: "Pay later", d: "Invoice, cheque or bank" },
-                  ].map((o) => (
-                    <button
-                      key={String(o.k)}
-                      type="button"
-                      onClick={() => setCompanyPayNow(o.k)}
-                      className={`rounded-xl border p-3 text-left ${companyPayNow === o.k ? "border-primary bg-primary/10" : "border-border"}`}
-                    >
-                      <p className="font-semibold text-foreground">{o.t}</p>
-                      <p className="text-muted-foreground">{o.d}</p>
-                    </button>
-                  ))}
+                  ].map((o) => {
+                    const disabled = !o.k && payLaterBlocked;
+                    return (
+                      <button
+                        key={String(o.k)}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => setCompanyPayNow(o.k)}
+                        className={`rounded-xl border p-3 text-left disabled:opacity-50 ${companyPayNow === o.k ? "border-primary bg-primary/10" : "border-border"}`}
+                      >
+                        <p className="font-semibold text-foreground">{o.t}</p>
+                        <p className="text-muted-foreground">
+                          {disabled ? "This owner allows immediate payments only" : o.d}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              {usePayLater && chosen ? (
+                <div className="rounded-xl border border-border p-3">
+                  <p className="text-xs font-semibold text-foreground">Business documents (KYC)</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Upload at least one. The owner reviews them before your booking is confirmed.
+                    {rememberDocs
+                      ? " They are saved to your account and reused for future hires."
+                      : " Tick the save option above to reuse them for future hires."}
+                  </p>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {KYC_SLOTS.map((slot) => (
+                      <UploadBox
+                        key={slot.kind}
+                        label={slot.label}
+                        done={Boolean(kycPaths[slot.kind])}
+                        busy={uploading === `biz-${slot.kind}`}
+                        onFile={(f) => void uploadBiz(slot.kind, f)}
+                      />
+                    ))}
+                  </div>
                 </div>
               ) : null}
               {usePayLater && chosen ? (
