@@ -35,4 +35,4 @@
 - [x] Pay rides and car hire from wallet
 - [x] Admin funding by group with KES 1 + SMS code approval on 0723175181
 - [x] Wallet-only top-up bonus promo
-- [ ] Company booking dashboard: active/past hires, agreement status, payment status, next action
+- [x] Company booking dashboard: active/past hires, agreement status, payment status, next action
