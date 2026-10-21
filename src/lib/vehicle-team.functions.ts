@@ -204,3 +204,72 @@ export const revokeDriverFromVehicle = createServerFn({ method: "POST" })
       .eq("id", data.assignmentId);
     return { ok: true };
   });
+
+/**
+ * Owner onboards a new driver by name + phone and assigns them one vehicle.
+ * Creates a phone-login account if none exists; the driver stays "pending"
+ * until operations approve their ID, driving licence and PSV licence.
+ */
+export const onboardDriverForVehicle = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        vehicleId: z.string().uuid(),
+        fullName: z.string().trim().min(2).max(80),
+        phone: z.string().min(9).max(16),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertOwner(context.userId, data.vehicleId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { normaliseKenyanPhone } = await import("./phone");
+    const phone = normaliseKenyanPhone(data.phone);
+    let { data: profile } = await supabaseAdmin.from("profiles").select("id").eq("phone", phone).maybeSingle();
+    let created = false;
+    if (!profile) {
+      const password = crypto.randomUUID() + "Aa1!";
+      const { data: u, error } = await supabaseAdmin.auth.admin.createUser({
+        email: `${phone.replace(/\D/g, "")}@phone.twenderides.app`,
+        password,
+        email_confirm: true,
+        phone,
+        phone_confirm: true,
+        user_metadata: { full_name: data.fullName, phone },
+      });
+      if (error || !u.user) throw new Error(error?.message ?? "Could not create the driver account.");
+      await supabaseAdmin.from("profiles").upsert({ id: u.user.id, phone, full_name: data.fullName }, { onConflict: "id" });
+      profile = { id: u.user.id };
+      created = true;
+    }
+    if (profile.id === context.userId) throw new Error("Use a different phone number from your own.");
+    await supabaseAdmin.from("drivers").upsert({ id: profile.id }, { onConflict: "id", ignoreDuplicates: true });
+    await supabaseAdmin.from("user_roles").upsert({ user_id: profile.id, role: "driver" }, { onConflict: "user_id,role", ignoreDuplicates: true });
+    const { data: existing } = await supabaseAdmin
+      .from("driver_vehicle_authorisations")
+      .select("id")
+      .eq("vehicle_id", data.vehicleId)
+      .eq("driver_id", profile.id)
+      .is("revoked_at", null)
+      .maybeSingle();
+    if (!existing) {
+      const { error } = await supabaseAdmin
+        .from("driver_vehicle_authorisations")
+        .insert({ vehicle_id: data.vehicleId, driver_id: profile.id, granted_by: context.userId });
+      if (error) throw new Error(error.message);
+    }
+    try {
+      const { sendTransactionalSms } = await import("./sms.server");
+      const { appLink } = await import("./links.server");
+      await sendTransactionalSms({
+        to: phone,
+        message: `Twende: you've been added as a driver. Sign in with this number ${phone} and upload your ID, driving licence and PSV licence: ${appLink("/driver/apply")}`,
+        eventType: "driver_onboarded",
+        userId: profile.id,
+      } as never);
+    } catch (e) {
+      console.error("onboard sms failed", e);
+    }
+    return { ok: true, created };
+  });
