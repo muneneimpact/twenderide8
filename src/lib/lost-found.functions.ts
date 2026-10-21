@@ -471,7 +471,7 @@ export const decideFoundClaim = createServerFn({ method: "POST" })
 
 async function tellUser(userId: string, rideId: string | null, msg: string, key: string) {
   const { notify } = await import("./notifications.server");
-  await notify({ userId, templateCode: "lost_found_update", title: "Lost & found update", body: msg, rideId: rideId ?? undefined });
+  await notify({ userId, templateCode: "lost_found_update", title: "Lost & found update", body: msg, rideId: rideId ?? null });
   const { textUserWithLink } = await import("./links.server");
   await textUserWithLink({ userId, message: `Twende: ${msg}`, path: "/lost-found", eventType: "lost_found_update", idempotencyKey: `${key}:${Date.now()}` });
 }
@@ -517,7 +517,7 @@ export const requestFoundHandover = createServerFn({ method: "POST" })
     if (!claim || claim.status !== "approved") throw new Error("Confirm the item first.");
     if (data.kind === "dropoff" && (!data.note || data.note.length < 4)) throw new Error("Say where the driver should drop it.");
     await supabaseAdmin.from("lost_found_claims").update({
-      handover_request: data.kind, ...(data.kind === "dropoff" ? { dropoff_note: data.note } : {}), updated_at: new Date().toISOString(),
+      handover_request: data.kind, ...(data.kind === "dropoff" ? { dropoff_note: data.note ?? null } : {}), updated_at: new Date().toISOString(),
     }).eq("id", claim.id);
     const { data: report } = await supabaseAdmin.from("lost_found_reports").select("reporter_id").eq("id", claim.report_id).maybeSingle();
     if (report) await tellUser(report.reporter_id, claim.ride_id,

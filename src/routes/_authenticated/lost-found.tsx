@@ -252,7 +252,7 @@ function LostFoundPage() {
                         {f.claim.handover_request === "dropoff" ? <p className="text-muted-foreground">Drop-off asked at: {f.claim.dropoff_note}</p> : null}
                         <input value={drop[f.id] ?? ""} onChange={(e) => setDrop((d) => ({ ...d, [f.id]: e.target.value }))} className="input-base w-full" placeholder="Where should the driver drop it?" />
                         <div className="flex gap-2">
-                          <button onClick={() => handover.mutate({ reportId: f.id, kind: "dropoff", note: drop[f.id] })} disabled={(drop[f.id] ?? "").trim().length < 4} className="flex-1 rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">Request drop-off</button>
+                          <button onClick={() => handover.mutate({ reportId: f.id, kind: "dropoff", note: drop[f.id] ?? "" })} disabled={(drop[f.id] ?? "").trim().length < 4} className="flex-1 rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50">Request drop-off</button>
                           {!f.claim.driver_phone ? <button onClick={() => handover.mutate({ reportId: f.id, kind: "phone" })} className="flex-1 rounded-full border border-border px-3 py-2 font-semibold">Ask for driver's number</button> : null}
                         </div>
                         <p className="rounded-lg bg-warning/10 p-2 text-[11px] text-foreground">You'll unlock a phone in person at handover — never send your PIN.</p>
