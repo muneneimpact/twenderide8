@@ -167,6 +167,15 @@ export function OwnerHireBookings() {
               </p>
               <SignTick b={b} />
               <div className="mt-2 flex flex-wrap gap-2">
+                {b.status === "submitted" && b.pay_later ? (
+                  <button
+                    onClick={() => verify.mutate(b.id)}
+                    disabled={verify.isPending || b.kyc.length === 0}
+                    className="rounded-full bg-primary px-3 py-2 font-semibold text-primary-foreground disabled:opacity-50"
+                  >
+                    {verify.isPending ? "Verifying…" : "Verify company & confirm booking"}
+                  </button>
+                ) : null}
                 <Link to="/hire/agreement/$quoteId" params={{ quoteId: b.id }} hash="sign" className="rounded-full border border-primary px-3 py-2 font-semibold text-primary">
                   {b.status === "confirmed" && !b.handed_over_at ? "Walkaround, sign & agreement" : "Sign / agreement"}
                 </Link>
