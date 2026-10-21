@@ -434,6 +434,9 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       .update(patch as never)
       .eq("id", data.vehicleId);
     if (error) throw new Error(error.message);
+    if (patch["hire_approval_status"] === "pending") {
+      await (await import("./links.server")).alertStaffVehicleSubmitted(data.vehicleId, "hire");
+    }
     return {
       ok: true,
       submittedForReview: Boolean(data.submitForHireReview),
