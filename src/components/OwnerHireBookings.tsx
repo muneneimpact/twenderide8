@@ -6,6 +6,7 @@ import {
   listOwnerBookings,
   markHireHandover,
   requestHandoverDeposit,
+  ownerConfirmCompanyBooking,
   ownerDeclineHire,
   ownerApplySavedSignature,
   type OwnerBooking,
@@ -17,6 +18,8 @@ const fmt = (iso: string) =>
 function stage(b: OwnerBooking) {
   if (b.returned_at) return { label: "Returned", tone: "bg-secondary text-muted-foreground" };
   if (b.handed_over_at) return { label: "On hire", tone: "bg-primary/15 text-primary" };
+  if (b.status === "submitted" && b.pay_later)
+    return { label: "Verify company", tone: "bg-warning/15 text-warning" };
   if (b.status === "confirmed") return { label: "Ready to hand over", tone: "bg-success/15 text-success" };
   return { label: "Awaiting payment", tone: "bg-warning/15 text-warning" };
 }
