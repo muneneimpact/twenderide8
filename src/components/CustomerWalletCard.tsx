@@ -146,7 +146,7 @@ export function CustomerWalletCard() {
   );
 }
 
-function TopupProgress({ sending, status, reason, amount, onClose }: { sending: boolean; status?: string; reason: string | null; amount: number; onClose: () => void }) {
+function TopupProgress({ sending, status, reason, amount, onClose }: { sending: boolean; status: string | undefined; reason: string | null; amount: number; onClose: () => void }) {
   const failed = ["failed", "cancelled", "timed_out"].includes(status ?? "");
   const paid = status === "paid";
   const step = sending ? 0 : paid ? 3 : failed ? -1 : 1;
