@@ -28,7 +28,7 @@ export const getCompanyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [{ data: p }, { data: docs }] = await Promise.all([
+    const [{ data: p, error: profileError }, { data: docs }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("company_name, company_kra_pin, company_billing_email, company_registration_number")
@@ -39,6 +39,7 @@ export const getCompanyProfile = createServerFn({ method: "POST" })
         .select("document_kind, file_path, updated_at")
         .eq("user_id", context.userId),
     ]);
+    if (profileError) throw new Error("We couldn't load your company details. Please try again.");
     const documents = await Promise.all(
       (docs ?? []).map(async (d) => {
         const { data: s } = await supabaseAdmin.storage.from("hire-documents").createSignedUrl(d.file_path, 3600);
@@ -64,7 +65,7 @@ export const updateCompanyProfile = createServerFn({ method: "POST" })
       .select("company_name, company_kra_pin, company_billing_email, company_registration_number")
       .eq("id", context.userId)
       .maybeSingle();
-    const { error } = await supabaseAdmin
+    const { data: saved, error } = await supabaseAdmin
       .from("profiles")
       .update({
         company_name: data.companyName,
@@ -72,8 +73,11 @@ export const updateCompanyProfile = createServerFn({ method: "POST" })
         company_billing_email: data.billingEmail || null,
         company_registration_number: data.registrationNumber || null,
       })
-      .eq("id", context.userId);
+      .eq("id", context.userId)
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!saved) throw new Error("Your account details were not found. Please sign in again before saving.");
     const diffs: Array<[string, string | null, string | null]> = [
       ["company_name", before?.company_name ?? null, data.companyName],
       ["company_kra_pin", before?.company_kra_pin ?? null, data.kraPin || null],
