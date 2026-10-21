@@ -563,12 +563,6 @@ function HirePage() {
     onError: (error) => setMessage((error as Error).message),
   });
 
-  const respond = useMutation({
-    mutationFn: (vars: { offerId: string; action: "accept" | "decline" }) =>
-      respondFn({ data: vars }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hire-quotes"] }),
-  });
-
   const pay = useMutation({
     mutationFn: (vars: { quoteId: string; amount?: number }) =>
       payFn({ data: { ...vars, phone: paymentPhone.trim() || undefined } }),
