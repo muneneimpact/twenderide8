@@ -428,6 +428,23 @@ export function HireVehicleManager({
                     />
                   ) : null}
                 </div>
+                <label className="flex items-start gap-2 rounded-xl border border-border p-3 sm:col-span-2 lg:col-span-4">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={draft.payLaterAllowed}
+                    onChange={(event) => updateDraft(vehicle, "payLaterAllowed", event.target.checked)}
+                  />
+                  <span className="text-xs text-foreground">
+                    <span className="font-semibold">Allow verified companies to pay later</span>
+                    <span className="mt-0.5 block text-muted-foreground">
+                      Companies that upload their business documents and sign the agreement can book
+                      now and pay by invoice, cheque, bank transfer or M-PESA on a date they choose.
+                      You review their documents and confirm before the dates are reserved. When off,
+                      companies must pay immediately like everyone else.
+                    </span>
+                  </span>
+                </label>
               </div>
               {draft.hireMode !== "self_drive" ? (
                 <label className="mt-2 block">
