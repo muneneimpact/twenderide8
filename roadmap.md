@@ -28,3 +28,10 @@
 - [x] Action links in hire, payout, ETR, lost & found, unattended texts
 - [ ] M-PESA pay-before-driver + reuse paid amount on a new request (waiting: user decision on credit vs refund)
 - [ ] WhatsApp copies of texts (blocked: WhatsApp connection disconnected)
+
+# Wallet round (Oct 21)
+- [x] Wallet balance on account, M-PESA top-up (credited only after confirmation)
+- [x] Refundable cash vs non-refundable promo credit (rides & car hire only)
+- [x] Pay rides and car hire from wallet
+- [x] Admin funding by group with KES 1 + SMS code approval on 0723175181
+- [x] Wallet-only top-up bonus promo
