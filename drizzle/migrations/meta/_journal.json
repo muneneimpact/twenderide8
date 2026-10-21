@@ -29,6 +29,13 @@
       "when": 1792544971486,
       "tag": "0003_sms_gaps_delivery_recipient_hire_return",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792546180788,
+      "tag": "0004_hire_deposit_policy",
+      "breakpoints": true
     }
   ]
 }
