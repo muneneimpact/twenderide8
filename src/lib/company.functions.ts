@@ -4,6 +4,26 @@ import { z } from "zod";
 
 const KRA = /^[AP]\d{9}[A-Z]$/;
 
+/** Record one company-details change so admins can review the full edit trail. */
+async function logKycEdit(
+  userId: string,
+  entry: { action: string; field?: string; oldValue?: string | null; newValue?: string | null },
+) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  try {
+    await supabaseAdmin.from("business_kyc_edits").insert({
+      user_id: userId,
+      actor_id: userId,
+      action: entry.action,
+      field: entry.field ?? null,
+      old_value: entry.oldValue ?? null,
+      new_value: entry.newValue ?? null,
+    });
+  } catch {
+    // The edit trail is best-effort; never block the actual change.
+  }
+}
+
 /** Company details + saved KYC documents stored on the account (works on any phone). */
 export const getCompanyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -49,6 +69,11 @@ export const updateCompanyProfile = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: before } = await supabaseAdmin
+      .from("profiles")
+      .select("company_name, company_kra_pin, company_billing_email, company_registration_number")
+      .eq("id", context.userId)
+      .maybeSingle();
     const { error } = await supabaseAdmin
       .from("profiles")
       .update({
@@ -59,6 +84,22 @@ export const updateCompanyProfile = createServerFn({ method: "POST" })
       })
       .eq("id", context.userId);
     if (error) throw new Error(error.message);
+    const diffs: Array<[string, string | null, string | null]> = [
+      ["company_name", before?.company_name ?? null, data.companyName],
+      ["company_kra_pin", before?.company_kra_pin ?? null, data.kraPin || null],
+      ["company_billing_email", before?.company_billing_email ?? null, data.billingEmail || null],
+      ["company_registration_number", before?.company_registration_number ?? null, data.registrationNumber || null],
+    ];
+    for (const [field, oldValue, newValue] of diffs) {
+      if ((oldValue ?? "") !== (newValue ?? "")) {
+        await logKycEdit(context.userId, {
+          action: before?.company_name ? "profile_updated" : "profile_created",
+          field,
+          oldValue,
+          newValue,
+        });
+      }
+    }
     return { ok: true };
   });
 
@@ -81,6 +122,7 @@ export const deleteCompanyDocument = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ kind: z.enum(["certificate", "kra_pin", "cr12", "other"]) }).parse(i))
   .handler(async ({ data, context }) => {
     await removeDocs(context.userId, [data.kind]);
+    await logKycEdit(context.userId, { action: "document_deleted", field: data.kind });
     return { ok: true };
   });
 
@@ -89,12 +131,22 @@ export const deleteCompanyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: before } = await supabaseAdmin
+      .from("profiles")
+      .select("company_name")
+      .eq("id", context.userId)
+      .maybeSingle();
     await removeDocs(context.userId);
     const { error } = await supabaseAdmin
       .from("profiles")
       .update({ company_name: null, company_kra_pin: null, company_billing_email: null, company_registration_number: null })
       .eq("id", context.userId);
     if (error) throw new Error(error.message);
+    await logKycEdit(context.userId, {
+      action: "profile_deleted",
+      field: "company_name",
+      oldValue: before?.company_name ?? null,
+    });
     return { ok: true };
   });
 
@@ -201,9 +253,41 @@ export const uploadHireEtr = createServerFn({ method: "POST" })
     await textUserWithLink({
       userId: req.requester_id,
       message: `Twende: your ETR for car hire ${q?.reference ?? ""} is ready. Download it here:`,
-      path: "/hire",
+      path: "/hire/bookings",
       eventType: "etr_sent",
       idempotencyKey: `hire-etr-sent:${req.id}:${Date.now()}`,
     }).catch(() => null);
     return { ok: true };
+  });
+
+/** Staff view of every company-details / KYC change, newest first. */
+export const listCompanyKycEdits = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole, STAFF } = await import("./authz.server");
+    await requireRole(context.userId, STAFF);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("business_kyc_edits")
+      .select("id, user_id, action, field, old_value, new_value, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const ids = [...new Set((data ?? []).map((r) => r.user_id))];
+    const { data: profiles } = ids.length
+      ? await supabaseAdmin.from("profiles").select("id, full_name, phone, company_name").in("id", ids)
+      : { data: [] as Array<{ id: string; full_name: string | null; phone: string | null; company_name: string | null }> };
+    return (data ?? []).map((r) => {
+      const p = (profiles ?? []).find((x) => x.id === r.user_id);
+      return {
+        id: r.id,
+        action: r.action,
+        field: r.field,
+        oldValue: r.old_value,
+        newValue: r.new_value,
+        createdAt: r.created_at,
+        userName: p?.full_name ?? "Unknown",
+        userPhone: p?.phone ?? "",
+        companyName: p?.company_name ?? "",
+      };
+    });
   });

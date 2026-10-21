@@ -143,6 +143,47 @@ export type Database = {
         }
         Relationships: []
       }
+      business_kyc_edits: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          field: string | null
+          id: string
+          new_value: string | null
+          old_value: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          field?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_kyc_edits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comms_log: {
         Row: {
           attempts: number

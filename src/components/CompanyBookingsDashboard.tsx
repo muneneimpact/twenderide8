@@ -110,7 +110,14 @@ export function CompanyBookingsDashboard({ quotes }: { quotes: Q[] }) {
                         {askEtr.isPending && askEtr.variables === q.id ? "Requesting…" : "Request ETR"}
                       </button>
                     )}
-                    {askEtr.isError && askEtr.variables === q.id ? <p className="mt-1 text-destructive">{(askEtr.error as Error).message}</p> : null}
+                    {askEtr.isError && askEtr.variables === q.id ? (
+                      <div className="mt-1">
+                        <p className="text-destructive">{(askEtr.error as Error).message}</p>
+                        <Link to="/hire/company" className="mt-1 inline-block rounded-full bg-primary px-3 py-1 font-semibold text-primary-foreground">
+                          Add company details now
+                        </Link>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })() : null}

@@ -33,6 +33,8 @@ import { Route as AuthenticatedDriverIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDriverApplyRouteImport } from './routes/_authenticated/driver/apply'
 import { Route as AuthenticatedDriverHireRouteImport } from './routes/_authenticated/driver/hire'
 import { Route as AuthenticatedDriverWalletRouteImport } from './routes/_authenticated/driver/wallet'
+import { Route as AuthenticatedHireBookingsRouteImport } from './routes/_authenticated/hire_.bookings'
+import { Route as AuthenticatedHireCompanyRouteImport } from './routes/_authenticated/hire_.company'
 import { Route as AuthenticatedRidesIndexRouteImport } from './routes/_authenticated/rides/index'
 import { Route as AuthenticatedRidesRideIdRouteImport } from './routes/_authenticated/rides/$rideId'
 import { Route as ApiPublicBootstrapSuperAdminRouteImport } from './routes/api/public/bootstrap-super-admin'
@@ -171,6 +173,18 @@ const AuthenticatedDriverWalletRoute =
     path: '/driver/wallet',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedHireBookingsRoute =
+  AuthenticatedHireBookingsRouteImport.update({
+    id: '/hire_/bookings',
+    path: '/hire/bookings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedHireCompanyRoute =
+  AuthenticatedHireCompanyRouteImport.update({
+    id: '/hire_/company',
+    path: '/hire/company',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedRidesIndexRoute = AuthenticatedRidesIndexRouteImport.update({
   id: '/rides/',
   path: '/rides/',
@@ -241,6 +255,8 @@ export interface FileRoutesByFullPath {
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/hire': typeof AuthenticatedDriverHireRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
+  '/hire/bookings': typeof AuthenticatedHireBookingsRoute
+  '/hire/company': typeof AuthenticatedHireCompanyRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -274,6 +290,8 @@ export interface FileRoutesByTo {
   '/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/driver/hire': typeof AuthenticatedDriverHireRoute
   '/driver/wallet': typeof AuthenticatedDriverWalletRoute
+  '/hire/bookings': typeof AuthenticatedHireBookingsRoute
+  '/hire/company': typeof AuthenticatedHireCompanyRoute
   '/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -309,6 +327,8 @@ export interface FileRoutesById {
   '/_authenticated/driver/apply': typeof AuthenticatedDriverApplyRoute
   '/_authenticated/driver/hire': typeof AuthenticatedDriverHireRoute
   '/_authenticated/driver/wallet': typeof AuthenticatedDriverWalletRoute
+  '/_authenticated/hire_/bookings': typeof AuthenticatedHireBookingsRoute
+  '/_authenticated/hire_/company': typeof AuthenticatedHireCompanyRoute
   '/_authenticated/rides/$rideId': typeof AuthenticatedRidesRideIdRoute
   '/api/public/bootstrap-super-admin': typeof ApiPublicBootstrapSuperAdminRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -344,6 +364,8 @@ export interface FileRouteTypes {
     | '/driver/apply'
     | '/driver/hire'
     | '/driver/wallet'
+    | '/hire/bookings'
+    | '/hire/company'
     | '/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
     | '/admin/'
@@ -377,6 +399,8 @@ export interface FileRouteTypes {
     | '/driver/apply'
     | '/driver/hire'
     | '/driver/wallet'
+    | '/hire/bookings'
+    | '/hire/company'
     | '/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
     | '/admin'
@@ -411,6 +435,8 @@ export interface FileRouteTypes {
     | '/_authenticated/driver/apply'
     | '/_authenticated/driver/hire'
     | '/_authenticated/driver/wallet'
+    | '/_authenticated/hire_/bookings'
+    | '/_authenticated/hire_/company'
     | '/_authenticated/rides/$rideId'
     | '/api/public/bootstrap-super-admin'
     | '/_authenticated/admin/'
@@ -606,6 +632,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDriverWalletRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/hire_/bookings': {
+      id: '/_authenticated/hire_/bookings'
+      path: '/hire/bookings'
+      fullPath: '/hire/bookings'
+      preLoaderRoute: typeof AuthenticatedHireBookingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/hire_/company': {
+      id: '/_authenticated/hire_/company'
+      path: '/hire/company'
+      fullPath: '/hire/company'
+      preLoaderRoute: typeof AuthenticatedHireCompanyRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/rides/': {
       id: '/_authenticated/rides/'
       path: '/rides'
@@ -683,6 +723,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDriverApplyRoute: typeof AuthenticatedDriverApplyRoute
   AuthenticatedDriverHireRoute: typeof AuthenticatedDriverHireRoute
   AuthenticatedDriverWalletRoute: typeof AuthenticatedDriverWalletRoute
+  AuthenticatedHireBookingsRoute: typeof AuthenticatedHireBookingsRoute
+  AuthenticatedHireCompanyRoute: typeof AuthenticatedHireCompanyRoute
   AuthenticatedRidesRideIdRoute: typeof AuthenticatedRidesRideIdRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedDriverIndexRoute: typeof AuthenticatedDriverIndexRoute
@@ -708,6 +750,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDriverApplyRoute: AuthenticatedDriverApplyRoute,
   AuthenticatedDriverHireRoute: AuthenticatedDriverHireRoute,
   AuthenticatedDriverWalletRoute: AuthenticatedDriverWalletRoute,
+  AuthenticatedHireBookingsRoute: AuthenticatedHireBookingsRoute,
+  AuthenticatedHireCompanyRoute: AuthenticatedHireCompanyRoute,
   AuthenticatedRidesRideIdRoute: AuthenticatedRidesRideIdRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedDriverIndexRoute: AuthenticatedDriverIndexRoute,
