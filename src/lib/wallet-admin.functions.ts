@@ -145,7 +145,26 @@ export const approveFundingBatch = createServerFn({ method: "POST" })
     for (const uid of batch.user_ids) {
       const res = await walletMove({ userId: uid, amount, kind: "admin_grant", key: `grant:${batch.id}:${uid}`, note: batch.note || "Twende wallet gift", refundable: false, batchId: batch.id });
       if (!res.duplicate) {
-        await notify({ userId: uid, templateCode: "wallet_grant", title: "Twende added credit to your wallet", body: `KES ${amount.toLocaleString("en-KE")} is in your Twende wallet for rides and car hire.`, dedupeKey: `wallet-grant:${batch.id}:${uid}` });
+        let newBalance: number | null = null;
+        try {
+          const { data: all } = await db.from("customer_wallet_entries").select("amount, status, refundable").eq("user_id", uid);
+          const { walletBalances } = await import("./wallet-rules");
+          newBalance = walletBalances(all ?? []).total;
+        } catch { /* balance is optional in the message */ }
+        const { appLink } = await import("./links.server");
+        const body = `Twende added KES ${amount.toLocaleString("en-KE")} credit to your wallet for rides & car hire.${newBalance !== null ? ` New balance KES ${newBalance.toLocaleString("en-KE")}.` : ""} ${appLink("/account")}`;
+        // In-app + push + SMS (critical).
+        await notify({ userId: uid, templateCode: "wallet_grant", title: "Twende added credit to your wallet", body, critical: true, dedupeKey: `wallet-grant:${batch.id}:${uid}` });
+        // WhatsApp, best effort.
+        try {
+          const { whatsappGatewayConfigured, whatsappGatewaySend } = await import("./whatsapp-gateway.server");
+          const { data: p } = await db.from("profiles").select("phone").eq("id", uid).maybeSingle();
+          if (whatsappGatewayConfigured() && p?.phone) {
+            await whatsappGatewaySend({ to: p.phone.replace(/^\+/, ""), type: "text", text: { body } });
+          }
+        } catch (e) {
+          console.error("wallet grant WhatsApp failed", e);
+        }
       }
     }
     await audit(context.userId, "wallet_funding_approved", "wallet_funding_batch", batch.id, { count: batch.user_ids.length, total: batch.total_amount, receipt: batch.mpesa_receipt });
