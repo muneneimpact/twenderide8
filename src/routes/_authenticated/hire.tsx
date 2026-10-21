@@ -1,4 +1,5 @@
 import { HirerVehicleDetails } from "@/components/HirerVehicleDetails";
+import { CompanyBookingsDashboard } from "@/components/CompanyBookingsDashboard";
 import { PayHireWithWallet } from "@/components/CustomerWalletCard";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
@@ -16,6 +17,7 @@ import { ReceiptDownload } from "@/components/ReceiptDownload";
 import {
   estimateHireTotal,
   getMyBusinessKyc,
+  checkHirePaymentNow,
   getMyHireDocuments,
   listHireVehicles,
   listMyHireQuotes,
@@ -195,6 +197,7 @@ function HirePage() {
   const saveDocFn = useServerFn(saveMyHireDocument);
   const savedKycFn = useServerFn(getMyBusinessKyc);
   const saveKycFn = useServerFn(saveBusinessKycDocument);
+  const checkPaymentFn = useServerFn(checkHirePaymentNow);
   const vehiclesFn = useServerFn(listHireVehicles);
   const respondFn = useServerFn(respondToHireOffer);
   const payFn = useServerFn(payHireBooking);
@@ -456,14 +459,11 @@ function HirePage() {
       return;
     }
     try {
-      await saveKycFn({ data: { kind, filePath: path, remember: rememberDocs } });
+      // Business documents are always kept on the account so any phone sees them.
+      await saveKycFn({ data: { kind, filePath: path, remember: true } });
       setKycPaths((current) => ({ ...current, [kind]: path }));
       void queryClient.invalidateQueries({ queryKey: ["my-business-kyc"] });
-      setMessage(
-        rememberDocs
-          ? "Business document saved to your account for future hires."
-          : "Business document attached to this booking only.",
-      );
+      setMessage("Business document saved to your account — it will be reviewed for approval.");
     } catch (error) {
       await supabase.storage.from("hire-documents").remove([path]);
       setMessage((error as Error).message);
@@ -617,8 +617,7 @@ function HirePage() {
   if (hirerType === "company" && !organisation.trim()) missing.push("enter the company name");
   if (usePayLater && !corporateTerms)
     missing.push("verify the business email, pick a payment date and sign the agreement");
-  if (usePayLater && kycCount === 0 && !savedKyc.isPending)
-    missing.push("upload at least one business document (certificate, KRA PIN or CR12)");
+  void kycCount; // business documents are optional
   if (!idPath && !savedDocuments.isPending) missing.push("upload your ID");
   if (tab === "self_drive" && !licensePath && !savedDocuments.isPending)
     missing.push("upload your driving licence");
@@ -1199,6 +1198,8 @@ function HirePage() {
           </section>
         ) : null}
 
+        <CompanyBookingsDashboard quotes={(quotes.data ?? []) as never} />
+
         {bookedRef && hirerType === "company" ? (
           <section className="surface-card border-primary/30 p-4">
             <p className="text-sm font-semibold text-foreground">
@@ -1598,11 +1599,7 @@ function HirePage() {
         phone={paymentPhone || null}
         check={async (): Promise<PayState> => {
           if (!payCard) return "pending";
-          const { data } = await supabase.from("hire_quotes").select("payment_status").eq("id", payCard.quoteId).maybeSingle();
-          const st = String(data?.payment_status ?? "pending");
-          if (["paid", "partial", "partially_paid"].includes(st)) return "paid";
-          if (["failed", "timed_out", "cancelled"].includes(st)) return "failed";
-          return "pending";
+          return checkPaymentFn({ data: { quoteId: payCard.quoteId } });
         }}
         onSuccess={() => {
           const id = payCard?.quoteId;

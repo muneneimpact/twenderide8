@@ -118,8 +118,8 @@ function AgreementPage() {
   const extraPhotos = d.extraPhotos ?? [];
   const brand = (d.branding as Branding | null) ?? DEFAULT_BRANDING;
   const chauffeured = b.drive_mode !== "self_drive";
-  // The final agreement PDF is issued once the hire is done (car returned) and both sides signed.
-  const complete = Boolean(b.completed_at) && Boolean(b.returned_at);
+  // The agreement PDF unlocks as soon as both the hirer and the owner have signed.
+  const complete = Boolean(b.signature) && Boolean(b.owner_signed_at);
   const sections = buildSections(d, brand.agreement_extra_terms);
 
   async function emailWithPdf() {

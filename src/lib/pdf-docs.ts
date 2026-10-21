@@ -268,7 +268,7 @@ export async function buildAgreementPdf(brandIn: Branding | null, a: AgreementPd
   w.text("Execution", { size: 11.5, bold: true, gap: 6 });
   const boxW = (w.width - 16) / 2;
   const top = w.y;
-  const parties = [{ title: "Hirer", p: a.hirer }, { title: "Owner / Twende", p: a.owner }];
+  const parties = [{ title: "Hirer", p: a.hirer }, { title: "Owner", p: a.owner }];
   for (let i = 0; i < parties.length; i++) {
     const party = parties[i]!.p;
     const x = M + i * (boxW + 16);
