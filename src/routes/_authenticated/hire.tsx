@@ -607,6 +607,26 @@ function HirePage() {
           send money directly to a driver or owner; report any pressure to pay outside the system to
           help prevent extortion and fraud.
         </p>
+        <div className="mx-4 grid grid-cols-2 gap-2">
+          <Link
+            to="/hire/bookings"
+            className="rounded-2xl border border-border bg-card p-3 text-left"
+          >
+            <p className="text-sm font-bold text-foreground">Your bookings</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Requests, payments, agreements & receipts
+            </p>
+          </Link>
+          <Link
+            to="/hire/company"
+            className="rounded-2xl border border-primary/30 bg-primary/5 p-3 text-left"
+          >
+            <p className="text-sm font-bold text-primary">Hiring as a company?</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Register company details & KYC once
+            </p>
+          </Link>
+        </div>
         <div className="flex gap-2">
           {(
             [
