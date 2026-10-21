@@ -1,4 +1,5 @@
 import { HirerVehicleDetails } from "@/components/HirerVehicleDetails";
+import { CompanyBookingsDashboard } from "@/components/CompanyBookingsDashboard";
 import { PayHireWithWallet } from "@/components/CustomerWalletCard";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PaymentProgressCard, type PayState } from "@/components/PaymentProgressCard";
