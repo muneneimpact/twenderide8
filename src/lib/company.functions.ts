@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-
-const KRA = /^[AP]\d{9}[A-Z]$/;
+import { companyProfileSchema } from "./company-profile-schema";
 
 /** Record one company-details change so admins can review the full edit trail. */
 async function logKycEdit(
@@ -29,7 +28,7 @@ export const getCompanyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [{ data: p }, { data: docs }] = await Promise.all([
+    const [{ data: p, error: profileError }, { data: docs }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("company_name, company_kra_pin, company_billing_email, company_registration_number")
@@ -40,6 +39,7 @@ export const getCompanyProfile = createServerFn({ method: "POST" })
         .select("document_kind, file_path, updated_at")
         .eq("user_id", context.userId),
     ]);
+    if (profileError) throw new Error("We couldn't load your company details. Please try again.");
     const documents = await Promise.all(
       (docs ?? []).map(async (d) => {
         const { data: s } = await supabaseAdmin.storage.from("hire-documents").createSignedUrl(d.file_path, 3600);
@@ -57,24 +57,7 @@ export const getCompanyProfile = createServerFn({ method: "POST" })
 
 export const updateCompanyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
-    z
-      .object({
-        companyName: z.string().trim().min(2).max(160),
-      kraPin: z
-        .string()
-        .trim()
-        .toUpperCase()
-        .regex(
-          KRA,
-          "That KRA PIN doesn't look right. Personal PINs start with A and company PINs with P, followed by 9 numbers and a letter — e.g. A001234567X or P051234567X.",
-        )
-        .or(z.literal("")),
-        billingEmail: z.string().trim().email().or(z.literal("")),
-        registrationNumber: z.string().trim().max(80),
-      })
-      .parse(i),
-  )
+  .inputValidator((i) => companyProfileSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: before } = await supabaseAdmin
@@ -82,16 +65,19 @@ export const updateCompanyProfile = createServerFn({ method: "POST" })
       .select("company_name, company_kra_pin, company_billing_email, company_registration_number")
       .eq("id", context.userId)
       .maybeSingle();
-    const { error } = await supabaseAdmin
+    const { data: saved, error } = await supabaseAdmin
       .from("profiles")
-      .update({
+      .upsert({
+        id: context.userId,
         company_name: data.companyName,
         company_kra_pin: data.kraPin || null,
         company_billing_email: data.billingEmail || null,
         company_registration_number: data.registrationNumber || null,
-      })
-      .eq("id", context.userId);
+      }, { onConflict: "id" })
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!saved) throw new Error("Your account details were not found. Please sign in again before saving.");
     const diffs: Array<[string, string | null, string | null]> = [
       ["company_name", before?.company_name ?? null, data.companyName],
       ["company_kra_pin", before?.company_kra_pin ?? null, data.kraPin || null],

@@ -16,3 +16,4 @@
 - Wallet spending (rides, car hire) must pass assertWalletPin (src/lib/wallet-pin.server.ts); PIN changes only via phone OTP — keeps stolen sessions from draining wallets.
 - Dispatch order uses rankByEtaAndRating (src/lib/dispatch-rank.ts): ETA first, rating as a small tie-break bonus — closeness must stay dominant.
 - Lost & found photos live privately in driver-documents/lost-found/; never return them or driver descriptions to passengers (blind claim).
+- Company detail autosaves use the shared company-profile schema and authenticated account storage; serialize saves and preserve newer edits so refetches cannot overwrite typing.
