@@ -236,9 +236,24 @@ export const getTopupStatus = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ intentId: z.string().uuid() }).parse(i))
   .handler(async ({ data, context }) => {
     const db = await admin();
-    const { data: intent } = await db.from("payment_intents").select("status, failure_reason, idempotency_key").eq("id", data.intentId).eq("customer_id", context.userId).maybeSingle();
+    const sel = "status, failure_reason, idempotency_key, provider_reference, amount";
+    let { data: intent } = await db.from("payment_intents").select(sel).eq("id", data.intentId).eq("customer_id", context.userId).maybeSingle();
     if (!intent || !intent.idempotency_key.startsWith("wtopup:")) throw new Error("Top-up not found.");
-    return { status: intent.status as string, reason: intent.failure_reason };
+    // Don't wait for the gateway's callback: ask the gateway directly while still waiting.
+    if (["pending", "initiating", "awaiting_confirmation", "processing"].includes(intent.status) && intent.provider_reference) {
+      try {
+        const { getTransaction } = await import("./adapters/palpluss.server");
+        const tx = await getTransaction(intent.provider_reference);
+        if (tx && tx.status !== "PENDING") {
+          const { applyGatewayTransaction } = await import("./payments.server");
+          await applyGatewayTransaction(tx);
+          ({ data: intent } = await db.from("payment_intents").select(sel).eq("id", data.intentId).maybeSingle());
+        }
+      } catch (e) {
+        console.error("top-up status check failed", e);
+      }
+    }
+    return { status: (intent?.status ?? "pending") as string, reason: intent?.failure_reason ?? null, amount: Number(intent?.amount ?? 0) };
   });
 
 /** Pays a pending M-PESA ride from the wallet (promo credit first, then cash). */
