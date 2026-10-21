@@ -534,6 +534,11 @@ function HirePage() {
           licenseDocumentPath: licensePath ?? undefined,
           rulesAccepted,
           corporate: usePayLater && corporateTerms ? corporateTerms : undefined,
+          kycDocuments: usePayLater
+            ? (Object.entries(kycPaths) as Array<[KycKind, string]>)
+                .filter(([, path]) => Boolean(path))
+                .map(([kind, path]) => ({ kind, path, remember: rememberDocs }))
+            : undefined,
         },
       }),
     onSuccess: (row) => {
@@ -547,15 +552,22 @@ function HirePage() {
           })
           .eq("id", accountId);
       }
-      setMessage(
-        usePayLater && corporateTerms
-          ? `Booking ${row.reference} confirmed. Agreement signed; please pay by ${corporateTerms.payLaterMethod.replace("_", " ")} on ${corporateTerms.payLaterDueDate}.`
-          : row.payment
-          ? row.payment.accepted
-            ? `Request ${row.reference} saved. Approve the M-Pesa prompt for KES ${Number(row.payment.amount).toLocaleString("en-KE")}; the owner sees it after the required payment clears.`
-            : `Request ${row.reference} saved, but payment did not start: ${row.payment.message}. Retry from Your requests.`
-          : `Request ${row.reference} sent. Estimate KES ${Number(row.estimated_total).toLocaleString("en-KE")} — a provider will respond.`,
-      );
+      if (usePayLater && corporateTerms) {
+        setBookedRef(row.reference);
+        setMessage(
+          `Booking ${row.reference} sent. The owner will verify your company documents, then your dates are reserved. Pay by ${corporateTerms.payLaterMethod.replace("_", " ")} on ${corporateTerms.payLaterDueDate}.`,
+        );
+        // Take the company straight to the agreement to sign and save it.
+        void navigate({ to: "/hire/agreement/$quoteId", params: { quoteId: row.id }, hash: "sign" });
+      } else {
+        setMessage(
+          row.payment
+            ? row.payment.accepted
+              ? `Request ${row.reference} saved. Approve the M-Pesa prompt for KES ${Number(row.payment.amount).toLocaleString("en-KE")}; the owner sees it after the required payment clears.`
+              : `Request ${row.reference} saved, but payment did not start: ${row.payment.message}. Retry from Your requests.`
+            : `Request ${row.reference} sent. Estimate KES ${Number(row.estimated_total).toLocaleString("en-KE")} — a provider will respond.`,
+        );
+      }
       if (row.payment?.accepted) setPayCard({ quoteId: row.id, amount: Number(row.payment.amount) });
       setStops([]);
       setNotes("");
