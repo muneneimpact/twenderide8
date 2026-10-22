@@ -38,6 +38,10 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-sky: var(--sky);
+  --color-sky-foreground: var(--sky-foreground);
+  --color-coral: var(--coral);
+  --color-coral-foreground: var(--coral-foreground);
   --color-surface: var(--surface);
   --color-surface-foreground: var(--surface-foreground);
 
@@ -201,6 +205,12 @@
   --sidebar-ring: oklch(0.63 0.17 150);
   --gradient-hero: linear-gradient(150deg, oklch(0.55 0.15 152) 0%, oklch(0.63 0.17 150) 60%, oklch(0.72 0.16 145) 100%);
   --gradient-gold: linear-gradient(120deg, oklch(0.84 0.15 88) 0%, oklch(0.76 0.15 62) 100%);
+  --sky: oklch(0.68 0.14 235);
+  --sky-foreground: oklch(1 0 0);
+  --coral: oklch(0.7 0.17 35);
+  --coral-foreground: oklch(1 0 0);
+  --gradient-sunset: linear-gradient(135deg, oklch(0.84 0.15 88) 0%, oklch(0.7 0.17 35) 100%);
+  --gradient-sky: linear-gradient(135deg, oklch(0.68 0.14 235) 0%, oklch(0.7 0.14 190) 100%);
   --shadow-card: 0 1px 2px oklch(0.2 0.02 155 / 0.05), 0 10px 26px -14px oklch(0.2 0.02 155 / 0.18);
   --shadow-sheet: 0 -8px 40px -16px oklch(0.2 0.02 155 / 0.22);
 }
@@ -340,3 +350,10 @@ h1, h2, h3, .font-display {
 @keyframes otp-in { from { opacity: 0; transform: translateY(8px) scale(0.9); } to { opacity: 1; transform: none; } }
 @keyframes otp-pop { 0% { transform: scale(0.85); } 60% { transform: scale(1.1); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .otp-slot, .otp-filled { animation: none; } }
+
+@utility sunset-gradient {
+  background-image: var(--gradient-sunset);
+}
+@utility sky-gradient {
+  background-image: var(--gradient-sky);
+}
