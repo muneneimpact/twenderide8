@@ -60,6 +60,11 @@ export default function TwendeMap({
 
   useEffect(() => {
     let cancelled = false;
+    // Google calls this when the key isn't allowed on this domain; show our own
+    // placeholder instead of Google's "Oops! Something went wrong" screen.
+    (window as unknown as { gm_authFailure?: () => void }).gm_authFailure = () => {
+      if (!cancelled) setFailed(true);
+    };
     loadGoogleMaps()
       .then((maps) => {
         if (cancelled || !holder.current || map.current) return;
@@ -208,8 +213,14 @@ export default function TwendeMap({
     <div className={`relative ${className ?? "h-full w-full"}`}>
       <div ref={holder} className="h-full w-full" aria-label="Ride map" />
       {failed ? (
-        <div className="absolute inset-0 grid place-items-center bg-muted text-xs text-muted-foreground">
-          Map unavailable right now
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-muted p-4 text-center">
+          <div className="grid h-10 w-10 place-items-center rounded-full bg-primary/15 text-lg text-primary">📍</div>
+          <p className="text-sm font-semibold text-foreground">Map coming soon</p>
+          <p className="max-w-xs text-xs text-muted-foreground">
+            {pickup || dropoff
+              ? "Your pickup and destination are saved — you can keep booking as normal."
+              : "Search for your pickup and destination above — booking works as normal."}
+          </p>
         </div>
       ) : null}
     </div>
