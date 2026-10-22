@@ -117,22 +117,32 @@ function CarsPage() {
       ) : (
         <div className="grid gap-2 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           {shown.map(({ c: car, avail }) => (
-            <article
+            <Link
               key={car.id}
-              className="flex overflow-hidden rounded-xl border bg-card sm:flex-col"
+              to="/cars/$carId"
+              params={{ carId: car.id }}
+              aria-label={`View ${car.make} ${car.model}`}
+              className="group flex overflow-hidden rounded-xl border bg-card shadow-sm transition hover:border-primary hover:shadow-md active:scale-[0.99] sm:flex-col"
             >
-              {car.photo_link ? (
-                <img
-                  src={car.photo_link}
-                  alt={`${car.make} ${car.model}`}
-                  className="h-auto w-28 shrink-0 object-cover sm:aspect-video sm:w-full"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="grid w-28 shrink-0 place-items-center bg-muted text-[10px] text-muted-foreground sm:aspect-video sm:w-full">
-                  No photo
-                </div>
-              )}
+              <div className="relative w-28 shrink-0 sm:aspect-video sm:w-full">
+                {car.photo_link ? (
+                  <img
+                    src={car.photo_link}
+                    alt={`${car.make} ${car.model}`}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="grid h-full w-full place-items-center sky-gradient text-[10px] text-sky-foreground">
+                    No photo
+                  </div>
+                )}
+                {car.photo_links.length > 1 && (
+                  <span className="absolute bottom-1 left-1 rounded-full bg-foreground/70 px-1.5 py-0.5 text-[10px] font-semibold text-background">
+                    {car.photo_links.length} photos
+                  </span>
+                )}
+              </div>
               <div className="min-w-0 flex-1 space-y-1 p-2.5 sm:space-y-2 sm:p-4">
                 <div className="flex items-start justify-between gap-2">
                   <h2 className="truncate text-sm font-semibold sm:text-base">
@@ -140,7 +150,7 @@ function CarsPage() {
                   </h2>
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${
-                      avail.today ? "bg-primary/10 text-primary" : "bg-muted text-foreground"
+                      avail.today ? "bg-primary/10 text-primary" : "bg-coral/15 text-coral"
                     }`}
                   >
                     {avail.label}
@@ -158,20 +168,12 @@ function CarsPage() {
                   <p className="text-base font-bold sm:text-lg">
                     {fmt(car.day_rate)} <span className="text-xs font-normal text-muted-foreground">/ day</span>
                   </p>
-                  {signedIn ? (
-                    <Button asChild size="sm">
-                      <Link to="/hire">Book</Link>
-                    </Button>
-                  ) : (
-                    <Button asChild size="sm">
-                      <Link to="/auth" search={{ redirect: "/hire" }}>
-                        Sign in to book
-                      </Link>
-                    </Button>
-                  )}
+                  <span className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+                    View car
+                  </span>
                 </div>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       )}
