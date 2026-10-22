@@ -20,6 +20,7 @@ import { Route as AuthenticatedLostFoundRouteImport } from './routes/_authentica
 import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AuthAdminRouteImport } from './routes/auth.admin'
 import { Route as AuthDriversRouteImport } from './routes/auth.drivers'
+import { Route as CarsCarIdRouteImport } from './routes/cars_.$carId'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminDocumentsRouteImport } from './routes/_authenticated/admin/documents'
 import { Route as AuthenticatedAdminFinanceRouteImport } from './routes/_authenticated/admin/finance'
@@ -97,6 +98,11 @@ const AuthAdminRoute = AuthAdminRouteImport.update({
 const AuthDriversRoute = AuthDriversRouteImport.update({
   id: '/auth/drivers',
   path: '/auth/drivers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CarsCarIdRoute = CarsCarIdRouteImport.update({
+  id: '/cars_/$carId',
+  path: '/cars/$carId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -249,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/lost-found': typeof AuthenticatedLostFoundRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
+  '/cars/$carId': typeof CarsCarIdRoute
   '/auth/': typeof AuthIndexRoute
   '/admin/documents': typeof AuthenticatedAdminDocumentsRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
@@ -285,6 +292,7 @@ export interface FileRoutesByTo {
   '/lost-found': typeof AuthenticatedLostFoundRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
+  '/cars/$carId': typeof CarsCarIdRoute
   '/auth': typeof AuthIndexRoute
   '/admin/documents': typeof AuthenticatedAdminDocumentsRoute
   '/admin/finance': typeof AuthenticatedAdminFinanceRoute
@@ -323,6 +331,7 @@ export interface FileRoutesById {
   '/_authenticated/lost-found': typeof AuthenticatedLostFoundRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
+  '/cars_/$carId': typeof CarsCarIdRoute
   '/auth/': typeof AuthIndexRoute
   '/_authenticated/admin/documents': typeof AuthenticatedAdminDocumentsRoute
   '/_authenticated/admin/finance': typeof AuthenticatedAdminFinanceRoute
@@ -361,6 +370,7 @@ export interface FileRouteTypes {
     | '/lost-found'
     | '/auth/admin'
     | '/auth/drivers'
+    | '/cars/$carId'
     | '/auth/'
     | '/admin/documents'
     | '/admin/finance'
@@ -397,6 +407,7 @@ export interface FileRouteTypes {
     | '/lost-found'
     | '/auth/admin'
     | '/auth/drivers'
+    | '/cars/$carId'
     | '/auth'
     | '/admin/documents'
     | '/admin/finance'
@@ -434,6 +445,7 @@ export interface FileRouteTypes {
     | '/_authenticated/lost-found'
     | '/auth/admin'
     | '/auth/drivers'
+    | '/cars_/$carId'
     | '/auth/'
     | '/_authenticated/admin/documents'
     | '/_authenticated/admin/finance'
@@ -467,6 +479,7 @@ export interface RootRouteChildren {
   CarsRoute: typeof CarsRoute
   AuthAdminRoute: typeof AuthAdminRoute
   AuthDriversRoute: typeof AuthDriversRoute
+  CarsCarIdRoute: typeof CarsCarIdRoute
   AuthIndexRoute: typeof AuthIndexRoute
   ApiPublicBootstrapSuperAdminRoute: typeof ApiPublicBootstrapSuperAdminRoute
   ApiPublicComplianceExpiryRemindersRoute: typeof ApiPublicComplianceExpiryRemindersRoute
@@ -552,6 +565,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/drivers'
       fullPath: '/auth/drivers'
       preLoaderRoute: typeof AuthDriversRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cars_/$carId': {
+      id: '/cars_/$carId'
+      path: '/cars/$carId'
+      fullPath: '/cars/$carId'
+      preLoaderRoute: typeof CarsCarIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -789,6 +809,7 @@ const rootRouteChildren: RootRouteChildren = {
   CarsRoute: CarsRoute,
   AuthAdminRoute: AuthAdminRoute,
   AuthDriversRoute: AuthDriversRoute,
+  CarsCarIdRoute: CarsCarIdRoute,
   AuthIndexRoute: AuthIndexRoute,
   ApiPublicBootstrapSuperAdminRoute: ApiPublicBootstrapSuperAdminRoute,
   ApiPublicComplianceExpiryRemindersRoute:

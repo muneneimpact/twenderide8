@@ -145,6 +145,7 @@ export const listPublicHireVehicles = createServerFn({ method: "GET" }).handler(
     hire_description: v.hire_description,
     hire_features: v.hire_features,
     photo_link: v.photo_link,
+    photo_links: v.photo_links,
     bookings: v.bookings,
     day_rate: v.day_rate,
     chauffeur_daily_rate: v.chauffeur_daily_rate,
