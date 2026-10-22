@@ -30,13 +30,9 @@ type Sort = "price-asc" | "price-desc";
 
 function CarsPage() {
   const { data: cars } = useSuspenseQuery(carsQuery);
-  const [signedIn, setSignedIn] = useState(false);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("price-asc");
-  useEffect(() => {
-    void supabase.auth.getSession().then(({ data }) => setSignedIn(Boolean(data.session)));
-  }, []);
   const now = new Date();
   const shown = cars
     .map((c) => ({ c, avail: nextAvailableLabel(c.bookings, now) }))
