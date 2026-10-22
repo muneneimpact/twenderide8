@@ -16,4 +16,4 @@
 - Unpaid company bookings blocking dates: HQ-69F55911, HQ-6829680D; HQ-96D5350F partially paid.
 - App not published — M-PESA callbacks still target the old address until publish.
 - NEW: Companies can book rides for their people (staff ride bookings billed to the company).
-- [ ] Public car cards fully tappable, car details/gallery page, colourful home landing
+- [x] Public car cards fully tappable, car details/gallery page, colourful home landing
