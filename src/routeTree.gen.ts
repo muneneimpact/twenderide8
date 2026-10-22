@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as CarsRouteImport } from './routes/cars'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedBookRouteImport } from './routes/_authenticated/book'
 import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/fleet'
@@ -51,6 +52,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CarsRoute = CarsRouteImport.update({
+  id: '/cars',
+  path: '/cars',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
@@ -235,6 +241,7 @@ const ApiPublicWhatsappWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cars': typeof CarsRoute
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
@@ -270,6 +277,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/cars': typeof CarsRoute
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
@@ -307,6 +315,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/cars': typeof CarsRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/book': typeof AuthenticatedBookRoute
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
@@ -344,6 +353,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/cars'
     | '/account'
     | '/book'
     | '/fleet'
@@ -379,6 +389,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/cars'
     | '/account'
     | '/book'
     | '/fleet'
@@ -415,6 +426,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/cars'
     | '/_authenticated/account'
     | '/_authenticated/book'
     | '/_authenticated/fleet'
@@ -452,6 +464,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  CarsRoute: typeof CarsRoute
   AuthAdminRoute: typeof AuthAdminRoute
   AuthDriversRoute: typeof AuthDriversRoute
   AuthIndexRoute: typeof AuthIndexRoute
@@ -476,6 +489,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cars': {
+      id: '/cars'
+      path: '/cars'
+      fullPath: '/cars'
+      preLoaderRoute: typeof CarsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/account': {
@@ -766,6 +786,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  CarsRoute: CarsRoute,
   AuthAdminRoute: AuthAdminRoute,
   AuthDriversRoute: AuthDriversRoute,
   AuthIndexRoute: AuthIndexRoute,
