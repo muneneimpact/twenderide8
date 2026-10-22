@@ -44,12 +44,12 @@ function HomePage() {
         </div>
       </section>
 
-      <div className="mx-auto -mt-9 w-full max-w-3xl flex-1 px-4 pb-10">
-        <div className="space-y-3">
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-4 pb-10 pt-0 -mt-9">
+        <div className="grid gap-3 sm:grid-cols-[1.12fr_1fr] sm:gap-4">
           {/* Rides first and biggest: this is a taxi app before anything else. */}
           <Link
             to="/book"
-            className="auth-rise auth-delay-2 group flex items-center gap-4 rounded-2xl bg-primary p-5 text-primary-foreground shadow-[0_14px_40px_-16px_rgba(0,0,0,0.5)] transition-transform active:scale-[0.99]"
+            className="auth-rise auth-delay-2 group flex items-center gap-4 rounded-2xl bg-primary p-5 text-primary-foreground shadow-[0_14px_40px_-16px_rgba(0,0,0,0.5)] transition-transform active:scale-[0.99] sm:p-6"
           >
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary-foreground/15">
               <Bike className="h-6 w-6" aria-hidden="true" />
