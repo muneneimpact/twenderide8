@@ -44,7 +44,7 @@ function HomePage() {
         </div>
       </section>
 
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-4 pb-10 pt-0 -mt-9">
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-10 -mt-9 sm:px-6">
         <div className="grid gap-3 sm:grid-cols-[1.12fr_1fr] sm:gap-4">
           {/* Rides first and biggest: this is a taxi app before anything else. */}
           <Link
@@ -95,7 +95,7 @@ function HomePage() {
           </li>
         </ul>
 
-        <p className="mt-8 text-center text-sm text-muted-foreground">
+        <p className="mt-auto pt-10 text-center text-sm text-muted-foreground">
           <Link to="/auth" search={{ redirect: "/driver/apply" }} className="font-semibold text-primary">
             Drive with Twende? Apply to drive
           </Link>
