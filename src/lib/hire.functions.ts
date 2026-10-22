@@ -123,7 +123,35 @@ const PUBLIC_HIRE_VEHICLE_FIELDS =
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async () => loadAvailableHireVehicles());
+
+/**
+ * Public browse list for signed-out visitors: car, price and booked dates only —
+ * never plate, owner, insurance or internal notes. Booking still needs sign-in.
+ */
+export const listPublicHireVehicles = createServerFn({ method: "GET" }).handler(async () => {
+  const list = await loadAvailableHireVehicles();
+  return list.map((v) => ({
+    id: v.id,
+    make: v.make,
+    model: v.model,
+    colour: v.colour,
+    year: v.year,
+    seats: v.seats,
+    vehicle_class: v.vehicle_class,
+    hire_mode: v.hire_mode,
+    hire_deposit_policy: v.hire_deposit_policy,
+    hire_deposit_amount: v.hire_deposit_amount,
+    hire_description: v.hire_description,
+    hire_features: v.hire_features,
+    photo_link: v.photo_link,
+    bookings: v.bookings,
+    day_rate: v.day_rate,
+    chauffeur_daily_rate: v.chauffeur_daily_rate,
+  }));
+});
+
+async function loadAvailableHireVehicles() {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const pageSize = 500;
     const rows: HireVehicleRow[] = [];
@@ -192,7 +220,7 @@ export const listHireVehicles = createServerFn({ method: "GET" })
           : DAY_RATE[vehicle.vehicle_class ?? "go"],
       chauffeur_daily_rate: Number(vehicle.hire_chauffeur_daily_rate ?? CHAUFFEUR_DAY_RATE),
     }));
-  });
+}
 
 /** Cars I own (directly or through my fleet), for managing their listing. */
 export const listMyVehicles = createServerFn({ method: "GET" })
