@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Bike, Car, MapPin, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowRight, Bike, Car, MapPin, ShieldCheck, Sparkles, Wallet } from "lucide-react";
 
 /**
  * Public front door: one screen, two clear choices — get a ride now, or hire a car.
