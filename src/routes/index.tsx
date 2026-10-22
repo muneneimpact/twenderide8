@@ -29,16 +29,16 @@ export const Route = createFileRoute("/")({
 function HomePage() {
   return (
     <main className="flex min-h-screen flex-col bg-background">
-      <section className="hero-gradient relative overflow-hidden px-5 pb-14 pt-[max(1.75rem,env(safe-area-inset-top))]">
+      <section className="hero-gradient relative overflow-hidden px-4 pb-14 pt-[max(1.75rem,env(safe-area-inset-top))] sm:px-6">
         <div className="auth-aurora" aria-hidden="true" />
-        <div className="relative mx-auto w-full max-w-3xl">
+        <div className="relative mx-auto w-full max-w-5xl">
           <p className="auth-rise text-[11px] font-bold uppercase tracking-[0.24em] text-brand-foreground/80">
             Twende Meru Rides
           </p>
           <h1 className="auth-rise auth-delay-1 mt-3 font-display text-4xl font-extrabold leading-[1.05] text-brand-foreground sm:text-5xl">
             Where to next?
           </h1>
-          <p className="auth-rise auth-delay-2 mt-3 max-w-md text-sm leading-relaxed text-brand-foreground/85 sm:text-base">
+          <p className="auth-rise auth-delay-2 mt-3 max-w-lg text-sm leading-relaxed text-brand-foreground/85 sm:text-base">
             Pick how you want to move — grab a taxi across Meru right now, or hire a car for the day.
           </p>
         </div>
@@ -65,7 +65,7 @@ function HomePage() {
 
           <Link
             to="/cars"
-            className="auth-rise auth-delay-3 group flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-primary/40 active:scale-[0.99]"
+            className="auth-rise auth-delay-3 group flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-primary/40 active:scale-[0.99] sm:p-6"
           >
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
               <Car className="h-6 w-6" aria-hidden="true" />
