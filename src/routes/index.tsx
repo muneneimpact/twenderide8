@@ -44,12 +44,13 @@ function HomePage() {
         </div>
       </section>
 
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-10 -mt-9 sm:px-6">
-        <div className="grid gap-3 sm:grid-cols-[1.12fr_1fr] sm:gap-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-10 pt-8 sm:px-6">
+        <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-foreground">Choose an option</h2>
+        <div className="grid gap-4 sm:grid-cols-[1.12fr_1fr]">
           {/* Rides first and biggest: this is a taxi app before anything else. */}
           <Link
             to="/book"
-            className="auth-rise auth-delay-2 group flex items-center gap-4 rounded-2xl bg-primary p-5 text-primary-foreground shadow-[0_14px_40px_-16px_rgba(0,0,0,0.5)] transition-transform active:scale-[0.99] sm:p-6"
+            className="auth-rise auth-delay-2 group flex min-h-24 items-center gap-4 rounded-2xl border-2 border-primary bg-primary p-5 text-primary-foreground shadow-lg ring-4 ring-primary/15 transition-transform active:scale-[0.98] sm:p-6"
           >
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary-foreground/15">
               <Bike className="h-6 w-6" aria-hidden="true" />
@@ -65,7 +66,7 @@ function HomePage() {
 
           <Link
             to="/cars"
-            className="auth-rise auth-delay-3 group flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-primary/40 active:scale-[0.99] sm:p-6"
+            className="auth-rise auth-delay-3 group flex min-h-24 items-center gap-4 rounded-2xl border-2 border-primary bg-card p-5 shadow-lg transition-colors hover:bg-primary/5 active:scale-[0.98] sm:p-6"
           >
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
               <Car className="h-6 w-6" aria-hidden="true" />
