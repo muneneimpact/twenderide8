@@ -52,7 +52,7 @@ function CarsPage() {
       if (!`${c.make ?? ""} ${c.model ?? ""} ${c.vehicle_class ?? ""}`.toLowerCase().includes(q.toLowerCase())) return false;
       if (filter === "today") return avail.today;
       if (filter === "self") return c.hire_mode !== "chauffeured";
-      if (filter === "driver") return c.hire_mode !== "self_drive" && c.hire_mode !== "self-drive" && c.hire_mode != null && c.hire_mode !== "";
+      if (filter === "driver") return c.hire_mode === "chauffeured" || c.hire_mode === "both";
       return true;
     })
     .sort((a, b) => (sort === "price-asc" ? a.c.day_rate - b.c.day_rate : b.c.day_rate - a.c.day_rate));
