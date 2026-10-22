@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { AuthForm } from "@/components/AuthForm";
@@ -31,6 +32,7 @@ function safePath(value: string | undefined) {
 function CustomerAuthPage() {
   const { redirect } = Route.useSearch();
   return (
+    <>
     <AuthForm
       eyebrow="Twende Meru Rides"
       heading="Welcome back"
@@ -39,5 +41,12 @@ function CustomerAuthPage() {
       allowSignUp
       signUpCta="Create account"
     />
+    <p className="pb-8 text-center text-sm text-muted-foreground">
+      Looking to hire a car?{" "}
+      <Link to="/cars" className="font-semibold text-primary">
+        Browse cars for hire
+      </Link>
+    </p>
+    </>
   );
 }
