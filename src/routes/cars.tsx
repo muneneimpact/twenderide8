@@ -1,16 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { listPublicHireVehicles } from "@/lib/hire.functions";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { nextAvailableLabel } from "@/lib/next-available";
-
-const carsQuery = queryOptions({
-  queryKey: ["public-hire-cars"],
-  queryFn: () => listPublicHireVehicles(),
-  staleTime: 60_000,
-});
+import { publicCarsQuery as carsQuery } from "@/lib/public-cars-query";
 
 export const Route = createFileRoute("/cars")({
   head: () => ({
