@@ -35,12 +35,12 @@ function HomePage() {
     { icon: Sparkles, title: "Rated drivers", text: "Top-rated nearby drivers first.", tone: "bg-coral/15 text-coral" },
   ];
   return (
-    <main className="flex h-[100svh] flex-col overflow-hidden bg-background">
-      <section className="hero-gradient relative shrink-0 overflow-hidden px-4 pb-6 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:pb-8">
+    <main className="flex h-[100svh] flex-col overflow-hidden bg-background lg:flex-row">
+      <section className="hero-gradient relative shrink-0 overflow-hidden px-4 pb-6 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:pb-8 lg:flex lg:flex-1 lg:items-center lg:px-10 lg:py-8">
         <div className="auth-aurora" aria-hidden="true" />
         <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full sunset-gradient opacity-40 blur-3xl" aria-hidden="true" />
         <div className="pointer-events-none absolute -bottom-20 -left-10 h-48 w-48 rounded-full sky-gradient opacity-40 blur-3xl" aria-hidden="true" />
-        <div className="relative mx-auto w-full max-w-5xl">
+        <div className="relative mx-auto w-full max-w-5xl lg:max-w-xl">
           <div className="flex items-center justify-between">
             <Link to="/" aria-label="Twende Meru home">
               <img
@@ -55,7 +55,7 @@ function HomePage() {
               </Link>
             </div>
           </div>
-          <h1 className="auth-rise auth-delay-1 mt-4 font-display text-4xl font-extrabold leading-[1.05] text-brand-foreground sm:text-6xl">
+          <h1 className="auth-rise auth-delay-1 mt-4 font-display text-4xl font-extrabold leading-[1.05] text-brand-foreground sm:text-6xl lg:text-5xl">
             Where to next,
             <br />
             <span className="text-gold">Meru?</span>
@@ -66,7 +66,7 @@ function HomePage() {
         </div>
       </section>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 pb-4 pt-4 sm:px-6 sm:pt-6">
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 pb-4 pt-4 sm:px-6 sm:pt-6 lg:flex-1 lg:justify-center lg:px-8 lg:py-6">
         <section className="rounded-3xl border-2 border-primary/15 bg-primary/5 p-2 sm:p-3">
           <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-foreground sm:text-sm">Choose an option</h2>
           <div className="grid gap-3 sm:grid-cols-[1.12fr_1fr]">
@@ -105,7 +105,7 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="mt-3 border-t border-border pt-3 sm:mt-8">
+        <section className="mt-3 border-t border-border pt-3 sm:mt-8 lg:mt-5">
           <h2 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:text-xs">Why Twende</h2>
           <div className="grid grid-cols-4 gap-2 sm:gap-3">
           {perks.map(({ icon: Icon, title, text, tone }) => (
@@ -120,7 +120,7 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="mt-3 border-t border-border pt-3 sm:mt-8">
+        <section className="mt-3 border-t border-border pt-3 sm:mt-8 lg:mt-5">
           <h2 className="sr-only">Partner with Twende</h2>
           <Link
             to="/drive-or-list"
@@ -140,7 +140,7 @@ function HomePage() {
           <InstallPrompt showOnHome inline />
         </div>
 
-        <p className="mt-3 hidden text-center text-xs text-muted-foreground sm:mt-6 sm:block">
+        <p className="mt-3 hidden text-center text-xs text-muted-foreground sm:mt-6 sm:block lg:mt-4">
           Already have an account?{" "}
           <Link to="/auth" search={{ redirect: "/book" }} className="font-semibold text-primary">
             Sign in
