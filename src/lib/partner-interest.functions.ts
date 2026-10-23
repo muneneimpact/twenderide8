@@ -18,7 +18,7 @@ const submissionSchema = z.object({
 });
 const reviewSchema = z.object({
   id: z.string().uuid(),
-  status: z.enum(["new", "contacted", "approved", "declined"]),
+  status: z.enum(["new", "contacted", "approved", "declined", "closed"]),
 });
 
 type InterestRow = {
@@ -33,7 +33,7 @@ type InterestRow = {
   number_of_cars: number | null;
   best_time: string;
   note: string | null;
-  status: "new" | "contacted" | "approved" | "declined";
+  status: "new" | "contacted" | "approved" | "declined" | "closed";
   reviewed_by: string | null;
   reviewed_at: string | null;
   created_at: string;

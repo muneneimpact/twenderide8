@@ -1,0 +1,6 @@
+ALTER TABLE public.partner_interest_requests
+  DROP CONSTRAINT IF EXISTS partner_interest_requests_status_check;
+
+ALTER TABLE public.partner_interest_requests
+  ADD CONSTRAINT partner_interest_requests_status_check
+  CHECK (status IN ('new', 'contacted', 'approved', 'declined', 'closed'));

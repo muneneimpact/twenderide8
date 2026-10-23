@@ -119,6 +119,19 @@ export const applyAsDriver = createServerFn({ method: "POST" })
     await supabaseAdmin
       .from("driver_vehicle_authorisations")
       .insert({ vehicle_id: vehicle.id, driver_id: userId });
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profile?.phone) {
+      await supabaseAdmin
+        .from("partner_interest_requests")
+        .update({ status: "closed", reviewed_at: new Date().toISOString() })
+        .eq("phone", profile.phone)
+        .eq("request_type", "driver")
+        .eq("status", "approved");
+    }
     await audit(userId, "driver_application_submitted", "driver", userId, { vehicle: vehicle.id });
     await (await import("./links.server")).alertStaffVehicleSubmitted(vehicle.id, "ride");
     return { vehicle };

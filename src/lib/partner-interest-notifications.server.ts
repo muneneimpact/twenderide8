@@ -1,14 +1,16 @@
 import { normaliseKenyanPhone } from "@/lib/phone";
 
 export type PartnerInterestType = "driver" | "car_owner";
-export type PartnerInterestStatus = "new" | "contacted" | "approved" | "declined";
+export type PartnerInterestStatus = "new" | "contacted" | "approved" | "declined" | "closed";
 
 function typeLabel(requestType: PartnerInterestType) {
   return requestType === "driver" ? "driver" : "car-listing";
 }
 
 function statusLabel(status: PartnerInterestStatus) {
-  return status === "approved" ? "approved for onboarding" : status;
+  if (status === "approved") return "approved for onboarding";
+  if (status === "closed") return "closed — onboarding completed";
+  return status;
 }
 
 export async function notifyPartnerInterest(input: {

@@ -58,7 +58,11 @@ export function PartnerInterestRequestsBoard() {
                   {row.full_name}
                 </p>
                 <span className="rounded-full bg-secondary px-2 py-1 text-[11px] capitalize text-foreground">
-                  {row.status === "approved" ? "Approved for onboarding" : row.status}
+                  {row.status === "approved"
+                    ? "Approved for onboarding"
+                    : row.status === "closed"
+                      ? "Closed — onboarding completed"
+                      : row.status}
                 </span>
               </div>
               <p className="mt-1 text-xs text-foreground">
@@ -75,22 +79,24 @@ export function PartnerInterestRequestsBoard() {
                 </p>
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
-                {(["contacted", "approved", "declined"] as const).map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => review.mutate({ id: row.id, status })}
-                    disabled={review.isPending}
-                    className="rounded-full border border-input px-3 py-2 text-xs font-semibold capitalize text-foreground disabled:opacity-50"
-                  >
-                    {status === "approved" ? "Approved for onboarding" : status}
-                  </button>
-                ))}
+                {row.status !== "closed" &&
+                  (["contacted", "approved", "declined"] as const).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => review.mutate({ id: row.id, status })}
+                      disabled={review.isPending}
+                      className="rounded-full border border-input px-3 py-2 text-xs font-semibold capitalize text-foreground disabled:opacity-50"
+                    >
+                      {status === "approved" ? "Approved for onboarding" : status}
+                    </button>
+                  ))}
                 {row.status === "approved" ? (
                   <Link
                     to="/auth"
                     search={{
                       redirect: isDriver ? "/driver/apply" : "/driver/hire?section=vehicles",
+                      mode: isDriver ? "signup" : undefined,
                     }}
                     className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
                   >
