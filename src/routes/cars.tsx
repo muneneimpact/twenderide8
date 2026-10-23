@@ -85,9 +85,12 @@ function CarsPage() {
         </Link>
       </header>
       <div className="sticky top-0 z-10 -mx-3 mb-3 space-y-2 bg-background/95 px-3 py-2 backdrop-blur sm:mx-0 sm:px-0">
-        <form onSubmit={(event) => { event.preventDefault(); if (tripNeeds.trim().length >= 10) recommendation.mutate(tripNeeds.trim()); }} className="rounded-2xl border border-primary/20 bg-primary/5 p-3 sm:p-4">
-          <p className="text-sm font-bold">Not sure which car fits?</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Describe your group, dates, budget and whether you need a driver. AI will match you to listed cars.</p>
+        <details className="rounded-xl border border-primary/20 bg-primary/5">
+          <summary className="cursor-pointer list-none px-3 py-2 text-xs font-bold text-foreground [&::-webkit-details-marker]:hidden">
+            Not sure which car fits? <span className="ml-1 font-normal text-primary">Ask AI for a quick match</span>
+          </summary>
+          <form onSubmit={(event) => { event.preventDefault(); if (tripNeeds.trim().length >= 10) recommendation.mutate(tripNeeds.trim()); }} className="border-t border-primary/15 px-3 pb-3 pt-2">
+            <p className="text-[11px] text-muted-foreground">Describe your group, dates, budget and driver preference.</p>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <textarea value={tripNeeds} onChange={(event) => setTripNeeds(event.target.value)} minLength={10} maxLength={1200} rows={2} placeholder="E.g. 5 people, 3 days in Meru, luggage, under KES 12,000/day, self-drive" aria-label="Describe your trip needs" className="min-h-16 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm" />
             <button type="submit" disabled={recommendation.isPending || tripNeeds.trim().length < 10} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{recommendation.isPending ? "Finding a match…" : "Recommend a car"}</button>
@@ -126,7 +129,8 @@ function CarsPage() {
               {interest.isError ? <p className="mt-2 text-xs text-destructive">{(interest.error as Error).message}</p> : null}
             </div>
           ) : null}
-        </form>
+          </form>
+        </details>
         <div className="flex gap-2">
           <input
             value={q}
