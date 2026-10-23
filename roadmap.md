@@ -1,5 +1,9 @@
 # Roadmap
 
+## Current request
+- [ ] Check latest additions against the live database and repair missing wiring.
+- [ ] Verify repaired saves and reads without triggering real payments or messages.
+
 ## Done this round
 - Home page `/` is now a public chooser: big "Get a ride" (→ booking) and "Car hire" (→ public car list) options, plus driver application and sign-in links. No more automatic redirect to sign-in.
 - Hire page split: /hire clean browse, /hire/bookings (requests + company bookings + payments), /hire/company (company KYC registration, editable, cross-device).
