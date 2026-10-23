@@ -86,6 +86,7 @@ export function InstallPrompt({
         <span className="text-xs font-medium text-foreground">Install app</span>
         <button
           onClick={async () => {
+            if (!event) return;
             await event.prompt();
             await event.userChoice;
             dismiss();

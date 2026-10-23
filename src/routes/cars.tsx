@@ -39,7 +39,7 @@ function CarsPage() {
   const submitInterestFn = useServerFn(submitVehicleInterest);
   const recommendation = useMutation({ mutationFn: (tripNeeds: string) => recommendFn({ data: { tripNeeds } }) });
   const interest = useMutation({
-    mutationFn: (data: { contactName: string; contactPhone?: string; contactEmail?: string }) =>
+    mutationFn: (data: { contactName: string; contactPhone?: string | undefined; contactEmail?: string | undefined }) =>
       submitInterestFn({
         data: {
           ...data,
