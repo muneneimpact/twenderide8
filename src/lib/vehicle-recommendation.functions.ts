@@ -63,9 +63,20 @@ export const recommendHireVehicles = createServerFn({ method: "POST" })
       mode: vehicle.hire_mode,
       dayRate: vehicle.day_rate,
       chauffeurDailyRate: vehicle.chauffeur_daily_rate,
-      available: vehicle.bookings.length === 0,
+      availableNow: vehicle.bookings.length === 0,
+      bookedRanges: vehicle.bookings,
+      paymentPolicy: vehicle.hire_payment_policy,
+      payLaterAllowed: vehicle.hire_pay_later_allowed,
+      depositPolicy: vehicle.hire_deposit_policy,
+      depositAmount: vehicle.hire_deposit_amount,
+      cancellationPolicy: vehicle.hire_cancellation_policy,
+      insuranceType: vehicle.hire_insurance_type,
+      insuranceDetails: vehicle.hire_insurance_details,
+      minimumDriverAge: vehicle.hire_minimum_age,
       description: vehicle.hire_description,
       features: vehicle.hire_features,
+      notes: vehicle.hire_notes,
+      rules: vehicle.hire_rules,
     }));
     const model = process.env.AI_GATEWAY_MODEL;
     const content = await gatewayRequest({
@@ -74,7 +85,7 @@ export const recommendHireVehicles = createServerFn({ method: "POST" })
         {
           role: "system",
           content:
-            'You match car-hire requests to the supplied catalogue. Use only vehicle IDs from the catalogue, prefer currently available vehicles, and never invent availability or features. Return JSON exactly as {"recommendations":[{"vehicleId":"uuid","reason":"short plain-English reason"}]} with at most 3 recommendations. If nothing fits, return an empty array.',
+            'You match car-hire requests to the supplied public catalogue. Use only vehicle IDs from the catalogue. Recommend only vehicles marked availableNow=true and never recommend a vehicle with any bookedRanges. Consider passenger seats, vehicle class, self-drive/driver mode, daily rates, chauffeur fees, deposits, payment and pay-later policy, minimum driver age, insurance, cancellation policy, features, rules, notes, and the requested trip dates, duration, budget and luggage. Never invent availability, prices, policies, or features. Return JSON exactly as {"recommendations":[{"vehicleId":"uuid","reason":"short plain-English reason"}]} with at most 3 recommendations. If no available vehicle fits, return an empty array.',
         },
         { role: "user", content: JSON.stringify({ tripNeeds: data.tripNeeds, catalogue }) },
       ],
