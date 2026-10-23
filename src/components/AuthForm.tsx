@@ -237,7 +237,7 @@ export function AuthForm({
   const resetting = mode === "forgot";
 
   return (
-    <main className="relative flex h-[100svh] flex-col justify-start overflow-hidden bg-background px-4 py-3 sm:min-h-screen sm:h-auto sm:justify-center sm:px-5 sm:py-10">
+    <main className="relative flex h-[100svh] flex-col justify-center overflow-hidden bg-background px-4 py-3 sm:min-h-screen sm:h-auto sm:px-5 sm:py-10">
       <div aria-hidden className="auth-aurora" />
       <div className="relative mx-auto w-full max-w-sm">
         <div className="auth-rise">
