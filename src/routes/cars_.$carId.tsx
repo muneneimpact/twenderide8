@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { nextAvailableLabel } from "@/lib/next-available";
 import { publicCarsQuery } from "@/lib/public-cars-query";
+import { rememberHireVehicle } from "@/lib/hire-selection";
 
 export const Route = createFileRoute("/cars_/$carId")({
   loader: async ({ context, params }) => {
@@ -133,7 +134,7 @@ function CarDetail() {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <p className="font-bold">{fmt(car.day_rate)} <span className="text-xs font-normal text-muted-foreground">/ day</span></p>
           <Button asChild size="lg">
-            {signedIn ? <Link to="/hire">Book this car</Link> : <Link to="/auth" search={{ redirect: "/hire" }}>Sign in to book</Link>}
+            {signedIn ? <Link to="/hire" onClick={() => rememberHireVehicle(car.id)}>Book this car</Link> : <Link to="/auth" search={{ redirect: "/hire" }} onClick={() => rememberHireVehicle(car.id)}>Sign in to book</Link>}
           </Button>
         </div>
       </div>

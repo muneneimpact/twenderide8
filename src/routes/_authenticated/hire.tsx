@@ -21,6 +21,7 @@ import {
   saveMyHireDocument,
   submitHireQuote,
 } from "@/lib/hire.functions";
+import { clearRememberedHireVehicle, readRememberedHireVehicle } from "@/lib/hire-selection";
 
 type KycKind = "certificate" | "kra_pin" | "cr12" | "other";
 const KYC_SLOTS: Array<{ kind: KycKind; label: string }> = [
@@ -318,6 +319,12 @@ function HirePage() {
   );
 
   const all = useMemo(() => vehicles.data ?? [], [vehicles.data]);
+  useEffect(() => {
+    const remembered = readRememberedHireVehicle();
+    if (!remembered || !all.some((vehicle) => vehicle.id === remembered)) return;
+    setVehicleId((current) => current ?? remembered);
+    clearRememberedHireVehicle();
+  }, [all]);
   const makes = useMemo(
     () => [...new Set(all.map((v) => v.make).filter(Boolean))] as string[],
     [all],

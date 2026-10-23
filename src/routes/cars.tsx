@@ -1,8 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { nextAvailableLabel } from "@/lib/next-available";
 import { publicCarsQuery as carsQuery } from "@/lib/public-cars-query";
+import { rememberHireVehicle } from "@/lib/hire-selection";
+import { recommendHireVehicles } from "@/lib/vehicle-recommendation.functions";
 
 export const Route = createFileRoute("/cars")({
   head: () => ({
@@ -30,7 +33,10 @@ type Sort = "price-asc" | "price-desc";
 
 function CarsPage() {
   const { data: cars } = useSuspenseQuery(carsQuery);
+  const recommendFn = useServerFn(recommendHireVehicles);
+  const recommendation = useMutation({ mutationFn: (tripNeeds: string) => recommendFn({ data: { tripNeeds } }) });
   const [q, setQ] = useState("");
+  const [tripNeeds, setTripNeeds] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("price-asc");
   const now = new Date();
@@ -64,6 +70,27 @@ function CarsPage() {
         </Link>
       </header>
       <div className="sticky top-0 z-10 -mx-3 mb-3 space-y-2 bg-background/95 px-3 py-2 backdrop-blur sm:mx-0 sm:px-0">
+        <form onSubmit={(event) => { event.preventDefault(); if (tripNeeds.trim().length >= 10) recommendation.mutate(tripNeeds.trim()); }} className="rounded-2xl border border-primary/20 bg-primary/5 p-3 sm:p-4">
+          <p className="text-sm font-bold">Not sure which car fits?</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Describe your group, dates, budget and whether you need a driver. AI will match you to listed cars.</p>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <textarea value={tripNeeds} onChange={(event) => setTripNeeds(event.target.value)} minLength={10} maxLength={1200} rows={2} placeholder="E.g. 5 people, 3 days in Meru, luggage, under KES 12,000/day, self-drive" aria-label="Describe your trip needs" className="min-h-16 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm" />
+            <button type="submit" disabled={recommendation.isPending || tripNeeds.trim().length < 10} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{recommendation.isPending ? "Finding a match…" : "Recommend a car"}</button>
+          </div>
+          {recommendation.isError ? <p className="mt-2 text-xs text-destructive">{(recommendation.error as Error).message}</p> : null}
+          {recommendation.data?.recommendations.length ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">Best matches</p>
+              {recommendation.data.recommendations.map(({ vehicleId, reason, vehicle }) => (
+                <Link key={vehicleId} to="/cars/$carId" params={{ carId: vehicleId }} onClick={() => rememberHireVehicle(vehicleId)} className="block rounded-lg border bg-card p-2.5 transition hover:border-primary">
+                  <span className="text-sm font-semibold">{vehicle.make} {vehicle.model}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">KES {Math.round(vehicle.day_rate).toLocaleString()} / day</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{reason}</span>
+                </Link>
+              ))}
+            </div>
+          ) : recommendation.data ? <p className="mt-2 text-xs text-muted-foreground">No listed car matched those needs. Try a wider budget or fewer requirements.</p> : null}
+        </form>
         <div className="flex gap-2">
           <input
             value={q}
@@ -110,6 +137,7 @@ function CarsPage() {
               to="/cars/$carId"
               params={{ carId: car.id }}
               aria-label={`View ${car.make} ${car.model}`}
+              onClick={() => rememberHireVehicle(car.id)}
               className="group flex overflow-hidden rounded-xl border bg-card shadow-sm transition hover:border-primary hover:shadow-md active:scale-[0.99] sm:flex-col"
             >
               <div className="relative w-28 shrink-0 sm:aspect-video sm:w-full">
