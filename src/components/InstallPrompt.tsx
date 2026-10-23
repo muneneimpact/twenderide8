@@ -52,7 +52,7 @@ export function InstallPrompt({
 
   const quiet =
     (!showOnHome && pathname === "/") || QUIET_PREFIXES.some((p) => pathname.startsWith(p));
-  if (!event || !ready || installed || quiet) return null;
+  if (!ready || installed || quiet || (!event && !showOnHome)) return null;
 
   const dismiss = () => {
     localStorage.setItem(DISMISS_KEY, "1");
@@ -63,6 +63,12 @@ export function InstallPrompt({
     return (
       <button
         onClick={async () => {
+          if (!event) {
+            window.alert(
+              "To download Twende, open your browser menu and choose ‘Add to Home screen’ or ‘Install app’.",
+            );
+            return;
+          }
           await event.prompt();
           await event.userChoice;
           dismiss();
