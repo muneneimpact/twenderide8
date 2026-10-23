@@ -44,7 +44,7 @@ function HomePage() {
           <div className="flex items-center justify-between">
             <Link to="/" aria-label="Twende Meru home">
               <img
-                src="/twende-meru-logo.png"
+                src="/twende-meru-logo-home.png"
                 alt="Twende Meru"
                 className="h-12 w-auto object-contain"
               />
