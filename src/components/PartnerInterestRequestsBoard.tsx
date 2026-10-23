@@ -67,7 +67,7 @@ export function PartnerInterestRequestsBoard() {
               <p className="mt-1 text-xs text-muted-foreground">
                 {isDriver
                   ? `${row.preferred_work_type?.replace("_", " / ")} · owns vehicle: ${row.owns_vehicle ? "yes" : "no"} · licence/PSV: ${row.licence_psv_status || "not stated"}`
-                  : `${row.number_of_cars ?? "Not stated"} car(s) to list`}
+                  : `${row.number_of_cars == null ? "Not stated" : row.number_of_cars >= 11 ? "10+" : row.number_of_cars} car(s) to list`}
               </p>
               {row.note ? (
                 <p className="mt-2 whitespace-pre-line rounded-xl bg-secondary/50 p-2 text-xs text-foreground">

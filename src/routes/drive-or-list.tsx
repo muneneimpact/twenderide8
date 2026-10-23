@@ -20,19 +20,48 @@ export const Route = createFileRoute("/drive-or-list")({
 
 type InterestType = "driver" | "car_owner";
 const input = "w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm";
+const towns = [
+  "Meru town",
+  "Makutano",
+  "Maua",
+  "Nkubu",
+  "Mikinduri",
+  "Timau",
+  "Kiirua",
+  "Kariene",
+  "Igoji",
+  "Chuka",
+  "Kathwana",
+  "Other",
+] as const;
+const contactTimes = [
+  "Morning (8am–12pm)",
+  "Afternoon (12pm–5pm)",
+  "Evening (5pm–8pm)",
+  "Weekdays",
+  "Weekends",
+] as const;
 
 function DriveOrListPage() {
   const submitFn = useServerFn(submitPartnerInterest);
   const [requestType, setRequestType] = useState<InterestType>("driver");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [town, setTown] = useState("");
+  const [townSelection, setTownSelection] = useState<string>("Meru town");
+  const [otherTown, setOtherTown] = useState("");
   const [preferredWorkType, setPreferredWorkType] = useState("boda");
   const [ownsVehicle, setOwnsVehicle] = useState(false);
   const [licencePsvStatus, setLicencePsvStatus] = useState("");
   const [numberOfCars, setNumberOfCars] = useState("1");
-  const [bestTime, setBestTime] = useState("");
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  const town = townSelection === "Other" ? otherTown.trim() : townSelection;
+  const bestTime = selectedTimes.includes("Anytime") ? "Anytime" : selectedTimes.join(", ");
+  const toggleTime = (time: string) => {
+    setSelectedTimes((current) =>
+      current.includes(time) ? current.filter((item) => item !== time) : [...current, time],
+    );
+  };
   const submit = useMutation({
     mutationFn: () =>
       submitFn({
@@ -40,30 +69,38 @@ function DriveOrListPage() {
           requestType,
           fullName: fullName.trim(),
           phone: phone.trim(),
-          town: town.trim(),
-          bestTime: bestTime.trim(),
+          town,
+          bestTime,
           ...(requestType === "driver"
             ? {
                 preferredWorkType: preferredWorkType as "boda" | "e_boda" | "car_taxi" | "delivery",
                 ownsVehicle,
-                licencePsvStatus: licencePsvStatus.trim() || undefined,
+                licencePsvStatus: licencePsvStatus || undefined,
               }
             : { numberOfCars: Number(numberOfCars) || 0 }),
           note: note.trim() || undefined,
         },
       }),
-    onSuccess: () => undefined,
   });
   if (submit.isSuccess) {
     return (
-      <main className="hero-gradient flex min-h-screen items-center px-4 py-8">
+      <main className="hero-gradient flex min-h-screen items-center overflow-hidden px-4 py-8">
+        <style>{`@keyframes twende-drive { 0%, 100% { transform: translateX(-34px) rotate(-2deg); opacity: .55; } 50% { transform: translateX(34px) rotate(2deg); opacity: 1; } }`}</style>
         <section className="glass-strong mx-auto w-full max-w-md p-6 text-center">
-          <CheckCircle2 className="mx-auto h-12 w-12 text-gold" />
-          <h1 className="mt-4 font-display text-2xl font-extrabold text-brand-foreground">
-            Interest received
+          <div className="relative mx-auto h-20 max-w-[260px] overflow-hidden rounded-2xl bg-brand-foreground/10">
+            <div className="absolute inset-x-4 bottom-3 border-b-2 border-dashed border-brand-foreground/40" />
+            <Car
+              className="absolute left-1/2 top-5 h-10 w-10 -translate-x-1/2 text-gold"
+              style={{ animation: "twende-drive 2.4s ease-in-out infinite" }}
+            />
+          </div>
+          <CheckCircle2 className="mx-auto mt-4 h-10 w-10 text-gold" />
+          <h1 className="mt-3 font-display text-2xl font-extrabold text-brand-foreground">
+            Your submission drove off!
           </h1>
           <p className="mt-2 text-sm text-brand-foreground/85">
-            We have received your interest. Twende Operations will contact you.
+            It has arrived at our station. We have received your interest and Twende Operations will
+            contact you.
           </p>
           <Link
             to="/"
@@ -134,15 +171,26 @@ function DriveOrListPage() {
             </label>
             <label className="block text-xs font-semibold">
               Town / operating area
+              <select
+                value={townSelection}
+                onChange={(e) => setTownSelection(e.target.value)}
+                className={`${input} mt-1`}
+              >
+                {towns.map((townOption) => (
+                  <option key={townOption}>{townOption}</option>
+                ))}
+              </select>
+            </label>
+            {townSelection === "Other" ? (
               <input
-                value={town}
-                onChange={(e) => setTown(e.target.value)}
+                value={otherTown}
+                onChange={(e) => setOtherTown(e.target.value)}
                 required
                 maxLength={120}
-                className={`${input} mt-1`}
-                placeholder="Meru town, Nkubu…"
+                className={input}
+                placeholder="Enter your town or operating area"
               />
-            </label>
+            ) : null}
             {requestType === "driver" ? (
               <>
                 <label className="block text-xs font-semibold">
@@ -168,40 +216,58 @@ function DriveOrListPage() {
                 </label>
                 <label className="block text-xs font-semibold">
                   Licence / PSV status
-                  <input
+                  <select
                     value={licencePsvStatus}
                     onChange={(e) => setLicencePsvStatus(e.target.value)}
-                    maxLength={160}
                     className={`${input} mt-1`}
-                    placeholder="e.g. PSV ready, licence renewal…"
-                  />
+                  >
+                    <option value="">Select status</option>
+                    <option>Licence and PSV ready</option>
+                    <option>Licence ready, PSV in progress</option>
+                    <option>Licence renewal needed</option>
+                    <option>Not yet applied</option>
+                    <option>Not sure — please advise</option>
+                  </select>
                 </label>
               </>
             ) : (
               <label className="block text-xs font-semibold">
-                Number of cars you have
-                <input
+                Cars you have
+                <select
                   value={numberOfCars}
-                  onChange={(e) => setNumberOfCars(e.target.value.replace(/\D/g, ""))}
-                  required
-                  min={1}
-                  max={100}
-                  inputMode="numeric"
+                  onChange={(e) => setNumberOfCars(e.target.value)}
                   className={`${input} mt-1`}
-                />
+                >
+                  {Array.from({ length: 10 }, (_, index) => (
+                    <option key={index + 1} value={String(index + 1)}>
+                      {index + 1}
+                    </option>
+                  ))}
+                  <option value="11">10 and above</option>
+                </select>
               </label>
             )}
-            <label className="block text-xs font-semibold">
-              Best time to contact you
-              <input
-                value={bestTime}
-                onChange={(e) => setBestTime(e.target.value)}
-                required
-                maxLength={100}
-                className={`${input} mt-1`}
-                placeholder="Weekdays after 5pm"
-              />
-            </label>
+            <fieldset>
+              <legend className="text-xs font-semibold">
+                Best time to contact you{" "}
+                <span className="font-normal text-muted-foreground">(select all that work)</span>
+              </legend>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {[...contactTimes, "Anytime"].map((time) => (
+                  <label
+                    key={time}
+                    className={`flex items-center gap-2 rounded-xl border p-2.5 text-xs ${selectedTimes.includes(time) ? "border-primary bg-primary/10" : "border-border"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTimes.includes(time)}
+                      onChange={() => toggleTime(time)}
+                    />{" "}
+                    {time}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <label className="block text-xs font-semibold">
               Optional note
               <textarea
@@ -216,13 +282,7 @@ function DriveOrListPage() {
             <button
               type="button"
               onClick={() => submit.mutate()}
-              disabled={
-                submit.isPending ||
-                !fullName.trim() ||
-                !phone.trim() ||
-                !town.trim() ||
-                !bestTime.trim()
-              }
+              disabled={submit.isPending || !fullName.trim() || !phone.trim() || !town || !bestTime}
               className="w-full rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"
             >
               {submit.isPending ? "Sending…" : "Submit interest"}
