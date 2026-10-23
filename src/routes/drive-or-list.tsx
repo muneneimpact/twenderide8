@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { ArrowLeft, Bike, Car, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Bike, Car, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import { submitPartnerInterest } from "@/lib/partner-interest.functions";
 
 export const Route = createFileRoute("/drive-or-list")({
@@ -54,6 +54,7 @@ function DriveOrListPage() {
   const [licencePsvStatus, setLicencePsvStatus] = useState("");
   const [numberOfCars, setNumberOfCars] = useState("1");
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
+  const [showContactTimes, setShowContactTimes] = useState(false);
   const [note, setNote] = useState("");
   const town = townSelection === "Other" ? otherTown.trim() : townSelection;
   const bestTime = selectedTimes.includes("Anytime") ? "Anytime" : selectedTimes.join(", ");
@@ -247,26 +248,53 @@ function DriveOrListPage() {
                 </select>
               </label>
             )}
-            <fieldset>
-              <legend className="text-xs font-semibold">
-                Best time to contact you{" "}
-                <span className="font-normal text-muted-foreground">(select all that work)</span>
-              </legend>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {[...contactTimes, "Anytime"].map((time) => (
-                  <label
-                    key={time}
-                    className={`flex items-center gap-2 rounded-xl border p-2.5 text-xs ${selectedTimes.includes(time) ? "border-primary bg-primary/10" : "border-border"}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedTimes.includes(time)}
-                      onChange={() => toggleTime(time)}
-                    />{" "}
-                    {time}
-                  </label>
-                ))}
-              </div>
+            <fieldset className="rounded-2xl border border-border p-3">
+              <button
+                type="button"
+                onClick={() => setShowContactTimes((open) => !open)}
+                className="flex w-full items-center justify-between gap-3 text-left text-xs font-semibold"
+                aria-expanded={showContactTimes}
+              >
+                <span>
+                  Best time to contact you
+                  {selectedTimes.length ? (
+                    <span className="ml-2 font-normal text-primary">
+                      {selectedTimes.join(", ")}
+                    </span>
+                  ) : (
+                    <span className="ml-2 font-normal text-muted-foreground">
+                      Choose one or more
+                    </span>
+                  )}
+                </span>
+                {showContactTimes ? (
+                  <ChevronUp className="h-4 w-4 shrink-0 text-primary" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 shrink-0 text-primary" />
+                )}
+              </button>
+              {showContactTimes ? (
+                <>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Select all that work, or choose Anytime.
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {[...contactTimes, "Anytime"].map((time) => (
+                      <label
+                        key={time}
+                        className={`flex items-center gap-2 rounded-xl border p-2.5 text-xs ${selectedTimes.includes(time) ? "border-primary bg-primary/10" : "border-border"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTimes.includes(time)}
+                          onChange={() => toggleTime(time)}
+                        />{" "}
+                        {time}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : null}
             </fieldset>
             <label className="block text-xs font-semibold">
               Optional note
