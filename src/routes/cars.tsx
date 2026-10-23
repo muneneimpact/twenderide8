@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { InstallPrompt } from "@/components/InstallPrompt";
+import { supabase } from "@/integrations/supabase/client";
 import { nextAvailableLabel } from "@/lib/next-available";
 import { publicCarsQuery as carsQuery } from "@/lib/public-cars-query";
 import { rememberHireVehicle } from "@/lib/hire-selection";
@@ -54,6 +56,12 @@ function CarsPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("price-asc");
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    void supabase.auth.getSession().then(({ data }) => setSignedIn(Boolean(data.session)));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => setSignedIn(Boolean(session)));
+    return () => data.subscription.unsubscribe();
+  }, []);
   const now = new Date();
   const shown = cars
     .map((c) => ({ c, avail: nextAvailableLabel(c.bookings, now) }))
@@ -80,9 +88,15 @@ function CarsPage() {
           <h1 className="text-xl font-bold sm:text-2xl">Cars for hire</h1>
           <p className="text-xs text-muted-foreground sm:text-sm">Browse freely — sign in when you're ready to book.</p>
         </div>
-        <Link to="/" className="text-xs font-semibold text-primary sm:text-sm">
-          Need a ride instead? →
-        </Link>
+        {signedIn ? (
+          <Link to="/book" className="text-xs font-semibold text-primary sm:text-sm">
+            Need a ride instead? Book now →
+          </Link>
+        ) : (
+          <Link to="/auth" search={{ redirect: "/book" }} className="text-xs font-semibold text-primary sm:text-sm">
+            Need a ride instead? Sign in to book →
+          </Link>
+        )}
       </header>
       <div className="sticky top-0 z-10 -mx-3 mb-3 space-y-2 bg-background/95 px-3 py-2 backdrop-blur sm:mx-0 sm:px-0">
         <details className="rounded-xl border border-primary/20 bg-primary/5">
@@ -133,6 +147,9 @@ function CarsPage() {
           ) : null}
           </form>
         </details>
+        <div className="flex justify-end">
+          <InstallPrompt showOnHome inline />
+        </div>
         <div className="flex gap-2">
           <input
             value={q}

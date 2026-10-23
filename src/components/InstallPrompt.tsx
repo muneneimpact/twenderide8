@@ -67,7 +67,7 @@ export function InstallPrompt({
           await event.userChoice;
           dismiss();
         }}
-        className="rounded-full bg-brand-foreground/15 px-3 py-1 text-xs font-semibold text-brand-foreground"
+        className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
       >
         Download app
       </button>
