@@ -50,7 +50,6 @@ function HomePage() {
               />
             </Link>
             <div className="flex items-center gap-2">
-              <InstallPrompt showOnHome inline />
               <Link to="/auth" search={{ redirect: "/book" }} className="rounded-full bg-brand-foreground/15 px-3 py-1 text-xs font-semibold text-brand-foreground">
                 Sign in
               </Link>
@@ -137,6 +136,9 @@ function HomePage() {
           <ArrowRight className="h-5 w-5 shrink-0" aria-hidden="true" />
           </Link>
         </section>
+        <div className="mt-2 flex justify-center">
+          <InstallPrompt showOnHome inline />
+        </div>
 
         <p className="mt-3 hidden text-center text-xs text-muted-foreground sm:mt-6 sm:block">
           Already have an account?{" "}

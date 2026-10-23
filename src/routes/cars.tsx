@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { InstallPrompt } from "@/components/InstallPrompt";
 import { supabase } from "@/integrations/supabase/client";
 import { nextAvailableLabel } from "@/lib/next-available";
 import { publicCarsQuery as carsQuery } from "@/lib/public-cars-query";
@@ -147,9 +146,6 @@ function CarsPage() {
           ) : null}
           </form>
         </details>
-        <div className="flex justify-end">
-          <InstallPrompt showOnHome inline />
-        </div>
         <div className="flex gap-2">
           <input
             value={q}
