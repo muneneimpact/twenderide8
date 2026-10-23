@@ -126,11 +126,11 @@ export function AppShell({
       {!hideNav && (
         <nav
           aria-label="Primary navigation"
-          className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 px-2 pt-2 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:px-3"
+          className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-primary/20 bg-background/95 px-2 pt-2 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:px-3"
         >
           <div
             ref={dockRef}
-            className="mx-auto flex w-full max-w-4xl snap-x snap-mandatory gap-1 overflow-x-auto overscroll-x-contain rounded-t-2xl border border-b-0 border-border bg-card/95 p-1.5 shadow-[0_10px_36px_-10px_rgba(0,0,0,0.45)] backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="mx-auto flex w-full max-w-4xl snap-x snap-mandatory gap-1 overflow-x-auto overscroll-x-contain rounded-2xl border-2 border-primary/25 bg-card p-1.5 shadow-[0_10px_36px_-10px_rgba(0,0,0,0.45)] backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {visibleTabs.map((tab) => {
               // Every tab is bold green when inactive so none reads as "selected";

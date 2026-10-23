@@ -222,7 +222,7 @@ function RideDetail() {
     null;
 
   return (
-    <AppShell title={`${ride.trip_kind === "delivery" ? "Delivery" : "Ride"} ${ride.reference}`}>
+    <AppShell title={ride.trip_name ?? `${ride.trip_kind === "delivery" ? "Delivery" : "Ride"} ${ride.reference}`}>
       <div className="h-64 w-full border-b border-border">
         <MapPanel
           pickup={quote ? { lat: Number(quote.pickup_lat), lng: Number(quote.pickup_lng) } : null}
@@ -252,8 +252,9 @@ function RideDetail() {
               ? "Your delivery driver is on the way"
               : ride.trip_kind === "delivery" && ride.status === "trip_started"
                 ? "Delivery in progress"
-                : copy.title}
+              : copy.title}
           </h2>
+          <p className="mt-1 text-xs font-semibold text-primary">{ride.trip_name ?? ride.reference}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {ride.trip_kind === "delivery" &&
             ["driver_assigned", "driver_arriving"].includes(ride.status)

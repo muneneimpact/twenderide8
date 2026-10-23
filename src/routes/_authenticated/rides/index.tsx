@@ -64,11 +64,13 @@ function RidesPage() {
                 className="block rounded-lg border border-border bg-card p-3"
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-sm font-semibold text-foreground">{ride.reference}</span>
+                  <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+                    {ride.trip_name ?? ride.reference}
+                  </span>
                   <span className="text-sm text-foreground">KES {Number(ride.total_fare).toFixed(2)}</span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {statusLabels[ride.status] ?? ride.status} ·{" "}
+                  {ride.reference} · {statusLabels[ride.status] ?? ride.status} ·{" "}
                   {new Date(ride.requested_at).toLocaleString("en-KE")}
                 </p>
               </Link>

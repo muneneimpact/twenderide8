@@ -764,7 +764,14 @@ export const getRide = createServerFn({ method: "POST" })
       }
     }
     return {
-      ride,
+      ride: {
+        ...ride,
+        trip_name: quote?.dropoff_address
+          ? quote.pickup_address
+            ? `${quote.pickup_address} → ${quote.dropoff_address}`
+            : quote.dropoff_address
+          : ride.reference,
+      },
       quote,
       events: events ?? [],
       lastLocation,
