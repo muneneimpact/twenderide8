@@ -7,6 +7,22 @@ interface InstallEvent extends Event {
 }
 
 const DISMISS_KEY = "twende.install.dismissed";
+let pendingInstallEvent: InstallEvent | null = null;
+const installEventListeners = new Set<(event: InstallEvent | null) => void>();
+
+function publishInstallEvent(event: InstallEvent | null) {
+  pendingInstallEvent = event;
+  installEventListeners.forEach((listener) => listener(event));
+}
+
+function subscribeToInstallEvent(listener: (event: InstallEvent | null) => void) {
+  installEventListeners.add(listener);
+  listener(pendingInstallEvent);
+  return () => {
+    installEventListeners.delete(listener);
+  };
+}
+
 // Never interrupt sign-in or onboarding screens.
 const QUIET_PREFIXES = ["/auth", "/driver/apply", "/hire_/agreement", "/hire/agreement"];
 
@@ -34,25 +50,27 @@ export function InstallPrompt({
     if (!showOnHome && localStorage.getItem(DISMISS_KEY) === "1") return;
     const handler = (raw: Event) => {
       raw.preventDefault();
-      setEvent(raw as InstallEvent);
+      publishInstallEvent(raw as InstallEvent);
     };
+    const unsubscribeFromInstallEvent = subscribeToInstallEvent(setEvent);
     window.addEventListener("beforeinstallprompt", handler);
     const onInstalled = () => {
       setInstalled(true);
-      setEvent(null);
+      publishInstallEvent(null);
     };
     window.addEventListener("appinstalled", onInstalled);
     const t = window.setTimeout(() => setReady(true), showOnHome ? 0 : 20_000);
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
       window.removeEventListener("appinstalled", onInstalled);
+      unsubscribeFromInstallEvent();
       window.clearTimeout(t);
     };
   }, [showOnHome]);
 
   const quiet =
     (!showOnHome && pathname === "/") || QUIET_PREFIXES.some((p) => pathname.startsWith(p));
-  if (!ready || installed || quiet || (!event && !showOnHome)) return null;
+  if (!ready || installed || quiet || !event) return null;
 
   const dismiss = () => {
     localStorage.setItem(DISMISS_KEY, "1");
@@ -63,19 +81,14 @@ export function InstallPrompt({
     return (
       <button
         onClick={async () => {
-          if (!event) {
-            window.alert(
-              "To download Twende, open your browser menu and choose ‘Add to Home screen’ or ‘Install app’.",
-            );
-            return;
-          }
           await event.prompt();
           await event.userChoice;
+          publishInstallEvent(null);
           dismiss();
         }}
         className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
       >
-        Download app
+        Install app
       </button>
     );
   }
@@ -86,9 +99,9 @@ export function InstallPrompt({
         <span className="text-xs font-medium text-foreground">Install app</span>
         <button
           onClick={async () => {
-            if (!event) return;
             await event.prompt();
             await event.userChoice;
+            publishInstallEvent(null);
             dismiss();
           }}
           className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
