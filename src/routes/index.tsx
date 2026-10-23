@@ -109,8 +109,7 @@ function HomePage() {
         </div>
 
         <Link
-          to="/auth"
-          search={{ redirect: "/driver/apply" }}
+          to="/drive-or-list"
           className="mt-8 flex items-center gap-3 rounded-2xl sunset-gradient p-4 text-coral-foreground shadow-lg"
         >
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-background/20">

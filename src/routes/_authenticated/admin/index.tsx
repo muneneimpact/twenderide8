@@ -6,6 +6,7 @@ import { RoleGate } from "@/components/RoleGate";
 import { AppShell } from "@/components/AppShell";
 import { AdminSubjectDetail, StatusPill } from "@/components/AdminSubjectDetail";
 import { WalletPayoutsBoard } from "@/components/CustomerWalletCard";
+import { PartnerInterestRequestsBoard } from "@/components/PartnerInterestRequestsBoard";
 import { getOpsBoard, opsCancelRide, resolveIncident, reviewApproval } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -120,6 +121,7 @@ function AdminBoard() {
       </div>
 
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
+        <PartnerInterestRequestsBoard />
         <WalletPayoutsBoard />
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Review note</h3>

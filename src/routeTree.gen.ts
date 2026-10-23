@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as CarsRouteImport } from './routes/cars'
+import { Route as DriveOrListRouteImport } from './routes/drive-or-list'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedBookRouteImport } from './routes/_authenticated/book'
 import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/fleet'
@@ -58,6 +59,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const CarsRoute = CarsRouteImport.update({
   id: '/cars',
   path: '/cars',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DriveOrListRoute = DriveOrListRouteImport.update({
+  id: '/drive-or-list',
+  path: '/drive-or-list',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
@@ -248,6 +254,7 @@ const ApiPublicWhatsappWebhookRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/cars': typeof CarsRoute
+  '/drive-or-list': typeof DriveOrListRoute
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
@@ -285,6 +292,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/cars': typeof CarsRoute
+  '/drive-or-list': typeof DriveOrListRoute
   '/account': typeof AuthenticatedAccountRoute
   '/book': typeof AuthenticatedBookRoute
   '/fleet': typeof AuthenticatedFleetRoute
@@ -324,6 +332,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/cars': typeof CarsRoute
+  '/drive-or-list': typeof DriveOrListRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/book': typeof AuthenticatedBookRoute
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
@@ -363,6 +372,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/cars'
+    | '/drive-or-list'
     | '/account'
     | '/book'
     | '/fleet'
@@ -400,6 +410,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/cars'
+    | '/drive-or-list'
     | '/account'
     | '/book'
     | '/fleet'
@@ -438,6 +449,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/cars'
+    | '/drive-or-list'
     | '/_authenticated/account'
     | '/_authenticated/book'
     | '/_authenticated/fleet'
@@ -477,6 +489,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   CarsRoute: typeof CarsRoute
+  DriveOrListRoute: typeof DriveOrListRoute
   AuthAdminRoute: typeof AuthAdminRoute
   AuthDriversRoute: typeof AuthDriversRoute
   CarsCarIdRoute: typeof CarsCarIdRoute
@@ -509,6 +522,13 @@ declare module '@tanstack/react-router' {
       path: '/cars'
       fullPath: '/cars'
       preLoaderRoute: typeof CarsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/drive-or-list': {
+      id: '/drive-or-list'
+      path: '/drive-or-list'
+      fullPath: '/drive-or-list'
+      preLoaderRoute: typeof DriveOrListRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/account': {
@@ -807,6 +827,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   CarsRoute: CarsRoute,
+  DriveOrListRoute: DriveOrListRoute,
   AuthAdminRoute: AuthAdminRoute,
   AuthDriversRoute: AuthDriversRoute,
   CarsCarIdRoute: CarsCarIdRoute,
