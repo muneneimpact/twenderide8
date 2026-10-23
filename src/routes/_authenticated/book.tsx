@@ -121,7 +121,7 @@ function BookPage() {
   const [msisdn, setMsisdn] = useState("");
   const [msisdnTouched, setMsisdnTouched] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchTarget, setSearchTarget] = useState<"dropoff" | "stop">("dropoff");
+  const [searchTarget, setSearchTarget] = useState<"pickup" | "dropoff" | "stop">("dropoff");
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
   const [recents, setRecents] = useState<Point[]>(() => readRecents());
@@ -388,6 +388,9 @@ function BookPage() {
   function choosePlace(point: Point) {
     if (searchTarget === "stop") {
       setStops((current) => [...current, point]);
+    } else if (searchTarget === "pickup") {
+      setPickup(point);
+      setLocateError(null);
     } else {
       setDropoff(point);
       const next = [point, ...recents.filter((item) => label(item) !== label(point))].slice(0, 5);
@@ -410,9 +413,9 @@ function BookPage() {
     });
   }
 
-  function openSearch(target: "dropoff" | "stop") {
+  function openSearch(target: "pickup" | "dropoff" | "stop") {
     setSearchTarget(target);
-    if (target === "dropoff") setPlacing("dropoff");
+    if (target !== "stop") setPlacing(target);
     setSearchOpen(true);
     window.setTimeout(() => searchInput.current?.focus(), 60);
   }
@@ -448,12 +451,18 @@ function BookPage() {
                 {locating ? "Finding your location…" : label(pickup)}
               </p>
             </div>
-            <div className="flex shrink-0 gap-1.5">
+            <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               <button
                 onClick={requestCurrentLocation}
                 className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground"
               >
                 Use my location
+              </button>
+              <button
+                onClick={() => openSearch("pickup")}
+                className="rounded-full border border-input px-3 py-1.5 text-xs font-medium text-foreground"
+              >
+                Search pickup
               </button>
               <button
                 onClick={() => setPlacing(placing === "pickup" ? "dropoff" : "pickup")}
@@ -1044,14 +1053,24 @@ function BookPage() {
               Close
             </button>
             <p className="font-display text-lg font-bold text-foreground">
-              {searchTarget === "stop" ? "Add a stop" : "Where to?"}
+              {searchTarget === "stop"
+                ? "Add a stop"
+                : searchTarget === "pickup"
+                  ? "Choose your pickup"
+                  : "Where to?"}
             </p>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <PlaceSearch
               prominent
               inputRef={searchInput}
-              placeholder={searchTarget === "stop" ? "Search for a stop" : "Type your destination"}
+              placeholder={
+                searchTarget === "stop"
+                  ? "Search for a stop"
+                  : searchTarget === "pickup"
+                    ? "Search for your pickup"
+                    : "Type your destination"
+              }
               near={pickup ?? dropoff}
               value={null}
               onSuggestionsChange={setSuggestionsOpen}

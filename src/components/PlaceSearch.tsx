@@ -150,7 +150,7 @@ export function PlaceSearch({
       )}
       {touched && !busy && query.trim().length >= 2 && results.length === 0 ? (
         <p className="mt-1 text-xs text-muted-foreground">
-          No match yet — keep typing, or drop the pin on the map instead.
+          No place found yet — try a nearby landmark, road, business or a different spelling.
         </p>
       ) : null}
       {onManualPick && touched && query.trim().length >= 2 ? (
