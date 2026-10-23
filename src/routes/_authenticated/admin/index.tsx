@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { AdminSubjectDetail, StatusPill } from "@/components/AdminSubjectDetail";
 import { WalletPayoutsBoard } from "@/components/CustomerWalletCard";
 import { PartnerInterestRequestsBoard } from "@/components/PartnerInterestRequestsBoard";
+import { ApproachFeeSettingsCard } from "@/components/ApproachFeeSettingsCard";
 import { getOpsBoard, opsCancelRide, resolveIncident, reviewApproval } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -123,6 +124,7 @@ function AdminBoard() {
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
         <PartnerInterestRequestsBoard />
         <WalletPayoutsBoard />
+        <ApproachFeeSettingsCard />
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Review note</h3>
           <p className="mt-1 text-xs text-muted-foreground">

@@ -160,7 +160,14 @@ export const estimateClasses = createServerFn({ method: "POST" })
           settingNumber(pricing.settings, "random_discount_chance_percent", 35),
         );
         const priced = applyDiscount(breakdown.total_fare, discount?.percent ?? 0);
-        const approach = computeApproachFee(nearest.get(vehicleClass) ?? null, pricing.config.per_km);
+        const approach = computeApproachFee(
+          nearest.get(vehicleClass) ?? null,
+          pricing.config.per_km,
+          {
+            shortPercent: settingNumber(pricing.settings, "approach_fee_short_percent", 50),
+            longPercent: settingNumber(pricing.settings, "approach_fee_long_percent", 30),
+          },
+        );
         options.push({
           vehicleClass,
           total: priced.total_fare + approach.fee,
@@ -257,7 +264,10 @@ export const createQuote = createServerFn({ method: "POST" })
     const { nearestDriverKmByClass } = await import("./approach-fee.server");
     const { computeApproachFee } = await import("./approach-fee");
     const nearest = (await nearestDriverKmByClass(data.pickup)).get(data.vehicleClass) ?? null;
-    const approach = computeApproachFee(nearest, pricing.config.per_km);
+    const approach = computeApproachFee(nearest, pricing.config.per_km, {
+      shortPercent: settingNumber(pricing.settings, "approach_fee_short_percent", 50),
+      longPercent: settingNumber(pricing.settings, "approach_fee_long_percent", 30),
+    });
     const breakdown = {
       ...computed,
       total_fare: priced.total_fare + approach.fee,

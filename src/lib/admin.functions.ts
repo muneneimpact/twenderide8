@@ -670,6 +670,71 @@ export const getPricingWorkspace = createServerFn({ method: "POST" })
     };
   });
 
+/** Ops and Super Admin manage how much of an empty pickup approach is covered. */
+export const getApproachFeeSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireRole, OPS } = await import("./authz.server");
+    await requireRole(context.userId, OPS);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const keys = ["approach_fee_short_percent", "approach_fee_long_percent"];
+    const { data, error } = await supabaseAdmin
+      .from("system_settings")
+      .select("key, value")
+      .in("key", keys);
+    if (error) throw new Error(error.message);
+    const values = new Map((data ?? []).map((row) => [row.key, Number(row.value)]));
+    const percent = (key: string, fallback: number) => {
+      const value = values.get(key);
+      return Number.isFinite(value) ? Math.min(100, Math.max(0, value!)) : fallback;
+    };
+    return {
+      shortPercent: percent("approach_fee_short_percent", 50),
+      longPercent: percent("approach_fee_long_percent", 30),
+    };
+  });
+
+export const updateApproachFeeSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        shortPercent: z.number().finite().min(0).max(100),
+        longPercent: z.number().finite().min(0).max(100),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole, OPS } = await import("./authz.server");
+    await requireRole(context.userId, OPS);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { audit } = await import("./notifications.server");
+    const updatedAt = new Date().toISOString();
+    const { error } = await supabaseAdmin.from("system_settings").upsert(
+      [
+        {
+          key: "approach_fee_short_percent",
+          value: String(data.shortPercent) as never,
+          updated_by: context.userId,
+          updated_at: updatedAt,
+        },
+        {
+          key: "approach_fee_long_percent",
+          value: String(data.longPercent) as never,
+          updated_by: context.userId,
+          updated_at: updatedAt,
+        },
+      ],
+      { onConflict: "key" },
+    );
+    if (error) throw new Error(error.message);
+    await audit(context.userId, "approach_fee_settings_updated", "system_setting", "approach_fee", {
+      shortPercent: data.shortPercent,
+      longPercent: data.longPercent,
+    });
+    return data;
+  });
+
 /** Validate + preview a band set before anything is published. */
 export const previewDistancePolicy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
