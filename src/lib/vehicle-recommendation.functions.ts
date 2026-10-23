@@ -28,8 +28,8 @@ function extractJson(text: string) {
 }
 
 async function gatewayRequest(body: Record<string, unknown>) {
-  const baseUrl = process.env.MANUS_API_URL;
-  const apiKey = process.env.MANUS_API_KEY;
+  const baseUrl = process.env['MANUS_API_URL'];
+  const apiKey = process.env['MANUS_API_KEY'];
   if (!baseUrl || !apiKey) throw new Error("AI recommendations are not configured yet.");
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}/v1/chat/completions`, {
     method: "POST",
@@ -78,7 +78,7 @@ export const recommendHireVehicles = createServerFn({ method: "POST" })
       notes: vehicle.hire_notes,
       rules: vehicle.hire_rules,
     }));
-    const model = process.env.AI_GATEWAY_MODEL;
+    const model = process.env['AI_GATEWAY_MODEL'];
     const content = await gatewayRequest({
       ...(model ? { model } : {}),
       messages: [
