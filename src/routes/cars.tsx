@@ -109,9 +109,11 @@ function CarsPage() {
             </div>
           ) : recommendation.data ? <p className="mt-2 text-xs text-muted-foreground">No listed car matched those needs. Try a wider budget or fewer requirements.</p> : null}
           {tripNeeds.trim().length >= 10 ? (
-            <div className="mt-3 border-t border-primary/15 pt-3">
-              <p className="text-xs font-semibold text-foreground">Want Twende to follow up?</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Leave your contact details and the hire team will respond.</p>
+            <details className="mt-3 border-t border-primary/15 pt-3">
+              <summary className="cursor-pointer list-none text-xs font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+                Want Twende to follow up? <span className="font-normal text-primary">Optional</span>
+              </summary>
+              <p className="mt-1 text-xs text-muted-foreground">Leave your contact details and the hire team will respond. You can skip this and just use the AI match.</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
                 <input value={contactName} onChange={(event) => setContactName(event.target.value)} required placeholder="Your name" className="input-base" />
                 <input value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="Phone number" inputMode="tel" className="input-base" />
@@ -127,7 +129,7 @@ function CarsPage() {
               </button>
               {interest.isSuccess ? <p className="mt-2 text-xs text-primary">Thanks — the hire team has your request and will contact you.</p> : null}
               {interest.isError ? <p className="mt-2 text-xs text-destructive">{(interest.error as Error).message}</p> : null}
-            </div>
+            </details>
           ) : null}
           </form>
         </details>
