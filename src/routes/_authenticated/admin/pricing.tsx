@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import * as XLSX from "xlsx";
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import {
@@ -16,6 +17,7 @@ import {
   savePromotion,
   togglePromotion,
   deletePromotion,
+  importPricingWorkbook,
 } from "@/lib/admin.functions";
 import { promoState, type PromoState } from "@/lib/discounts";
 
@@ -74,6 +76,7 @@ function PricingWorkspace() {
   const fareFn = useServerFn(saveFareConfig);
   const modifierFn = useServerFn(setModifier);
   const settingFn = useServerFn(setSystemSetting);
+  const importWorkbookFn = useServerFn(importPricingWorkbook);
 
   const workspace = useQuery({ queryKey: ["pricing-workspace"], queryFn: () => fetchWorkspace({}) });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["pricing-workspace"] });
@@ -89,6 +92,12 @@ function PricingWorkspace() {
   const [fare, setFare] = useState<Record<string, string>>({});
   const [settingKey, setSettingKey] = useState("");
   const [settingValue, setSettingValue] = useState("");
+  const [workbookRows, setWorkbookRows] = useState<{
+    fares: Record<string, unknown>[];
+    modifiers: Record<string, unknown>[];
+    settings: Record<string, unknown>[];
+  } | null>(null);
+  const [workbookName, setWorkbookName] = useState("");
 
   const preview = useMutation({
     mutationFn: () =>
@@ -170,6 +179,14 @@ function PricingWorkspace() {
       invalidate();
     },
   });
+  const importWorkbook = useMutation({
+    mutationFn: () => importWorkbookFn({ data: workbookRows ?? { fares: [], modifiers: [], settings: [] } }),
+    onSuccess: () => {
+      setWorkbookRows(null);
+      setWorkbookName("");
+      invalidate();
+    },
+  });
 
   if (workspace.isPending) {
     return (
@@ -187,6 +204,36 @@ function PricingWorkspace() {
   }
 
   const w = workspace.data!;
+  function downloadPricingWorkbook() {
+    const fares = w.configs.filter((row) => row.state === "published").map((row) => ({
+      vehicle_class: row.vehicle_class, base_fare: row.base_fare, per_km: row.per_km, per_minute: row.per_minute,
+      minimum_fare: row.minimum_fare, booking_fee: row.booking_fee, waiting_per_minute: row.waiting_per_minute,
+      free_waiting_minutes: row.free_waiting_minutes, cancellation_fee: row.cancellation_fee,
+      cancellation_free_seconds: row.cancellation_free_seconds, commission_percent: row.commission_percent,
+      max_surcharge_percent: row.max_surcharge_percent, rounding_rule: row.rounding_rule,
+      modifier_combination: row.modifier_combination, publish: "yes",
+    }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([
+      { sheet: "Fare Configs", purpose: "Update fare fields by vehicle class.", required_key: "vehicle_class", notes: "Blank cells are ignored. publish=yes activates the new version." },
+      { sheet: "Modifiers", purpose: "Update an existing surcharge or discount by code.", required_key: "code", notes: "Do not rename codes." },
+      { sheet: "Settings", purpose: "Update a system setting by key.", required_key: "key", notes: "Values are stored as text or JSON." },
+    ]), "Read me");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(fares.length ? fares : [{ vehicle_class: "go", base_fare: 100, per_km: 55, per_minute: 3, minimum_fare: 180, booking_fee: 0, waiting_per_minute: 3, free_waiting_minutes: 3, cancellation_fee: 100, cancellation_free_seconds: 120, commission_percent: 20, max_surcharge_percent: 50, rounding_rule: "nearest_5", modifier_combination: "additive", publish: "yes" }]), "Fare Configs");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(w.modifiers.map((row) => ({ code: row.code, percent: row.percent, active: row.active, state: row.state, ramp_mode: row.ramp_mode, peak_percent: row.peak_percent, peak_at: row.peak_at, window_start: row.window_start, window_end: row.window_end }))), "Modifiers");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(w.settings.map((row) => ({ key: row.key, value: typeof row.value === "string" ? row.value : JSON.stringify(row.value) }))), "Settings");
+    XLSX.writeFile(workbook, "twende-pricing-template.xlsx");
+  }
+
+  async function readPricingWorkbook(file: File) {
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+    const rows = (name: string) => {
+      const sheet = workbook.Sheets[name];
+      return sheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" }) : [];
+    };
+    setWorkbookRows({ fares: rows("Fare Configs"), modifiers: rows("Modifiers"), settings: rows("Settings") });
+    setWorkbookName(file.name);
+  }
   const published = w.configs.find((c) => c.vehicle_class === vehicleClass && c.state === "published");
   const fareFields: { key: string; label: string; value: unknown }[] = [
     { key: "base_fare", label: "Base fare", value: published?.base_fare },
@@ -229,6 +276,35 @@ function PricingWorkspace() {
       </div>
 
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
+        <section className="surface-card border-primary/30 p-4">
+          <h3 className="text-sm font-semibold text-foreground">Bulk pricing workbook</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Download the template, change only what needs changing, then upload it. Empty cells are ignored and existing prices remain untouched.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button onClick={downloadPricingWorkbook} className="rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground">
+              Download Excel template
+            </button>
+            <label className="cursor-pointer rounded-full border border-input px-3 py-2.5 text-center text-sm font-medium text-foreground">
+              Choose workbook
+              <input type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void readPricingWorkbook(file);
+              }} />
+            </label>
+          </div>
+          {workbookRows ? (
+            <div className="mt-3 rounded-2xl bg-secondary p-3 text-xs text-foreground">
+              <p className="font-semibold">{workbookName}</p>
+              <p className="mt-1 text-muted-foreground">{workbookRows.fares.length} fare rows · {workbookRows.modifiers.length} modifier rows · {workbookRows.settings.length} settings rows</p>
+              <button onClick={() => importWorkbook.mutate()} disabled={importWorkbook.isPending} className="mt-3 w-full rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+                {importWorkbook.isPending ? "Applying changes…" : "Apply workbook changes"}
+              </button>
+            </div>
+          ) : null}
+          {importWorkbook.isSuccess ? <p className="mt-2 text-xs text-success">Workbook changes applied. New fare versions are active where publish=yes.</p> : null}
+          {importWorkbook.isError ? <p className="mt-2 text-xs text-destructive">{(importWorkbook.error as Error).message}</p> : null}
+        </section>
         {/* Fare configuration */}
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">

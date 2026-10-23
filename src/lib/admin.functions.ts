@@ -1007,6 +1007,96 @@ export const setSystemSetting = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Apply only populated workbook cells; omitted values keep the live value. */
+export const importPricingWorkbook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      fares: z.array(z.record(z.string(), z.unknown())).default([]),
+      modifiers: z.array(z.record(z.string(), z.unknown())).default([]),
+      settings: z.array(z.record(z.string(), z.unknown())).default([]),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireRole, SUPER } = await import("./authz.server");
+    await requireRole(context.userId, SUPER);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { audit } = await import("./notifications.server");
+    const vehicleClasses = ["boda", "e_boda", "go", "plus", "comfort", "xl"] as const;
+    const fareFields = [
+      "base_fare", "per_km", "per_minute", "minimum_fare", "booking_fee", "waiting_per_minute",
+      "free_waiting_minutes", "cancellation_fee", "cancellation_free_seconds", "commission_percent",
+      "max_surcharge_percent", "rounding_rule", "modifier_combination",
+    ] as const;
+    const numericFareFields = new Set<string>(fareFields.filter((key) => !["rounding_rule", "modifier_combination"].includes(key)));
+    const text = (value: unknown) => (value == null ? "" : String(value).trim());
+    const number = (value: unknown, label: string) => {
+      const parsed = typeof value === "number" ? value : Number(text(value));
+      if (!Number.isFinite(parsed)) throw new Error(`${label} must be a number.`);
+      return parsed;
+    };
+    const truthy = (value: unknown, fallback: boolean) => {
+      if (value == null || text(value) === "") return fallback;
+      return ["true", "yes", "1", "publish", "published"].includes(text(value).toLowerCase());
+    };
+    let faresUpdated = 0;
+    let modifiersUpdated = 0;
+    let settingsUpdated = 0;
+
+    for (const row of data.fares) {
+      const vehicleClass = text(row["vehicle_class"]) as (typeof vehicleClasses)[number];
+      if (!vehicleClasses.includes(vehicleClass)) throw new Error(`Unknown vehicle_class: ${vehicleClass || "blank"}.`);
+      const { data: current, error: currentError } = await supabaseAdmin.from("fare_configs").select("*")
+        .eq("vehicle_class", vehicleClass).eq("state", "published").order("version", { ascending: false }).limit(1).maybeSingle();
+      if (currentError || !current) throw new Error(`No published fare config exists for ${vehicleClass}.`);
+      const patch: Record<string, unknown> = {};
+      for (const field of fareFields) {
+        if (row[field] === undefined || row[field] === null || text(row[field]) === "") continue;
+        patch[field] = numericFareFields.has(field) ? number(row[field], `${vehicleClass}.${field}`) : text(row[field]);
+      }
+      if (Object.keys(patch).length === 0) continue;
+      const merged = Object.fromEntries(fareFields.map((field) => [field, patch[field] ?? current[field]]));
+      const publish = truthy(row["publish"], true);
+      const { data: created, error } = await supabaseAdmin.from("fare_configs").insert({
+        vehicle_class: vehicleClass, version: Number(current.version) + 1, ...merged,
+        state: publish ? "published" : "draft", created_by: context.userId,
+      }).select().single();
+      if (error) throw new Error(`Could not update ${vehicleClass}: ${error.message}`);
+      if (publish) await supabaseAdmin.from("fare_configs").update({ state: "archived", effective_to: new Date().toISOString() })
+        .eq("vehicle_class", vehicleClass).eq("state", "published").neq("id", created.id);
+      faresUpdated += 1;
+    }
+
+    for (const row of data.modifiers) {
+      const code = text(row["code"]);
+      if (!code) continue;
+      const { data: current } = await supabaseAdmin.from("pricing_modifiers").select("id").eq("code", code).maybeSingle();
+      if (!current) throw new Error(`Unknown pricing modifier code: ${code}.`);
+      const patch: Record<string, unknown> = {};
+      for (const field of ["percent", "active", "state", "ramp_mode", "peak_percent", "peak_at", "window_start", "window_end"] as const) {
+        if (row[field] === undefined || text(row[field]) === "") continue;
+        patch[field] = field === "percent" || field === "peak_percent" ? number(row[field], `${code}.${field}`) : field === "active" ? truthy(row[field], false) : text(row[field]);
+      }
+      if (Object.keys(patch).length === 0) continue;
+      const { error } = await supabaseAdmin.from("pricing_modifiers").update(patch as never).eq("id", current.id);
+      if (error) throw new Error(`Could not update modifier ${code}: ${error.message}`);
+      modifiersUpdated += 1;
+    }
+
+    for (const row of data.settings) {
+      const key = text(row["key"]);
+      if (!key || row["value"] === undefined || row["value"] === null) continue;
+      const value = typeof row["value"] === "string" ? row["value"] : JSON.stringify(row["value"]);
+      const { error } = await supabaseAdmin.from("system_settings").upsert(
+        { key, value, updated_by: context.userId, updated_at: new Date().toISOString() }, { onConflict: "key" },
+      );
+      if (error) throw new Error(`Could not update setting ${key}: ${error.message}`);
+      settingsUpdated += 1;
+    }
+    await audit(context.userId, "pricing_workbook_imported", "pricing", "pricing-workbook", { faresUpdated, modifiersUpdated, settingsUpdated });
+    return { faresUpdated, modifiersUpdated, settingsUpdated };
+  });
+
 export const listStaffUsers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
