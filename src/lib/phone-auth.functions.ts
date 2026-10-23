@@ -231,7 +231,7 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
       .eq("phone", phone)
       .maybeSingle();
 
-    if (existing && data.intent === "signup") {
+    if (existing && data.intent === "signup" && existing.password_set_at) {
       throw new Error(
         "That number already has an account. Sign in with your password, or use Forgot password to set a new one.",
       );
@@ -301,4 +301,3 @@ export const verifyPhoneLogin = createServerFn({ method: "POST" })
 
     return { verified: true as const, phone, tokenHash: link.properties.hashed_token };
   });
-

@@ -200,6 +200,7 @@ export const reviewApproval = createServerFn({ method: "POST" })
     await requireRole(context.userId, OPS);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { notify, audit } = await import("./notifications.server");
+    let previousDriverStatus: string | null = null;
 
     if (data.kind === "delivery_rate") {
       if (data.decision !== "approved" && data.decision !== "rejected") {
@@ -255,6 +256,15 @@ export const reviewApproval = createServerFn({ method: "POST" })
         fleet: "fleets",
         document: "documents",
       }[data.kind] as "drivers" | "vehicles" | "fleets" | "documents";
+
+      if (data.kind === "driver") {
+        const { data: previousDriver } = await supabaseAdmin
+          .from("drivers")
+          .select("status")
+          .eq("id", data.id)
+          .maybeSingle();
+        previousDriverStatus = previousDriver?.status ?? null;
+      }
 
       if (table === "documents") {
         const { error } = await supabaseAdmin
@@ -342,10 +352,14 @@ export const reviewApproval = createServerFn({ method: "POST" })
         title: data.decision === "approved" ? "You are approved to drive" : "Driver account update",
         body:
           data.decision === "approved"
-            ? "Your driver account was approved. You can now go online."
+            ? "Your driver account was approved. Open the onboarding link sent to your phone to continue."
             : `Your driver account status is now ${data.decision}. ${data.note ?? ""}`.trim(),
-        critical: true,
+        critical: data.decision !== "approved",
       });
+      if (data.decision === "approved" && previousDriverStatus !== "approved") {
+        const { notifyDriverApproved } = await import("./links.server");
+        await notifyDriverApproved(data.id);
+      }
     }
     await audit(context.userId, `${data.kind}_${data.decision}`, data.kind, data.id, {
       note: data.note ?? null,

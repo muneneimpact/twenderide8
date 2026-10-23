@@ -269,17 +269,12 @@ export const onboardDriverForVehicle = createServerFn({ method: "POST" })
         .insert({ vehicle_id: data.vehicleId, driver_id: profile.id, granted_by: context.userId });
       if (error) throw new Error(error.message);
     }
-    try {
-      const { sendTransactionalSms } = await import("./comms.server");
-      const { appLink } = await import("./links.server");
-      await sendTransactionalSms({
-        to: phone,
-        message: `Twende: you've been added as a driver. Sign in with this number ${phone} and upload your ID, driving licence and PSV licence: ${appLink("/driver/apply")}`,
-        eventType: "driver_onboarded",
-        idempotencyKey: `driver-onboarded:${profile.id}:${data.vehicleId}`,
-      });
-    } catch (e) {
-      console.error("onboard sms failed", e);
-    }
+    const { notifyDriverOnboarding } = await import("./links.server");
+    await notifyDriverOnboarding({
+      userId: profile.id,
+      message: `Twende: you've been approved to onboard as a driver. Sign up or sign in with ${phone} to upload your ID, driving licence and PSV licence:`,
+      eventType: "driver_onboarded",
+      idempotencyKey: `driver-onboarded:${profile.id}:${data.vehicleId}`,
+    });
     return { ok: true, created };
   });

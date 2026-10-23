@@ -19,6 +19,7 @@ export interface AuthFormProps {
   /** Sign-in only entrances (staff) hide account creation entirely. */
   allowSignUp: boolean;
   signUpCta?: string;
+  initialMode?: "signin" | "signup";
   footer?: React.ReactNode;
   /**
    * Riders and drivers sign in with their phone number and password. An SMS code
@@ -62,12 +63,13 @@ export function AuthForm({
   destination,
   allowSignUp,
   signUpCta,
+  initialMode = "signin",
   footer,
   method,
 }: AuthFormProps) {
   const navigate = useNavigate();
   const channel = method ?? (allowSignUp ? "phone" : "password");
-  const [mode, setMode] = useState<Mode>("signin");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [step, setStep] = useState<"form" | "code">("form");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");

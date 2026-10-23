@@ -3,7 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { AuthForm } from "@/components/AuthForm";
 
-const searchSchema = z.object({ redirect: z.string().optional() });
+const searchSchema = z.object({
+  redirect: z.string().optional(),
+  mode: z.enum(["signin", "signup"]).optional(),
+});
 
 export const Route = createFileRoute("/auth/")({
   validateSearch: (search) => searchSchema.parse(search),
@@ -33,7 +36,7 @@ function safePath(value: string | undefined) {
 }
 
 function CustomerAuthPage() {
-  const { redirect } = Route.useSearch();
+  const { redirect, mode } = Route.useSearch();
   return (
     <>
       <AuthForm
@@ -41,6 +44,7 @@ function CustomerAuthPage() {
         heading="Welcome back"
         blurb="Sign in to book a taxi in Meru and keep your trips and receipts in one place."
         destination={safePath(redirect)}
+        initialMode={mode}
         allowSignUp
         signUpCta="Create account"
         footer={

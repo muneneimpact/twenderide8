@@ -30,6 +30,62 @@ export async function textUserWithLink(input: {
   }
 }
 
+/** Notify a driver with the onboarding link over SMS and WhatsApp. */
+export async function notifyDriverOnboarding(input: {
+  userId: string;
+  message: string;
+  eventType: string;
+  idempotencyKey: string;
+}): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", input.userId)
+      .maybeSingle();
+    if (!profile?.phone) return;
+
+    const path = "/auth?redirect=%2Fdriver%2Fapply&mode=signup";
+    const message = `${input.message} ${appLink(path)}`;
+    const { sendTransactionalSms } = await import("./comms.server");
+    const { whatsappGatewayConfigured, whatsappGatewaySend } = await import("./whatsapp-gateway.server");
+    const deliveries: Promise<unknown>[] = [
+      sendTransactionalSms({
+        to: profile.phone,
+        message,
+        eventType: input.eventType,
+        idempotencyKey: input.idempotencyKey,
+        context: { userId: input.userId },
+      }),
+    ];
+    if (whatsappGatewayConfigured()) {
+      deliveries.push(
+        whatsappGatewaySend({
+          to: profile.phone.replace(/^\+/, ""),
+          type: "text",
+          text: { body: message },
+        }),
+      );
+    }
+    const results = await Promise.allSettled(deliveries);
+    results
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .forEach((result) => console.error("driver approval channel failed", result.reason));
+  } catch (error) {
+    console.error("driver approval notification failed", error);
+  }
+}
+
+export async function notifyDriverApproved(userId: string): Promise<void> {
+  return notifyDriverOnboarding({
+    userId,
+    message: "Twende: your driver application is approved. Complete onboarding here:",
+    eventType: "driver_approved_onboarding",
+    idempotencyKey: `driver-approved-onboarding:${userId}`,
+  });
+}
+
 /** Text every staff member holding one of the given roles. */
 export async function textStaffWithLink(
   roles: Array<"ops_admin" | "finance_admin" | "super_admin">,
