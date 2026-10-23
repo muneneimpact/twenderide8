@@ -1875,6 +1875,66 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_interest_requests: {
+        Row: {
+          best_time: string
+          created_at: string
+          full_name: string
+          id: string
+          licence_psv_status: string | null
+          note: string | null
+          number_of_cars: number | null
+          owns_vehicle: boolean | null
+          phone: string
+          preferred_work_type: string | null
+          request_type: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          town: string
+          updated_at: string
+          whatsapp_opt_in: boolean
+        }
+        Insert: {
+          best_time: string
+          created_at?: string
+          full_name: string
+          id?: string
+          licence_psv_status?: string | null
+          note?: string | null
+          number_of_cars?: number | null
+          owns_vehicle?: boolean | null
+          phone: string
+          preferred_work_type?: string | null
+          request_type: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          town: string
+          updated_at?: string
+          whatsapp_opt_in?: boolean
+        }
+        Update: {
+          best_time?: string
+          created_at?: string
+          full_name?: string
+          id?: string
+          licence_psv_status?: string | null
+          note?: string | null
+          number_of_cars?: number | null
+          owns_vehicle?: boolean | null
+          phone?: string
+          preferred_work_type?: string | null
+          request_type?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          town?: string
+          updated_at?: string
+          whatsapp_opt_in?: boolean
+        }
+        Relationships: []
+      }
       payment_events: {
         Row: {
           created_at: string
@@ -3037,6 +3097,51 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      vehicle_interest_requests: {
+        Row: {
+          admin_response: string | null
+          contact_email: string | null
+          contact_name: string
+          contact_phone: string | null
+          created_at: string
+          id: string
+          recommended_vehicle_ids: string[]
+          responded_at: string | null
+          responded_by: string | null
+          status: string
+          trip_needs: string
+          updated_at: string
+        }
+        Insert: {
+          admin_response?: string | null
+          contact_email?: string | null
+          contact_name: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          recommended_vehicle_ids?: string[]
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string
+          trip_needs: string
+          updated_at?: string
+        }
+        Update: {
+          admin_response?: string | null
+          contact_email?: string | null
+          contact_name?: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          recommended_vehicle_ids?: string[]
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string
+          trip_needs?: string
+          updated_at?: string
         }
         Relationships: []
       }

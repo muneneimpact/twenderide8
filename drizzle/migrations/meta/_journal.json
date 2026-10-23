@@ -71,6 +71,13 @@
       "when": 1792552999873,
       "tag": "0009_business_kyc_edit_trail",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792718811976,
+      "tag": "0010_partner_and_vehicle_interest_requests",
+      "breakpoints": true
     }
   ]
 }
