@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Bike, Car, MapPin, ShieldCheck, Sparkles, Wallet } from "lucide-react";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 /**
  * Public front door: one screen, two clear choices — get a ride now, or hire a car.
@@ -44,9 +45,12 @@ function HomePage() {
             <p className="auth-rise text-[11px] font-bold uppercase tracking-[0.24em] text-brand-foreground/85">
               Twende Meru Rides
             </p>
-            <Link to="/auth" search={{ redirect: "/book" }} className="rounded-full bg-brand-foreground/15 px-3 py-1 text-xs font-semibold text-brand-foreground">
-              Sign in
-            </Link>
+            <div className="flex items-center gap-2">
+              <InstallPrompt showOnHome inline />
+              <Link to="/auth" search={{ redirect: "/book" }} className="rounded-full bg-brand-foreground/15 px-3 py-1 text-xs font-semibold text-brand-foreground">
+                Sign in
+              </Link>
+            </div>
           </div>
           <h1 className="auth-rise auth-delay-1 mt-4 font-display text-4xl font-extrabold leading-[1.05] text-brand-foreground sm:text-6xl">
             Where to next,
@@ -60,8 +64,9 @@ function HomePage() {
       </section>
 
       <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 pb-4 pt-4 sm:px-6 sm:pt-6">
-        <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-foreground sm:text-sm">Choose an option</h2>
-        <div className="grid gap-4 sm:grid-cols-[1.12fr_1fr]">
+        <section className="rounded-3xl border-2 border-primary/15 bg-primary/5 p-2 sm:p-3">
+          <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-foreground sm:text-sm">Choose an option</h2>
+          <div className="grid gap-3 sm:grid-cols-[1.12fr_1fr]">
           {/* Rides first and biggest: this is a taxi app before anything else. */}
           <Link
             to="/book"
@@ -94,9 +99,12 @@ function HomePage() {
             </span>
             <ArrowRight className="h-6 w-6 shrink-0 text-sky transition-transform group-hover:translate-x-1" aria-hidden="true" />
           </Link>
-        </div>
+          </div>
+        </section>
 
-        <div className="mt-3 grid grid-cols-4 gap-2 sm:mt-8 sm:gap-3">
+        <section className="mt-3 border-t border-border pt-3 sm:mt-8">
+          <h2 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:text-xs">Why Twende</h2>
+          <div className="grid grid-cols-4 gap-2 sm:gap-3">
           {perks.map(({ icon: Icon, title, text, tone }) => (
             <div key={title} className="rounded-2xl border bg-card p-2 shadow-sm sm:p-3">
               <span className={`mb-1 grid h-7 w-7 place-items-center rounded-lg ${tone} sm:mb-2 sm:h-9 sm:w-9 sm:rounded-xl`}>
@@ -106,12 +114,15 @@ function HomePage() {
               <p className="hidden text-xs text-muted-foreground sm:block">{text}</p>
             </div>
           ))}
-        </div>
+          </div>
+        </section>
 
-        <Link
-          to="/drive-or-list"
-          className="mt-3 flex items-center gap-3 rounded-2xl sunset-gradient p-3 text-coral-foreground shadow-lg sm:mt-8 sm:p-4"
-        >
+        <section className="mt-3 border-t border-border pt-3 sm:mt-8">
+          <h2 className="sr-only">Partner with Twende</h2>
+          <Link
+            to="/drive-or-list"
+            className="flex items-center gap-3 rounded-2xl sunset-gradient p-3 text-coral-foreground shadow-lg sm:p-4"
+          >
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-background/20 sm:h-11 sm:w-11">
             <Bike className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
           </span>
@@ -120,7 +131,8 @@ function HomePage() {
             <span className="block text-xs opacity-90">Earn on your own schedule. Apply in minutes.</span>
           </span>
           <ArrowRight className="h-5 w-5 shrink-0" aria-hidden="true" />
-        </Link>
+          </Link>
+        </section>
 
         <p className="mt-3 hidden text-center text-xs text-muted-foreground sm:mt-6 sm:block">
           Already have an account?{" "}
