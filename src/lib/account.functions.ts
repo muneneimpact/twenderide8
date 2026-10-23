@@ -88,9 +88,18 @@ export const applyAsDriver = createServerFn({ method: "POST" })
     );
     if (agreementError) throw new Error(agreementError.message);
 
-    await supabaseAdmin
+    const { data: existingDriver, error: existingDriverError } = await supabaseAdmin
       .from("drivers")
-      .upsert({ id: userId, status: "pending" }, { onConflict: "id" });
+      .select("id, status, active_vehicle_id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (existingDriverError) throw new Error(existingDriverError.message);
+    if (existingDriver?.status !== "approved") {
+      const { error: driverUpsertError } = await supabaseAdmin
+        .from("drivers")
+        .upsert({ id: userId, status: "pending" }, { onConflict: "id" });
+      if (driverUpsertError) throw new Error(driverUpsertError.message);
+    }
     await supabaseAdmin
       .from("user_roles")
       .upsert({ user_id: userId, role: "driver" }, { onConflict: "user_id,role" });
@@ -113,7 +122,16 @@ export const applyAsDriver = createServerFn({ method: "POST" })
       if (error.code === "23505") throw new Error("That number plate is already registered.");
       throw new Error(error.message);
     }
-    await supabaseAdmin.from("drivers").update({ active_vehicle_id: vehicle.id }).eq("id", userId);
+    if (
+      !existingDriver ||
+      (existingDriver.status !== "approved" && !existingDriver.active_vehicle_id)
+    ) {
+      const { error: activeVehicleError } = await supabaseAdmin
+        .from("drivers")
+        .update({ active_vehicle_id: vehicle.id })
+        .eq("id", userId);
+      if (activeVehicleError) throw new Error(activeVehicleError.message);
+    }
     // Authorise the owner to drive their own vehicle. It only takes effect once
     // operations approve the vehicle.
     await supabaseAdmin

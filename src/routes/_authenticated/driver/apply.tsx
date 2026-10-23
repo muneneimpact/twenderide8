@@ -6,6 +6,7 @@ import { z } from "zod";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import {
   applyAsDriver,
+  addVehicleForDriver,
   getDriverOnboarding,
   getMyPhotoUrl,
   saveDriverPhoto,
@@ -51,6 +52,7 @@ function DriverApply() {
   const queryClient = useQueryClient();
   const fetchOnboarding = useServerFn(getDriverOnboarding);
   const applyFn = useServerFn(applyAsDriver);
+  const addVehicleFn = useServerFn(addVehicleForDriver);
   const profileFn = useServerFn(updateProfile);
   const photoFn = useServerFn(saveDriverPhoto);
   const myPhotoFn = useServerFn(getMyPhotoUrl);
@@ -105,19 +107,26 @@ function DriverApply() {
   });
 
   const apply = useMutation({
-    mutationFn: () =>
-      applyFn({
+    mutationFn: () => {
+      const vehicleData = {
+        plate_number: plate,
+        vehicle_class: vehicleClass,
+        ...(make.trim() ? { make: make.trim() } : {}),
+        ...(model.trim() ? { model: model.trim() } : {}),
+        ...(colour.trim() ? { colour: colour.trim() } : {}),
+        ...(year.trim() ? { year: Number(year) } : {}),
+      };
+      if (board.data?.driver?.status === "approved") {
+        return addVehicleFn({ data: vehicleData });
+      }
+      return applyFn({
         data: {
-          plate_number: plate,
-          vehicle_class: vehicleClass,
-          ...(make.trim() ? { make: make.trim() } : {}),
-          ...(model.trim() ? { model: model.trim() } : {}),
-          ...(colour.trim() ? { colour: colour.trim() } : {}),
-          ...(year.trim() ? { year: Number(year) } : {}),
+          ...vehicleData,
           agreement_version: DRIVER_AGREEMENT_VERSION,
           agreement_signer_name: signer.trim(),
         },
-      }),
+      });
+    },
     onSuccess: () => {
       setPlate("");
       invalidate();
@@ -241,7 +250,12 @@ function DriverApply() {
         {/* Step 3 — vehicle */}
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">3 · Vehicle</h3>
-
+          {driver?.status === "approved" ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your driver account remains approved. This vehicle will be reviewed separately and
+              won’t affect your other approved vehicles.
+            </p>
+          ) : null}
           <div className="mt-3 space-y-2">
             <input
               value={plate}
@@ -296,18 +310,28 @@ function DriverApply() {
                 className="rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
               />
             </div>
-            <DriverAgreementCard
-              accepted={agreed}
-              onAcceptedChange={setAgreed}
-              signer={signer}
-              onSignerChange={setSigner}
-            />
+            {driver?.status === "approved" ? null : (
+              <DriverAgreementCard
+                accepted={agreed}
+                onAcceptedChange={setAgreed}
+                signer={signer}
+                onSignerChange={setSigner}
+              />
+            )}
             <button
               onClick={() => apply.mutate()}
-              disabled={apply.isPending || plate.trim().length < 4 || !agreed || signer.trim().length < 2}
+              disabled={
+                apply.isPending ||
+                plate.trim().length < 4 ||
+                (driver?.status !== "approved" && (!agreed || signer.trim().length < 2))
+              }
               className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
-              {apply.isPending ? "Submitting…" : "Submit vehicle for review"}
+              {apply.isPending
+                ? "Submitting…"
+                : driver?.status === "approved"
+                  ? "Submit additional vehicle for review"
+                  : "Submit vehicle for review"}
             </button>
             {apply.isError && <p className="text-xs text-destructive">{(apply.error as Error).message}</p>}
           </div>
