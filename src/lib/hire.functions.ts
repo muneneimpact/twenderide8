@@ -87,13 +87,16 @@ export interface HireVehicleRow {
 /** Photos live in a private bucket, so customers get short-lived links. */
 async function withPhotos(
   rows: HireVehicleRow[],
-): Promise<Array<HireVehicleRow & { photo_link: string | null; photo_links: string[] }>> {
+): Promise<
+  Array<HireVehicleRow & { photo_link: string | null; photo_links: string[]; photo_paths: string[] }>
+> {
   const allFor = (row: HireVehicleRow) =>
     [row.photo_url, ...(row.photo_urls ?? [])].filter(
       (value, index, list): value is string => Boolean(value) && list.indexOf(value) === index,
     );
   const paths = [...new Set(rows.flatMap(allFor))];
-  if (paths.length === 0) return rows.map((row) => ({ ...row, photo_link: null, photo_links: [] }));
+  if (paths.length === 0)
+    return rows.map((row) => ({ ...row, photo_link: null, photo_links: [], photo_paths: [] }));
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const signedResults = await Promise.all(
     Array.from({ length: Math.ceil(paths.length / 100) }, (_, index) =>
@@ -108,10 +111,14 @@ async function withPhotos(
     ),
   );
   return rows.map((row) => {
-    const photoLinks = allFor(row)
-      .map((path) => links.get(path))
-      .filter((value): value is string => Boolean(value));
-    return { ...row, photo_link: photoLinks[0] ?? null, photo_links: photoLinks };
+    const photoPaths = allFor(row).filter((path) => links.has(path));
+    const photoLinks = photoPaths.map((path) => links.get(path)!);
+    return {
+      ...row,
+      photo_link: photoLinks[0] ?? null,
+      photo_links: photoLinks,
+      photo_paths: photoPaths,
+    };
   });
 }
 
@@ -415,6 +422,9 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
     if (photoAdds.some((path) => !path.startsWith(`${data.vehicleId}/`))) {
       throw new Error("Upload vehicle photos again from this vehicle's listing.");
     }
+    if (data.removePhotoPath && !data.removePhotoPath.startsWith(`${data.vehicleId}/`)) {
+      throw new Error("That photo does not belong to this vehicle.");
+    }
     if (photoAdds.length || data.removePhotoPath) {
       let photos = [
         ...new Set([
@@ -422,6 +432,9 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
           ...((current.photo_urls ?? []) as string[]),
         ]),
       ];
+      if (data.removePhotoPath && !photos.includes(data.removePhotoPath)) {
+        throw new Error("That vehicle photo is no longer on this listing.");
+      }
       photos = photos.filter((path) => path !== data.removePhotoPath);
       photos = [...new Set([...photos, ...photoAdds])].slice(0, 12);
       patch["photo_urls"] = photos;
@@ -481,6 +494,13 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       .update(patch as never)
       .eq("id", data.vehicleId);
     if (error) throw new Error(error.message);
+    if (data.removePhotoPath) {
+      const { error: photoError } = await supabaseAdmin.storage
+        .from("vehicle-photos")
+        .remove([data.removePhotoPath]);
+      if (photoError)
+        throw new Error(`Photo removed from listing, but file cleanup failed: ${photoError.message}`);
+    }
     if (patch["hire_approval_status"] === "pending") {
       await (await import("./links.server")).alertStaffVehicleSubmitted(data.vehicleId, "hire");
     }

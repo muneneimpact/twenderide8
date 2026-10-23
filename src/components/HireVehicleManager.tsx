@@ -188,6 +188,16 @@ export function HireVehicleManager({
     },
     onError: (error) => setNotice((error as Error).message),
   });
+  const removePhoto = useMutation({
+    mutationFn: ({ vehicleId, path }: { vehicleId: string; path: string }) =>
+      updateFn({ data: { vehicleId, removePhotoPath: path } }),
+    onSuccess: () => {
+      setNotice("Vehicle photo removed.");
+      void queryClient.invalidateQueries({ queryKey: ["my-vehicles"] });
+      void queryClient.invalidateQueries({ queryKey: ["hire-vehicles"] });
+    },
+    onError: (error) => setNotice((error as Error).message),
+  });
 
   const vehicleRows = vehicles.data ?? [];
   const approvedCount = vehicleRows.filter(
@@ -247,6 +257,7 @@ export function HireVehicleManager({
             minimumAge: String(vehicle.hire_minimum_age ?? ""),
           };
           const photos = pendingPhotos[vehicle.id] ?? [];
+          const photoPaths = vehicle.photo_paths;
           const reviewing = vehicle.hire_approval_status === "pending";
           const listingApproved = vehicle.hire_approval_status === "approved";
           const listingLive =
@@ -310,16 +321,45 @@ export function HireVehicleManager({
               {editingId === vehicle.id ? (<>
               <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
                 {vehicle.photo_links.map((src, index) => (
-                  <img
-                    key={`${src}-${index}`}
-                    src={src}
-                    alt={`Vehicle ${index + 1}`}
-                    loading="lazy"
-                    className="h-16 w-24 shrink-0 rounded-lg object-cover"
-                  />
+                  <div key={`${src}-${index}`} className="shrink-0">
+                    <img
+                      src={src}
+                      alt={`Vehicle ${index + 1}`}
+                      loading="lazy"
+                      className="h-16 w-24 rounded-lg object-cover"
+                    />
+                    {photoPaths[index] ? (
+                      <button
+                      type="button"
+                      disabled={removePhoto.isPending}
+                      onClick={() =>
+                        removePhoto.mutate({ vehicleId: vehicle.id, path: photoPaths[index] })
+                      }
+                      className="mt-1 w-full text-center text-[10px] font-medium text-destructive disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
                 ))}
-                {photos.map((file) => (
-                  <PendingPhotoPreview key={`${file.name}-${file.lastModified}`} file={file} />
+                {photos.map((file, index) => (
+                  <div key={`${file.name}-${file.lastModified}`} className="shrink-0">
+                    <PendingPhotoPreview file={file} />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPendingPhotos((current) => ({
+                          ...current,
+                          [vehicle.id]: (current[vehicle.id] ?? []).filter(
+                            (_, photoIndex) => photoIndex !== index,
+                          ),
+                        }))
+                      }
+                      className="mt-1 w-full text-center text-[10px] font-medium text-destructive"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 ))}
                 {vehicle.photo_links.length === 0 && photos.length === 0 ? (
                   <div className="grid h-16 w-24 shrink-0 place-items-center rounded-lg bg-secondary text-[10px] text-muted-foreground">
