@@ -20,6 +20,8 @@ export interface AuthFormProps {
   allowSignUp: boolean;
   signUpCta?: string;
   initialMode?: "signin" | "signup";
+  initialFullName?: string;
+  initialPhone?: string;
   footer?: React.ReactNode;
   /**
    * Riders and drivers sign in with their phone number and password. An SMS code
@@ -64,6 +66,8 @@ export function AuthForm({
   allowSignUp,
   signUpCta,
   initialMode = "signin",
+  initialFullName = "",
+  initialPhone = "",
   footer,
   method,
 }: AuthFormProps) {
@@ -71,8 +75,8 @@ export function AuthForm({
   const channel = method ?? (allowSignUp ? "phone" : "password");
   const [mode, setMode] = useState<Mode>(initialMode);
   const [step, setStep] = useState<"form" | "code">("form");
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [fullName, setFullName] = useState(initialFullName);
+  const [phone, setPhone] = useState(initialPhone);
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

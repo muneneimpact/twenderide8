@@ -6,6 +6,8 @@ import { AuthForm } from "@/components/AuthForm";
 const searchSchema = z.object({
   redirect: z.string().optional(),
   mode: z.enum(["signin", "signup"]).optional(),
+  fullName: z.string().optional(),
+  phone: z.string().optional(),
 });
 
 export const Route = createFileRoute("/auth/")({
@@ -36,7 +38,7 @@ function safePath(value: string | undefined) {
 }
 
 function CustomerAuthPage() {
-  const { redirect, mode } = Route.useSearch();
+  const { redirect, mode, fullName, phone } = Route.useSearch();
   return (
     <>
       <AuthForm
@@ -45,6 +47,8 @@ function CustomerAuthPage() {
         blurb="Sign in to book a taxi in Meru and keep your trips and receipts in one place."
         destination={safePath(redirect)}
         initialMode={mode}
+        initialFullName={fullName}
+        initialPhone={phone}
         allowSignUp
         signUpCta="Create account"
         footer={

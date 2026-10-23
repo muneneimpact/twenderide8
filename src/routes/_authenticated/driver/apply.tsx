@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { z } from "zod";
 import { AppShell, driverTabs } from "@/components/AppShell";
 import {
   applyAsDriver,
@@ -19,6 +20,8 @@ import { DriverAgreementCard } from "@/components/DriverAgreementCard";
 import { DRIVER_AGREEMENT_VERSION } from "@/lib/driver-agreement";
 
 export const Route = createFileRoute("/_authenticated/driver/apply")({
+  validateSearch: (search) =>
+    z.object({ fullName: z.string().optional(), phone: z.string().optional() }).parse(search),
   head: () => ({
     meta: [
       { title: "Driver onboarding — Twende Meru Rides" },
@@ -44,6 +47,7 @@ const statusTone: Record<string, string> = {
 };
 
 function DriverApply() {
+  const { fullName: linkedFullName, phone: linkedPhone } = Route.useSearch();
   const queryClient = useQueryClient();
   const fetchOnboarding = useServerFn(getDriverOnboarding);
   const applyFn = useServerFn(applyAsDriver);
@@ -55,8 +59,8 @@ function DriverApply() {
   const photo = useQuery({ queryKey: ["driver-photo"], queryFn: () => myPhotoFn({}) });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["driver-onboarding"] });
 
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [fullName, setFullName] = useState(linkedFullName ?? "");
+  const [phone, setPhone] = useState(linkedPhone ?? "");
   const [plate, setPlate] = useState("");
   const [vehicleClass, setVehicleClass] = useState<"boda" | "e_boda" | "go" | "plus" | "comfort" | "xl">("go");
   const [make, setMake] = useState("");

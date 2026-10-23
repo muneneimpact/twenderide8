@@ -41,12 +41,22 @@ export async function notifyDriverOnboarding(input: {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("phone")
+      .select("phone, full_name")
       .eq("id", input.userId)
       .maybeSingle();
     if (!profile?.phone) return;
 
-    const path = "/auth?redirect=%2Fdriver%2Fapply&mode=signup";
+    const driverDetails = new URLSearchParams({
+      fullName: profile.full_name ?? "",
+      phone: profile.phone,
+    });
+    const onboardingDestination = `/driver/apply?${driverDetails.toString()}`;
+    const path = `/auth?${new URLSearchParams({
+      redirect: onboardingDestination,
+      mode: "signup",
+      fullName: profile.full_name ?? "",
+      phone: profile.phone,
+    }).toString()}`;
     const message = `${input.message} ${appLink(path)}`;
     const { sendTransactionalSms } = await import("./comms.server");
     const { whatsappGatewayConfigured, whatsappGatewaySend } = await import("./whatsapp-gateway.server");
