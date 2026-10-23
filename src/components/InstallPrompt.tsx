@@ -88,7 +88,7 @@ export function InstallPrompt({
         }}
         className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
       >
-        Install app
+        Download app
       </button>
     );
   }
@@ -96,7 +96,7 @@ export function InstallPrompt({
   return (
     <div className="pointer-events-none fixed right-3 top-3 z-40">
       <div className="solid-panel pointer-events-auto flex items-center gap-2 rounded-full py-1 pl-3 pr-1 shadow-sm">
-        <span className="text-xs font-medium text-foreground">Install app</span>
+        <span className="text-xs font-medium text-foreground">Download app</span>
         <button
           onClick={async () => {
             await event.prompt();
