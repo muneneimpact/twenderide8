@@ -6,6 +6,7 @@ import { nextAvailableLabel } from "@/lib/next-available";
 import { publicCarsQuery as carsQuery } from "@/lib/public-cars-query";
 import { rememberHireVehicle } from "@/lib/hire-selection";
 import { recommendHireVehicles } from "@/lib/vehicle-recommendation.functions";
+import { submitVehicleInterest } from "@/lib/vehicle-interest.functions";
 
 export const Route = createFileRoute("/cars")({
   head: () => ({
@@ -34,9 +35,23 @@ type Sort = "price-asc" | "price-desc";
 function CarsPage() {
   const { data: cars } = useSuspenseQuery(carsQuery);
   const recommendFn = useServerFn(recommendHireVehicles);
+  const submitInterestFn = useServerFn(submitVehicleInterest);
   const recommendation = useMutation({ mutationFn: (tripNeeds: string) => recommendFn({ data: { tripNeeds } }) });
+  const interest = useMutation({
+    mutationFn: (data: { contactName: string; contactPhone?: string; contactEmail?: string }) =>
+      submitInterestFn({
+        data: {
+          ...data,
+          tripNeeds: tripNeeds.trim(),
+          recommendedVehicleIds: recommendation.data?.recommendations.map(({ vehicleId }) => vehicleId) ?? [],
+        },
+      }),
+  });
   const [q, setQ] = useState("");
   const [tripNeeds, setTripNeeds] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("price-asc");
   const now = new Date();
@@ -90,6 +105,27 @@ function CarsPage() {
               ))}
             </div>
           ) : recommendation.data ? <p className="mt-2 text-xs text-muted-foreground">No listed car matched those needs. Try a wider budget or fewer requirements.</p> : null}
+          {tripNeeds.trim().length >= 10 ? (
+            <div className="mt-3 border-t border-primary/15 pt-3">
+              <p className="text-xs font-semibold text-foreground">Want Twende to follow up?</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Leave your contact details and the hire team will respond.</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <input value={contactName} onChange={(event) => setContactName(event.target.value)} required placeholder="Your name" className="input-base" />
+                <input value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="Phone number" inputMode="tel" className="input-base" />
+                <input value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="Email address" type="email" className="input-base" />
+              </div>
+              <button
+                type="button"
+                onClick={() => interest.mutate({ contactName: contactName.trim(), contactPhone: contactPhone.trim() || undefined, contactEmail: contactEmail.trim() || undefined })}
+                disabled={interest.isPending || contactName.trim().length < 2 || (!contactPhone.trim() && !contactEmail.trim())}
+                className="mt-2 rounded-lg border border-primary px-4 py-2 text-xs font-semibold text-primary disabled:opacity-50"
+              >
+                {interest.isPending ? "Sending request…" : "Send request to hire team"}
+              </button>
+              {interest.isSuccess ? <p className="mt-2 text-xs text-primary">Thanks — the hire team has your request and will contact you.</p> : null}
+              {interest.isError ? <p className="mt-2 text-xs text-destructive">{(interest.error as Error).message}</p> : null}
+            </div>
+          ) : null}
         </form>
         <div className="flex gap-2">
           <input

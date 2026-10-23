@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { AdminHireListingsBoard } from "@/components/AdminHireListingsBoard";
 import { AdminHireFinanceBoard } from "@/components/AdminHireFinanceBoard";
+import { VehicleInterestRequestsBoard } from "@/components/VehicleInterestRequestsBoard";
 import {
   decideHireQuote,
   getHireCommissionAdmin,
@@ -127,6 +128,7 @@ function AdminHireBoard() {
         </section>
 
         <AdminHireListingsBoard />
+        <VehicleInterestRequestsBoard />
         <AdminHireFinanceBoard />
 
         {rows.length === 0 ? (
