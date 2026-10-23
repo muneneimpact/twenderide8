@@ -19,9 +19,9 @@ export interface AuthFormProps {
   /** Sign-in only entrances (staff) hide account creation entirely. */
   allowSignUp: boolean;
   signUpCta?: string;
-  initialMode?: "signin" | "signup";
-  initialFullName?: string;
-  initialPhone?: string;
+  initialMode?: "signin" | "signup" | undefined;
+  initialFullName?: string | undefined;
+  initialPhone?: string | undefined;
   footer?: React.ReactNode;
   /**
    * Riders and drivers sign in with their phone number and password. An SMS code

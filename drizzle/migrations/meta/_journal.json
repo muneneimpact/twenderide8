@@ -78,6 +78,13 @@
       "when": 1792718811976,
       "tag": "0010_partner_and_vehicle_interest_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792721705512,
+      "tag": "0011_partner_interest_closed_status",
+      "breakpoints": true
     }
   ]
 }
