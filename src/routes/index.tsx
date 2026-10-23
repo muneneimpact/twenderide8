@@ -42,9 +42,13 @@ function HomePage() {
         <div className="pointer-events-none absolute -bottom-20 -left-10 h-48 w-48 rounded-full sky-gradient opacity-40 blur-3xl" aria-hidden="true" />
         <div className="relative mx-auto w-full max-w-5xl">
           <div className="flex items-center justify-between">
-            <p className="auth-rise text-[11px] font-bold uppercase tracking-[0.24em] text-brand-foreground/85">
-              Twende Meru Rides
-            </p>
+            <Link to="/" aria-label="Twende Meru home">
+              <img
+                src="/twende-meru-logo.png"
+                alt="Twende Meru"
+                className="h-12 w-auto rounded-xl bg-white/90 px-2 py-1 object-contain"
+              />
+            </Link>
             <div className="flex items-center gap-2">
               <InstallPrompt showOnHome inline />
               <Link to="/auth" search={{ redirect: "/book" }} className="rounded-full bg-brand-foreground/15 px-3 py-1 text-xs font-semibold text-brand-foreground">

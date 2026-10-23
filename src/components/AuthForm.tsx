@@ -2,7 +2,11 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isValidKenyanPhone, maskPhone, normaliseKenyanPhone } from "@/lib/phone";
-import { signInWithPhonePassword, startPhoneLogin, verifyPhoneLogin } from "@/lib/phone-auth.functions";
+import {
+  signInWithPhonePassword,
+  startPhoneLogin,
+  verifyPhoneLogin,
+} from "@/lib/phone-auth.functions";
 import { Eye, EyeOff } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
@@ -124,7 +128,9 @@ export function AuthForm({
       setResendIn(result.resendAfterSeconds);
       setNotice(`We sent a 6-digit code to ${maskPhone(result.phone)}.`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not send the code. Please try again.");
+      setError(
+        caught instanceof Error ? caught.message : "Could not send the code. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -162,13 +168,13 @@ export function AuthForm({
       // A brand-new account gets trip alerts straight away, without waiting for
       // a trip to arrive first. Declining the browser prompt is not an error.
       if (mode !== "forgot") {
-        void import("@/lib/push")
-          .then(({ enablePush }) => enablePush())
-          .catch(() => undefined);
+        void import("@/lib/push").then(({ enablePush }) => enablePush()).catch(() => undefined);
       }
       navigate({ to: destination, replace: true });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not verify the code. Please try again.");
+      setError(
+        caught instanceof Error ? caught.message : "Could not verify the code. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -191,7 +197,9 @@ export function AuthForm({
         setMode("forgot");
         setStep("form");
         setPassword("");
-        setNotice("This account has no password yet. Set one now and we will text you a code to confirm it.");
+        setNotice(
+          "This account has no password yet. Set one now and we will text you a code to confirm it.",
+        );
         return;
       }
       const { error: sessionError } = await supabase.auth.setSession({
@@ -201,7 +209,9 @@ export function AuthForm({
       if (sessionError) throw sessionError;
       navigate({ to: destination, replace: true });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not sign you in. Please try again.");
+      setError(
+        caught instanceof Error ? caught.message : "Could not sign you in. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -215,7 +225,9 @@ export function AuthForm({
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) throw signInError;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong. Please try again.");
+      setError(
+        caught instanceof Error ? caught.message : "Something went wrong. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -224,15 +236,26 @@ export function AuthForm({
   const signingUp = allowSignUp && mode === "signup";
   const resetting = mode === "forgot";
 
-
   return (
     <main className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-background px-5 py-10">
       <div aria-hidden className="auth-aurora" />
       <div className="relative mx-auto w-full max-w-sm">
         <div className="auth-rise">
-          <Link to="/" className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            {eyebrow}
-          </Link>
+          <div className="flex items-center justify-between gap-3">
+            <Link to="/" aria-label="Twende Meru home">
+              <img
+                src="/twende-meru-logo.png"
+                alt={eyebrow}
+                className="h-14 w-auto object-contain"
+              />
+            </Link>
+            <Link
+              to="/"
+              className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Back home
+            </Link>
+          </div>
           <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground">
             {resetting ? "Reset your password" : signingUp ? "Create your account" : heading}
           </h1>
@@ -301,7 +324,9 @@ export function AuthForm({
                     />
                   </label>
                   <label className="auth-rise auth-delay-2 block">
-                    <span className="text-xs font-medium text-muted-foreground">Email (optional)</span>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Email (optional)
+                    </span>
                     <input
                       type="email"
                       value={email}
@@ -318,19 +343,19 @@ export function AuthForm({
               )}
 
               {!resetting && (
-              <label className="auth-rise auth-delay-3 block">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {mode === "signin" ? "Password" : "Password"}
-                </span>
-                <PasswordInput
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                  minLength={8}
-                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                  placeholder="At least 8 characters"
-                />
-              </label>
+                <label className="auth-rise auth-delay-3 block">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {mode === "signin" ? "Password" : "Password"}
+                  </span>
+                  <PasswordInput
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    minLength={8}
+                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                    placeholder="At least 8 characters"
+                  />
+                </label>
               )}
 
               {notice && <p className="auth-rise text-sm text-foreground">{notice}</p>}
@@ -342,7 +367,8 @@ export function AuthForm({
               >
                 {busy ? (
                   <span className="inline-flex items-center gap-2">
-                    <span className="auth-spinner" /> {mode === "signin" ? "Signing in…" : "Sending code…"}
+                    <span className="auth-spinner" />{" "}
+                    {mode === "signin" ? "Signing in…" : "Sending code…"}
                   </span>
                 ) : mode === "signin" ? (
                   "Sign in"
@@ -364,7 +390,6 @@ export function AuthForm({
                 )}
               </div>
             </form>
-
           ) : (
             <form onSubmit={confirmCode} className="mt-6 space-y-3">
               <label className="auth-rise block">
@@ -408,7 +433,9 @@ export function AuthForm({
                     />
                   </label>
                   <label className="auth-rise auth-delay-1 block">
-                    <span className="text-xs font-medium text-muted-foreground">Re-enter new password</span>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Re-enter new password
+                    </span>
                     <PasswordInput
                       value={confirmPassword}
                       onChange={(event) => setConfirmPassword(event.target.value)}
@@ -417,7 +444,6 @@ export function AuthForm({
                       autoComplete="new-password"
                       placeholder="Type it once more"
                     />
-
                   </label>
                 </>
               )}
@@ -432,8 +458,10 @@ export function AuthForm({
                   <span className="inline-flex items-center gap-2">
                     <span className="auth-spinner" /> {resetting ? "Saving…" : "Verifying…"}
                   </span>
+                ) : resetting ? (
+                  "Save new password"
                 ) : (
-                  resetting ? "Save new password" : "Verify and continue"
+                  "Verify and continue"
                 )}
               </button>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -482,7 +510,6 @@ export function AuthForm({
                 minLength={8}
                 autoComplete="current-password"
               />
-
             </label>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <button
