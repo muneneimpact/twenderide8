@@ -237,7 +237,7 @@ export function AuthForm({
   const resetting = mode === "forgot";
 
   return (
-    <main className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-background px-5 py-10">
+    <main className="relative flex h-[100svh] flex-col justify-start overflow-hidden bg-background px-4 py-3 sm:min-h-screen sm:h-auto sm:justify-center sm:px-5 sm:py-10">
       <div aria-hidden className="auth-aurora" />
       <div className="relative mx-auto w-full max-w-sm">
         <div className="auth-rise">
@@ -246,7 +246,7 @@ export function AuthForm({
               <img
                 src="/twende-meru-logo.png"
                 alt={eyebrow}
-                className="h-14 w-auto object-contain"
+                className="h-10 w-auto object-contain sm:h-14"
               />
             </Link>
             <Link
@@ -256,10 +256,10 @@ export function AuthForm({
               Back home
             </Link>
           </div>
-          <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="mt-2 font-display text-xl font-semibold tracking-tight text-foreground sm:mt-3 sm:text-2xl">
             {resetting ? "Reset your password" : signingUp ? "Create your account" : heading}
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground sm:mt-2 sm:text-sm">
             {resetting
               ? "We text a 6-digit code to your number, then you choose a new password."
               : signingUp
@@ -269,7 +269,7 @@ export function AuthForm({
         </div>
 
         {allowSignUp && channel === "phone" && step === "form" && !resetting ? (
-          <div className="auth-rise auth-delay-1 mt-5 grid grid-cols-2 gap-1 rounded-full border border-border bg-secondary p-1">
+          <div className="auth-rise auth-delay-1 mt-3 grid grid-cols-2 gap-1 rounded-full border border-border bg-secondary p-1 sm:mt-5">
             {(["signin", "signup"] as const).map((value) => (
               <button
                 key={value}
@@ -292,7 +292,7 @@ export function AuthForm({
             <form
               key={mode}
               onSubmit={mode === "signin" ? phonePasswordSignIn : sendCode}
-              className="mt-6 space-y-3"
+              className="mt-4 space-y-2 sm:mt-6 sm:space-y-3"
             >
               <label className="auth-rise auth-delay-1 block">
                 <span className="text-xs font-medium text-muted-foreground">Phone number</span>
@@ -391,7 +391,7 @@ export function AuthForm({
               </div>
             </form>
           ) : (
-            <form onSubmit={confirmCode} className="mt-6 space-y-3">
+            <form onSubmit={confirmCode} className="mt-4 space-y-2 sm:mt-6 sm:space-y-3">
               <label className="auth-rise block">
                 <span className="text-xs font-medium text-muted-foreground">6-digit code</span>
                 <div className="mt-2 flex justify-center">
@@ -489,7 +489,7 @@ export function AuthForm({
             </form>
           )
         ) : (
-          <form onSubmit={passwordSignIn} className="mt-6 space-y-3">
+          <form onSubmit={passwordSignIn} className="mt-4 space-y-2 sm:mt-6 sm:space-y-3">
             <label className="auth-rise auth-delay-1 block">
               <span className="text-xs font-medium text-muted-foreground">Email</span>
               <input
@@ -522,7 +522,7 @@ export function AuthForm({
           </form>
         )}
 
-        {footer ? <div className="mt-5 text-xs text-muted-foreground">{footer}</div> : null}
+        {footer ? <div className="mt-3 text-xs text-muted-foreground sm:mt-5">{footer}</div> : null}
       </div>
     </main>
   );

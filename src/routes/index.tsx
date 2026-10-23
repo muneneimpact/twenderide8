@@ -46,7 +46,7 @@ function HomePage() {
               <img
                 src="/twende-meru-logo.png"
                 alt="Twende Meru"
-                className="h-12 w-auto rounded-xl bg-white/90 px-2 py-1 object-contain"
+                className="h-12 w-auto object-contain"
               />
             </Link>
             <div className="flex items-center gap-2">
