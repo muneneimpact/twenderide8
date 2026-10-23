@@ -54,6 +54,7 @@ function DriveOrListPage() {
   const [licencePsvStatus, setLicencePsvStatus] = useState("");
   const [numberOfCars, setNumberOfCars] = useState("1");
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
+  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
   const [showContactTimes, setShowContactTimes] = useState(false);
   const [note, setNote] = useState("");
   const town = townSelection === "Other" ? otherTown.trim() : townSelection;
@@ -72,6 +73,7 @@ function DriveOrListPage() {
           phone: phone.trim(),
           town,
           bestTime,
+          whatsappOptIn,
           ...(requestType === "driver"
             ? {
                 preferredWorkType: preferredWorkType as "boda" | "e_boda" | "car_taxi" | "delivery",
@@ -296,6 +298,20 @@ function DriveOrListPage() {
                 </>
               ) : null}
             </fieldset>
+            <label className="flex items-start gap-2 rounded-2xl border border-primary/20 bg-primary/5 p-3 text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={whatsappOptIn}
+                onChange={(event) => setWhatsappOptIn(event.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Send me updates by SMS and WhatsApp
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                  WhatsApp is selected by default. You can untick it if you prefer SMS only.
+                </span>
+              </span>
+            </label>
             <label className="block text-xs font-semibold">
               Optional note
               <textarea

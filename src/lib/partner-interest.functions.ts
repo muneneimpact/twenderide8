@@ -14,6 +14,7 @@ const submissionSchema = z.object({
   numberOfCars: z.number().int().min(1).max(100).optional(),
   bestTime: z.string().trim().min(2).max(100),
   note: z.string().trim().max(1000).optional(),
+  whatsappOptIn: z.boolean().default(true),
 });
 const reviewSchema = z.object({
   id: z.string().uuid(),
@@ -37,6 +38,7 @@ type InterestRow = {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
+  whatsapp_opt_in: boolean;
 };
 
 function dbClient(supabaseAdmin: unknown) {
@@ -53,7 +55,11 @@ function dbClient(supabaseAdmin: unknown) {
           options: { ascending: boolean },
         ) => Promise<{ data: InterestRow[] | null; error: { message: string } | null }>;
       };
-      insert: (values: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+      insert: (values: Record<string, unknown>) => {
+        select: (columns: string) => {
+          single: () => Promise<{ data: InterestRow | null; error: { message: string } | null }>;
+        };
+      };
       update: (values: Record<string, unknown>) => {
         eq: (column: string, value: string) => Promise<{ error: { message: string } | null }>;
       };
@@ -78,19 +84,37 @@ export const submitPartnerInterest = createServerFn({ method: "POST" })
     if (duplicateError)
       throw new Error(`Could not check your previous request: ${duplicateError.message}`);
     if (recent) return { duplicate: true };
-    const { error } = await db.from("partner_interest_requests").insert({
-      request_type: data.requestType,
-      full_name: data.fullName,
-      phone,
-      town: data.town,
-      preferred_work_type: data.requestType === "driver" ? (data.preferredWorkType ?? null) : null,
-      owns_vehicle: data.requestType === "driver" ? (data.ownsVehicle ?? null) : null,
-      licence_psv_status: data.requestType === "driver" ? data.licencePsvStatus || null : null,
-      number_of_cars: data.requestType === "car_owner" ? (data.numberOfCars ?? null) : null,
-      best_time: data.bestTime,
-      note: data.note || null,
-    });
+    const { data: row, error } = await db
+      .from("partner_interest_requests")
+      .insert({
+        request_type: data.requestType,
+        full_name: data.fullName,
+        phone,
+        town: data.town,
+        preferred_work_type:
+          data.requestType === "driver" ? (data.preferredWorkType ?? null) : null,
+        owns_vehicle: data.requestType === "driver" ? (data.ownsVehicle ?? null) : null,
+        licence_psv_status: data.requestType === "driver" ? data.licencePsvStatus || null : null,
+        number_of_cars: data.requestType === "car_owner" ? (data.numberOfCars ?? null) : null,
+        best_time: data.bestTime,
+        note: data.note || null,
+        whatsapp_opt_in: data.whatsappOptIn,
+      })
+      .select("*")
+      .single();
     if (error) throw new Error(`Could not save your interest: ${error.message}`);
+    if (row) {
+      const { notifyPartnerInterest } = await import("@/lib/partner-interest-notifications.server");
+      await notifyPartnerInterest({
+        id: row.id,
+        name: row.full_name,
+        phone: row.phone,
+        requestType: row.request_type,
+        status: row.status,
+        whatsappOptIn: row.whatsapp_opt_in,
+        event: "submitted",
+      });
+    }
     return { duplicate: false };
   });
 
@@ -115,6 +139,13 @@ export const reviewPartnerInterest = createServerFn({ method: "POST" })
     const { requireRole, OPS } = await import("@/lib/authz.server");
     await requireRole(context.userId, OPS);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = dbClient(supabaseAdmin);
+    const { data: row, error: loadError } = await db
+      .from("partner_interest_requests")
+      .select("*")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (loadError || !row) throw new Error("Interest request not found.");
     const { error } = await dbClient(supabaseAdmin)
       .from("partner_interest_requests")
       .update({
@@ -124,5 +155,15 @@ export const reviewPartnerInterest = createServerFn({ method: "POST" })
       })
       .eq("id", data.id);
     if (error) throw new Error(`Could not update the interest request: ${error.message}`);
+    const { notifyPartnerInterest } = await import("@/lib/partner-interest-notifications.server");
+    await notifyPartnerInterest({
+      id: row.id,
+      name: row.full_name,
+      phone: row.phone,
+      requestType: row.request_type,
+      status: data.status,
+      whatsappOptIn: row.whatsapp_opt_in,
+      event: "updated",
+    });
     return { ok: true };
   });
