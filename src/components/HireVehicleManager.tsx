@@ -333,7 +333,7 @@ export function HireVehicleManager({
                       type="button"
                       disabled={removePhoto.isPending}
                       onClick={() =>
-                        removePhoto.mutate({ vehicleId: vehicle.id, path: photoPaths[index] })
+                        removePhoto.mutate({ vehicleId: vehicle.id, path: photoPaths[index] ?? "" })
                       }
                       className="mt-1 w-full text-center text-[10px] font-medium text-destructive disabled:opacity-50"
                       >
@@ -606,8 +606,8 @@ export function HireVehicleManager({
                   className="mt-0.5"
                 />
                 <span>
-                  Apply this cancellation policy to all vehicles I manage. Approved hire listings
-                  will be paused and sent for re-review so customers see the updated terms.
+                  Apply this cancellation policy to all vehicles I manage. Approved cars stay
+                  listed.
                 </span>
               </label>
 
