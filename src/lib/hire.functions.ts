@@ -252,7 +252,11 @@ export const listMyVehicles = createServerFn({ method: "GET" })
     const filter = fleetIds.length
       ? `owner_driver_id.eq.${context.userId},fleet_id.in.(${fleetIds.join(",")})`
       : `owner_driver_id.eq.${context.userId}`;
-    const { data, error } = await supabaseAdmin.from("vehicles").select(VEHICLE_FIELDS).or(filter);
+    const { data, error } = await supabaseAdmin
+      .from("vehicles")
+      .select(VEHICLE_FIELDS)
+      .or(filter)
+      .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     const list = await withPhotos((data ?? []) as unknown as HireVehicleRow[]);
     const vehicleIds = list.map((vehicle) => vehicle.id);
@@ -400,19 +404,8 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         .or(ownerFilter);
       if (policyError)
         throw new Error(`Could not apply cancellation policy: ${policyError.message}`);
-      const { error: reapprovalError } = await supabaseAdmin
-        .from("vehicles")
-        .update({
-          hire_approval_status: "pending",
-          hire_available: false,
-          hire_rejection_reason: null,
-          hire_reviewed_at: null,
-          hire_reviewed_by: null,
-        } as never)
-        .or(ownerFilter)
-        .eq("hire_approval_status", "approved");
-      if (reapprovalError)
-        throw new Error(`Could not pause listings for policy review: ${reapprovalError.message}`);
+      // Previously approved cars stay live: the new terms apply to future bookings
+      // without pulling other listings off the marketplace.
     }
 
     const photoAdds = [

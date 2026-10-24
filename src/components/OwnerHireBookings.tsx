@@ -114,10 +114,7 @@ export function OwnerHireBookings() {
   return (
     <section className="surface-card p-4">
       <h2 className="font-display text-lg font-semibold text-foreground">Bookings & handovers</h2>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Your hired days at a glance. Check the renter before pickup — you may decline up to 12 hours
-        before pickup, or within 3 hours of a short-notice booking.
-      </p>
+      <p className="mt-1 text-xs text-muted-foreground">Upcoming pickups and returns for your cars.</p>
       {q.isPending ? <p className="mt-3 text-xs text-muted-foreground">Loading…</p> : null}
       {q.isSuccess && !upcoming.length ? (
         <p className="mt-3 text-xs text-muted-foreground">No upcoming hires.</p>
@@ -144,11 +141,11 @@ export function OwnerHireBookings() {
                 {b.has_documents ? " · ID on file" : ""}
               </p>
               {b.pay_later ? (
-                <div className="mt-2 rounded-xl border border-border bg-secondary/40 p-2">
-                  <p className="font-semibold text-foreground">
-                    Company pay-later {b.company_verified ? "· verified ✓" : "· waiting for your verification"}
-                  </p>
-                  {b.business_email ? <p className="text-muted-foreground">Email: {b.business_email}</p> : null}
+                <details className="mt-2 rounded-xl border border-border bg-secondary/40 p-2">
+                  <summary className="cursor-pointer font-semibold text-foreground">
+                    Company details {b.company_verified ? "· verified ✓" : "· needs your check"}
+                  </summary>
+                  {b.business_email ? <p className="mt-1 text-muted-foreground">Email: {b.business_email}</p> : null}
                   {b.business_registration ? <p className="text-muted-foreground">Reg. no: {b.business_registration}</p> : null}
                   {b.kyc.length ? (
                     <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
@@ -161,10 +158,10 @@ export function OwnerHireBookings() {
                   ) : (
                     <p className="mt-1 text-destructive">No business documents uploaded yet.</p>
                   )}
-                </div>
+                </details>
               ) : null}
               {b.renter_phone ? (
-                <a href={`tel:${b.renter_phone}`} className="mt-1 inline-block font-semibold text-primary">Call renter {b.renter_phone}</a>
+                <a href={`tel:${b.renter_phone}`} className="mt-1 inline-block font-semibold text-primary">Call {b.renter_phone}</a>
               ) : null}
               <p className="mt-1 font-medium text-foreground">
                 {b.deposit_policy === "none" || b.deposit_amount <= 0
