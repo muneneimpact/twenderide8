@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+
+const LeafletMap = lazy(() => import("./LeafletMap"));
 import { loadGoogleMaps } from "@/lib/google-maps";
 import { decodePolyline } from "@/lib/polyline";
 
@@ -213,14 +215,19 @@ export default function TwendeMap({
     <div className={`relative ${className ?? "h-full w-full"}`}>
       <div ref={holder} className="h-full w-full" aria-label="Ride map" />
       {failed ? (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-muted p-4 text-center">
-          <div className="grid h-10 w-10 place-items-center rounded-full bg-primary/15 text-lg text-primary">📍</div>
-          <p className="text-sm font-semibold text-foreground">Map coming soon</p>
-          <p className="max-w-xs text-xs text-muted-foreground">
-            {pickup || dropoff
-              ? "Your pickup and destination are saved — you can keep booking as normal."
-              : "Search for your pickup and destination above — booking works as normal."}
-          </p>
+        <div className="absolute inset-0 z-10 bg-muted">
+          <Suspense fallback={null}>
+            <LeafletMap
+              pickup={pickup}
+              dropoff={dropoff}
+              driver={driver}
+              nearbyDrivers={nearbyDrivers}
+              polyline={polyline}
+              driverRoutePolyline={driverRoutePolyline}
+              placing={placing}
+              onPlace={onPlace}
+            />
+          </Suspense>
         </div>
       ) : null}
     </div>
