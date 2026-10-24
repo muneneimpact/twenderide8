@@ -15,7 +15,7 @@ interface LeafletMapProps {
   polyline?: string | null | undefined;
   driverRoutePolyline?: string | null | undefined;
   placing?: "pickup" | "dropoff" | null | undefined;
-  onPlace?: (point: Point) => void | undefined;
+  onPlace?: ((point: Point) => void) | undefined;
 }
 
 const MERU: Point = { lat: 0.0471, lng: 37.6497 };
