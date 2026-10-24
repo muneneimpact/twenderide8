@@ -10,12 +10,12 @@ interface Point {
 interface LeafletMapProps {
   pickup: Point | null;
   dropoff: Point | null;
-  driver?: (Point & { accuracy_m?: number | null }) | null;
-  nearbyDrivers?: Array<Point & { eta_minutes?: number | null }>;
-  polyline?: string | null;
-  driverRoutePolyline?: string | null;
-  placing?: "pickup" | "dropoff" | null;
-  onPlace?: (point: Point) => void;
+  driver?: (Point & { accuracy_m?: number | null }) | null | undefined;
+  nearbyDrivers?: Array<Point & { eta_minutes?: number | null }> | undefined;
+  polyline?: string | null | undefined;
+  driverRoutePolyline?: string | null | undefined;
+  placing?: "pickup" | "dropoff" | null | undefined;
+  onPlace?: (point: Point) => void | undefined;
 }
 
 const MERU: Point = { lat: 0.0471, lng: 37.6497 };
