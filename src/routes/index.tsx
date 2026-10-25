@@ -67,7 +67,7 @@ function HomePage() {
           {/* Rides first and biggest: this is a taxi app before anything else. */}
           <Link
             to="/book"
-            className="auth-rise auth-delay-2 group relative flex min-h-24 items-center gap-3 overflow-hidden rounded-3xl border-2 border-primary hero-gradient p-4 text-brand-foreground shadow-xl ring-4 ring-primary/20 transition-transform active:scale-[0.98] sm:min-h-28 sm:p-6"
+            className="auth-rise auth-delay-2 group relative flex min-h-28 items-center gap-3 overflow-hidden rounded-3xl border-2 border-primary hero-gradient p-5 text-brand-foreground shadow-xl ring-4 ring-primary/20 transition-transform active:scale-[0.98] sm:min-h-36 sm:p-7"
           >
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gold text-gold-foreground shadow-md sm:h-14 sm:w-14">
               <Bike className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
@@ -83,7 +83,7 @@ function HomePage() {
 
           <Link
             to="/cars"
-            className="auth-rise auth-delay-3 group relative flex min-h-24 items-center gap-3 overflow-hidden rounded-3xl border-2 border-sky bg-card p-4 shadow-xl ring-4 ring-sky/15 transition active:scale-[0.98] hover:bg-sky/5 sm:min-h-28 sm:p-6"
+            className="auth-rise auth-delay-3 group relative flex min-h-28 items-center gap-3 overflow-hidden rounded-3xl border-2 border-sky bg-card p-5 shadow-xl ring-4 ring-sky/15 transition active:scale-[0.98] hover:bg-sky/5 sm:min-h-36 sm:p-7"
           >
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl sky-gradient text-sky-foreground shadow-md sm:h-14 sm:w-14">
               <Car className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
