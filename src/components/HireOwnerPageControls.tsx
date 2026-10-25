@@ -86,7 +86,7 @@ export function HireOwnerBrandCard() {
         },
       }),
     onSuccess: async (saved) => {
-      setMessage("Your public owner page is ready to share.");
+      setMessage(brand.data ? "Saved. Your changes are live on your page." : "Saved. Your public owner page is ready to share.");
       await queryClient.invalidateQueries({ queryKey: ["my-hire-brand"] });
       setForm({
         profileType: saved.profile_type === "company" ? "company" : "person",

@@ -279,15 +279,23 @@ export const saveMyHireBrand = createServerFn({ method: "POST" })
       "company", "drive-or-list", "forgot-password", "privacy", "terms", "status",
     ]);
     if (reservedSlugs.has(baseSlug)) throw new Error("That brand name is reserved. Choose another name for your page.");
+    const { data: existing } = await supabaseAdmin
+      .from("hire_owner_brands")
+      .select("slug, brand_name")
+      .eq("owner_user_id", context.userId)
+      .maybeSingle();
     const { data: collision, error: collisionError } = await supabaseAdmin
       .from("hire_owner_brands")
       .select("owner_user_id")
       .eq("slug", baseSlug)
       .maybeSingle();
     if (collisionError) throw new Error(collisionError.message);
-    const slug = collision && collision.owner_user_id !== context.userId
-      ? `${baseSlug.slice(0, 48)}-${context.userId.slice(0, 7).toLowerCase()}`
-      : baseSlug;
+    // Keep the owner's existing shared link when the brand name is unchanged.
+    const slug = existing && existing.brand_name.trim() === data.brandName
+      ? existing.slug
+      : collision && collision.owner_user_id !== context.userId
+        ? `${baseSlug.slice(0, 48)}-${context.userId.slice(0, 7).toLowerCase()}`
+        : baseSlug;
     const { data: saved, error } = await supabaseAdmin
       .from("hire_owner_brands")
       .upsert(
