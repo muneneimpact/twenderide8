@@ -559,10 +559,6 @@ export type Database = {
           expiry_reminders_sent: string[]
           file_path: string | null
           id: string
-          insurance_coverage_details: string | null
-          insurance_cover_type: string | null
-          insurance_policy_number: string | null
-          insurance_provider: string | null
           issued_on: string | null
           reference: string | null
           rejection_reason: string | null
@@ -581,10 +577,6 @@ export type Database = {
           expiry_reminders_sent?: string[]
           file_path?: string | null
           id?: string
-          insurance_coverage_details?: string | null
-          insurance_cover_type?: string | null
-          insurance_policy_number?: string | null
-          insurance_provider?: string | null
           issued_on?: string | null
           reference?: string | null
           rejection_reason?: string | null
@@ -603,10 +595,6 @@ export type Database = {
           expiry_reminders_sent?: string[]
           file_path?: string | null
           id?: string
-          insurance_coverage_details?: string | null
-          insurance_cover_type?: string | null
-          insurance_policy_number?: string | null
-          insurance_provider?: string | null
           issued_on?: string | null
           reference?: string | null
           rejection_reason?: string | null
@@ -1171,8 +1159,6 @@ export type Database = {
       hire_offers: {
         Row: {
           created_at: string
-          counter_price: number | null
-          counter_note: string | null
           id: string
           note: string | null
           price: number
@@ -1184,8 +1170,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          counter_price?: number | null
-          counter_note?: string | null
           id?: string
           note?: string | null
           price: number
@@ -1197,8 +1181,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          counter_price?: number | null
-          counter_note?: string | null
           id?: string
           note?: string | null
           price?: number
@@ -1357,75 +1339,6 @@ export type Database = {
         }
         Relationships: []
       }
-      hire_owner_brands: {
-        Row: {
-          business_info: string
-          brand_name: string
-          created_at: string
-          id: string
-          logo_data_url: string | null
-          marketing_content: string
-          owner_bio: string
-          owner_user_id: string
-          slug: string
-          updated_at: string
-        }
-        Insert: {
-          business_info?: string
-          brand_name: string
-          created_at?: string
-          id?: string
-          logo_data_url?: string | null
-          marketing_content?: string
-          owner_bio?: string
-          owner_user_id: string
-          slug: string
-          updated_at?: string
-        }
-        Update: {
-          business_info?: string
-          brand_name?: string
-          created_at?: string
-          id?: string
-          logo_data_url?: string | null
-          marketing_content?: string
-          owner_bio?: string
-          owner_user_id?: string
-          slug?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      hire_vehicle_blackouts: {
-        Row: {
-          created_at: string
-          end_date: string
-          id: string
-          note: string
-          owner_user_id: string
-          start_date: string
-          vehicle_id: string
-        }
-        Insert: {
-          created_at?: string
-          end_date: string
-          id?: string
-          note?: string
-          owner_user_id: string
-          start_date: string
-          vehicle_id: string
-        }
-        Update: {
-          created_at?: string
-          end_date?: string
-          id?: string
-          note?: string
-          owner_user_id?: string
-          start_date?: string
-          vehicle_id?: string
-        }
-        Relationships: []
-      }
       hire_quotes: {
         Row: {
           accepted_offer_id: string | null
@@ -1453,7 +1366,6 @@ export type Database = {
           deposit_policy: string
           deposit_requested_at: string | null
           drive_mode: string
-          duration_hours: number | null
           end_at: string | null
           estimated_total: number
           handed_over_at: string | null
@@ -1497,13 +1409,8 @@ export type Database = {
           return_deposit_kept: number | null
           return_deposit_returned: number | null
           return_excess_km_charge: number | null
-          return_excess_km_waived: boolean
           return_fuel_charge: number | null
-          return_fuel_level: string | null
-          return_fuel_missing_percent: number | null
-          return_fuel_waived: boolean
           return_km_driven: number | null
-          return_odometer: number | null
           return_notes: string | null
           return_penalties: number | null
           returned_at: string | null
@@ -1512,7 +1419,6 @@ export type Database = {
           rules_accepted_at: string | null
           start_at: string
           status: string
-          service_type: string
           stops: Json
           updated_at: string
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
@@ -1544,7 +1450,6 @@ export type Database = {
           deposit_policy?: string
           deposit_requested_at?: string | null
           drive_mode?: string
-          duration_hours?: number | null
           end_at?: string | null
           estimated_total?: number
           handed_over_at?: string | null
@@ -1588,13 +1493,8 @@ export type Database = {
           return_deposit_kept?: number | null
           return_deposit_returned?: number | null
           return_excess_km_charge?: number | null
-          return_excess_km_waived?: boolean
           return_fuel_charge?: number | null
-          return_fuel_level?: string | null
-          return_fuel_missing_percent?: number | null
-          return_fuel_waived?: boolean
           return_km_driven?: number | null
-          return_odometer?: number | null
           return_notes?: string | null
           return_penalties?: number | null
           returned_at?: string | null
@@ -1603,7 +1503,6 @@ export type Database = {
           rules_accepted_at?: string | null
           start_at: string
           status?: string
-          service_type?: string
           stops?: Json
           updated_at?: string
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
@@ -1635,7 +1534,6 @@ export type Database = {
           deposit_policy?: string
           deposit_requested_at?: string | null
           drive_mode?: string
-          duration_hours?: number | null
           end_at?: string | null
           estimated_total?: number
           handed_over_at?: string | null
@@ -1679,13 +1577,8 @@ export type Database = {
           return_deposit_kept?: number | null
           return_deposit_returned?: number | null
           return_excess_km_charge?: number | null
-          return_excess_km_waived?: boolean
           return_fuel_charge?: number | null
-          return_fuel_level?: string | null
-          return_fuel_missing_percent?: number | null
-          return_fuel_waived?: boolean
           return_km_driven?: number | null
-          return_odometer?: number | null
           return_notes?: string | null
           return_penalties?: number | null
           returned_at?: string | null
@@ -1694,7 +1587,6 @@ export type Database = {
           rules_accepted_at?: string | null
           start_at?: string
           status?: string
-          service_type?: string
           stops?: Json
           updated_at?: string
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
@@ -3261,7 +3153,6 @@ export type Database = {
           fleet_id: string | null
           hire_approval_status: string
           hire_available: boolean
-          hire_hourly_available: boolean
           hire_cancellation_policy: string
           hire_chauffeur_daily_rate: number
           hire_daily_rate: number | null
@@ -3300,7 +3191,6 @@ export type Database = {
           fleet_id?: string | null
           hire_approval_status?: string
           hire_available?: boolean
-          hire_hourly_available?: boolean
           hire_cancellation_policy?: string
           hire_chauffeur_daily_rate?: number
           hire_daily_rate?: number | null
@@ -3339,7 +3229,6 @@ export type Database = {
           fleet_id?: string | null
           hire_approval_status?: string
           hire_available?: boolean
-          hire_hourly_available?: boolean
           hire_cancellation_policy?: string
           hire_chauffeur_daily_rate?: number
           hire_daily_rate?: number | null
