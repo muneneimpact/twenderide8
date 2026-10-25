@@ -17,7 +17,13 @@ export type ComplianceDocument = {
 };
 
 export type ComplianceItemStatus =
-  "approved" | "missing" | "pending" | "rejected" | "expired" | "missing_expiry";
+  | "approved"
+  | "expiring_soon"
+  | "missing"
+  | "pending"
+  | "rejected"
+  | "expired"
+  | "missing_expiry";
 
 export type ComplianceItem = {
   documentTypeId: string;
@@ -42,6 +48,12 @@ export function complianceTodayInKenya(now = new Date()): string {
   const part = (type: "year" | "month" | "day") =>
     parts.find((value) => value.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function dayOffset(day: string, offset: number) {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
 }
 
 /**
@@ -100,10 +112,15 @@ export function evaluateCompliance(input: {
         (!type.expires || Boolean(document.expires_on && document.expires_on >= today)),
     );
     if (validApproved) {
+      const expiringSoon = Boolean(
+        type.expires &&
+          validApproved.expires_on &&
+          validApproved.expires_on <= dayOffset(today, 30),
+      );
       return {
         documentTypeId: type.id,
         label: type.label,
-        status: "approved",
+        status: expiringSoon ? "expiring_soon" : "approved",
         expiresOn: validApproved.expires_on,
       };
     }
@@ -142,7 +159,9 @@ export function evaluateCompliance(input: {
   });
 
   return {
-    compliant: items.length > 0 && items.every((item) => item.status === "approved"),
+    compliant:
+      items.length > 0 &&
+      items.every((item) => item.status === "approved" || item.status === "expiring_soon"),
     requiredCount: requiredTypes.length,
     items,
   };

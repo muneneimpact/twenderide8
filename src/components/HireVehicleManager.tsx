@@ -134,7 +134,7 @@ export function HireVehicleManager({
           applyCancellationPolicyToOwner: draft.applyCancellationPolicyToOwner,
           insuranceType: draft.insuranceType
             ? (draft.insuranceType as
-                "comprehensive" | "third_party_fire_theft" | "third_party_only" | "other")
+                "comprehensive" | "third_party_fire_theft" | "third_party_only" | "psv_commercial" | "other")
             : null,
           insuranceDetails: draft.insuranceDetails.trim() || null,
           minimumAge: draft.minimumAge === "" ? null : Number(draft.minimumAge),
@@ -550,6 +550,7 @@ export function HireVehicleManager({
                     <option value="comprehensive">Comprehensive</option>
                     <option value="third_party_fire_theft">Third party, fire and theft</option>
                     <option value="third_party_only">Third party only</option>
+                    <option value="psv_commercial">PSV / commercial passenger cover</option>
                     <option value="other">Other</option>
                   </select>
                 </label>

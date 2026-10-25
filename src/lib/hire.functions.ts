@@ -644,7 +644,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
         cancellationPolicy: z.string().trim().max(2000).optional(),
         applyCancellationPolicyToOwner: z.boolean().optional(),
         insuranceType: z
-          .enum(["comprehensive", "third_party_fire_theft", "third_party_only", "other"])
+          .enum(["comprehensive", "third_party_fire_theft", "third_party_only", "psv_commercial", "other"])
           .nullable()
           .optional(),
         insuranceDetails: z.string().trim().max(200).nullable().optional(),

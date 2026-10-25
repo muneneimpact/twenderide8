@@ -176,6 +176,8 @@ function insuranceLabel(value: string | null) {
       return "Third party, fire and theft";
     case "third_party_only":
       return "Third party only";
+    case "psv_commercial":
+      return "PSV / commercial passenger cover";
     case "other":
       return "Other coverage";
     default:

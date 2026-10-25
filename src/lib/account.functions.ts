@@ -438,12 +438,35 @@ export const submitDocument = createServerFn({ method: "POST" })
       .object({
         documentTypeId: z.string().uuid(),
         reference: z.string().trim().min(3).max(80),
-        issuedOn: z.string().max(10).optional(),
-        expiresOn: z.string().max(10).optional(),
+        issuedOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .refine((value) => {
+            const parsed = new Date(`${value}T00:00:00.000Z`);
+            return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+          }, "Enter a valid issue date.")
+          .optional(),
+        expiresOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .refine((value) => {
+            const parsed = new Date(`${value}T00:00:00.000Z`);
+            return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+          }, "Enter a valid expiry date.")
+          .optional(),
         vehicleId: z.string().uuid().optional(),
         filePath: z.string().max(300).optional(),
         insuranceProvider: z.string().trim().min(2).max(120).optional(),
         insurancePolicyNumber: z.string().trim().min(3).max(100).optional(),
+        insuranceCoverType: z
+          .enum([
+            "third_party_only",
+            "third_party_fire_theft",
+            "comprehensive",
+            "psv_commercial",
+            "other",
+          ])
+          .optional(),
         insuranceCoverageDetails: z.string().trim().min(3).max(1000).optional(),
       })
       .parse(input),
@@ -473,11 +496,17 @@ export const submitDocument = createServerFn({ method: "POST" })
     if (isVehicleInsurance) {
       if (type.applies_to !== "vehicle" || !data.vehicleId)
         throw new Error("Choose the vehicle this insurance policy covers.");
-      if (!data.insuranceProvider || !data.insurancePolicyNumber || !data.insuranceCoverageDetails)
-        throw new Error("Enter the insurance provider, policy number, and coverage details.");
+      if (
+        !data.insuranceProvider ||
+        !data.insurancePolicyNumber ||
+        !data.insuranceCoverType ||
+        !data.insuranceCoverageDetails
+      )
+        throw new Error("Enter the insurance provider, policy number, cover type, and coverage details.");
     } else if (
       data.insuranceProvider !== undefined ||
       data.insurancePolicyNumber !== undefined ||
+      data.insuranceCoverType !== undefined ||
       data.insuranceCoverageDetails !== undefined
     ) {
       throw new Error("Insurance details can only be attached to a vehicle insurance document.");
@@ -515,6 +544,7 @@ export const submitDocument = createServerFn({ method: "POST" })
       reference: data.reference,
       insurance_provider: data.insuranceProvider ?? null,
       insurance_policy_number: data.insurancePolicyNumber ?? null,
+      insurance_cover_type: data.insuranceCoverType ?? null,
       insurance_coverage_details: data.insuranceCoverageDetails ?? null,
       issued_on: data.issuedOn || null,
       expires_on: data.expiresOn || null,

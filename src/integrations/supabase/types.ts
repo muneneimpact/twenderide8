@@ -560,6 +560,7 @@ export type Database = {
           file_path: string | null
           id: string
           insurance_coverage_details: string | null
+          insurance_cover_type: string | null
           insurance_policy_number: string | null
           insurance_provider: string | null
           issued_on: string | null
@@ -581,6 +582,7 @@ export type Database = {
           file_path?: string | null
           id?: string
           insurance_coverage_details?: string | null
+          insurance_cover_type?: string | null
           insurance_policy_number?: string | null
           insurance_provider?: string | null
           issued_on?: string | null
@@ -602,6 +604,7 @@ export type Database = {
           file_path?: string | null
           id?: string
           insurance_coverage_details?: string | null
+          insurance_cover_type?: string | null
           insurance_policy_number?: string | null
           insurance_provider?: string | null
           issued_on?: string | null
