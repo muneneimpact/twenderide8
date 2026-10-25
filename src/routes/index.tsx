@@ -60,7 +60,7 @@ function HomePage() {
         </div>
       </section>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 pb-4 pt-4 sm:px-6 sm:pt-6 lg:flex-1 lg:justify-center lg:px-8 lg:py-6">
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col justify-center px-4 pb-4 pt-4 sm:px-6 sm:pt-6 lg:flex-1 lg:px-8 lg:py-6">
         <section className="rounded-3xl border-2 border-primary/15 bg-primary/5 p-2 sm:p-3">
           <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-foreground sm:text-sm">Choose an option</h2>
           <div className="grid gap-3 sm:grid-cols-[1.12fr_1fr]">
