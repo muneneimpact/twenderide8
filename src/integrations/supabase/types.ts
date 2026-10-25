@@ -1168,6 +1168,8 @@ export type Database = {
       hire_offers: {
         Row: {
           created_at: string
+          counter_price: number | null
+          counter_note: string | null
           id: string
           note: string | null
           price: number
@@ -1179,6 +1181,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          counter_price?: number | null
+          counter_note?: string | null
           id?: string
           note?: string | null
           price: number
@@ -1190,6 +1194,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          counter_price?: number | null
+          counter_note?: string | null
           id?: string
           note?: string | null
           price?: number
@@ -1444,6 +1450,7 @@ export type Database = {
           deposit_policy: string
           deposit_requested_at: string | null
           drive_mode: string
+          duration_hours: number | null
           end_at: string | null
           estimated_total: number
           handed_over_at: string | null
@@ -1502,6 +1509,7 @@ export type Database = {
           rules_accepted_at: string | null
           start_at: string
           status: string
+          service_type: string
           stops: Json
           updated_at: string
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
@@ -1533,6 +1541,7 @@ export type Database = {
           deposit_policy?: string
           deposit_requested_at?: string | null
           drive_mode?: string
+          duration_hours?: number | null
           end_at?: string | null
           estimated_total?: number
           handed_over_at?: string | null
@@ -1591,6 +1600,7 @@ export type Database = {
           rules_accepted_at?: string | null
           start_at: string
           status?: string
+          service_type?: string
           stops?: Json
           updated_at?: string
           vehicle_class: Database["public"]["Enums"]["vehicle_class"]
@@ -1622,6 +1632,7 @@ export type Database = {
           deposit_policy?: string
           deposit_requested_at?: string | null
           drive_mode?: string
+          duration_hours?: number | null
           end_at?: string | null
           estimated_total?: number
           handed_over_at?: string | null
@@ -1680,6 +1691,7 @@ export type Database = {
           rules_accepted_at?: string | null
           start_at?: string
           status?: string
+          service_type?: string
           stops?: Json
           updated_at?: string
           vehicle_class?: Database["public"]["Enums"]["vehicle_class"]
@@ -3246,6 +3258,7 @@ export type Database = {
           fleet_id: string | null
           hire_approval_status: string
           hire_available: boolean
+          hire_hourly_available: boolean
           hire_cancellation_policy: string
           hire_chauffeur_daily_rate: number
           hire_daily_rate: number | null
@@ -3284,6 +3297,7 @@ export type Database = {
           fleet_id?: string | null
           hire_approval_status?: string
           hire_available?: boolean
+          hire_hourly_available?: boolean
           hire_cancellation_policy?: string
           hire_chauffeur_daily_rate?: number
           hire_daily_rate?: number | null
@@ -3322,6 +3336,7 @@ export type Database = {
           fleet_id?: string | null
           hire_approval_status?: string
           hire_available?: boolean
+          hire_hourly_available?: boolean
           hire_cancellation_policy?: string
           hire_chauffeur_daily_rate?: number
           hire_daily_rate?: number | null

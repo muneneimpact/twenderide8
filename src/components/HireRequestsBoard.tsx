@@ -107,7 +107,7 @@ export function HireRequestsBoard() {
           );
           const draft = drafts[request.id] ?? {
             vehicleId: vehicles[0]?.id ?? "",
-            price: String(Number(request.estimated_total) || 0),
+            price: String(Number((request.my_offer as { counter_price?: number | null } | null)?.counter_price ?? request.estimated_total) || 0),
             note: "",
           };
           const total = Number(request.quoted_total ?? request.estimated_total);
@@ -121,11 +121,12 @@ export function HireRequestsBoard() {
           const plate = vehicles.find((vehicle) => vehicle.id === request.vehicle_id)?.plate_number;
           const nextAction = fixedPriceBooking
             ? request.payment_status === "partial" && remaining > 0 ? "Request outstanding payment" : "No action needed"
-            : ["submitted", "quoted"].includes(request.status) && !request.my_offer ? "Send an offer" : "Waiting for customer";
+            : Number((request.my_offer as { counter_price?: number | null } | null)?.counter_price ?? 0) > 0 ? "Review counteroffer"
+              : ["submitted", "quoted"].includes(request.status) && !request.my_offer ? "Send an offer" : "Waiting for customer";
           return (
             <article key={request.id} className={selectedRequest === request.id ? "fixed inset-0 z-50 overflow-y-auto bg-background p-4 pb-10" : "rounded-2xl border border-border p-3"}>
               <button type="button" onClick={() => setSelectedRequest(request.id)} className={`w-full rounded-xl bg-secondary/50 p-3 text-left ${selectedRequest ? "hidden" : ""}`}>
-                <span className="flex flex-wrap items-start justify-between gap-2"><span><span className="block text-sm font-semibold text-foreground">{request.reference}</span><span className="mt-0.5 block text-xs text-muted-foreground">{new Date(request.start_at).toLocaleString("en-KE")} · {request.days} day(s) · {request.vehicle_class}</span></span><span className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">{nextAction} →</span></span>
+                <span className="flex flex-wrap items-start justify-between gap-2"><span><span className="block text-sm font-semibold text-foreground">{request.reference}</span><span className="mt-0.5 block text-xs text-muted-foreground">{new Date(request.start_at).toLocaleString("en-KE")} · {(request as { service_type?: string }).service_type === "hourly_charter" ? `${(request as { duration_hours?: number }).duration_hours ?? "—"} hour(s) · hourly charter` : `${request.days} day(s) · ${request.vehicle_class}`}</span></span><span className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">{nextAction} →</span></span>
                 <span className="mt-2 block text-xs text-muted-foreground">{request.renter_name ?? "Customer request"} · {fixedPriceBooking ? `Paid ${paid.toLocaleString("en-KE")} / ${total.toLocaleString("en-KE")}` : request.my_offer ? `Your offer: KES ${Number(request.my_offer.price).toLocaleString("en-KE")}` : "Needs your price"}</span>
               </button>
               {selectedRequest === request.id ? <button type="button" onClick={() => setSelectedRequest(null)} className="mb-3 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground">← All requests</button> : null}
@@ -262,12 +263,13 @@ export function HireRequestsBoard() {
                 </div>
               ) : (
                 <>
-                  {request.my_offer ? (
-                    <p className="mt-2 text-xs font-medium text-foreground">
-                      Your offer: KES {Number(request.my_offer.price).toLocaleString("en-KE")} (
-                      {request.my_offer.status})
-                    </p>
-                  ) : null}
+              {request.my_offer ? (
+                <p className="mt-2 text-xs font-medium text-foreground">
+                  Your offer: KES {Number(request.my_offer.price).toLocaleString("en-KE")} (
+                  {request.my_offer.status})
+                </p>
+              ) : null}
+                  {(request.my_offer as { counter_price?: number | null; counter_note?: string | null } | null)?.counter_price ? <p className="mt-2 rounded-lg bg-warning/10 p-2 text-xs font-semibold text-warning-foreground">Customer counteroffer: KES {Number((request.my_offer as { counter_price?: number }).counter_price).toLocaleString("en-KE")}{(request.my_offer as { counter_note?: string | null }).counter_note ? ` · ${(request.my_offer as { counter_note?: string }).counter_note}` : ""}. Update your price below to send a revised offer, or discuss in-app before accepting.</p> : null}
                   <div className="mt-2 grid gap-2 sm:grid-cols-3">
                     <select
                       value={draft.vehicleId}

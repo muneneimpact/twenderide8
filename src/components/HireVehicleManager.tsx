@@ -60,6 +60,16 @@ export function HireVehicleManager({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const hourlyOptIn = useMutation({
+    mutationFn: ({ vehicleId, enabled }: { vehicleId: string; enabled: boolean }) =>
+      updateFn({ data: { vehicleId, hourlyAvailable: enabled } }),
+    onSuccess: () => {
+      setNotice("Hourly charter setting saved. The car appears in the separate hourly browse when enabled.");
+      void queryClient.invalidateQueries({ queryKey: ["my-vehicles"] });
+      void queryClient.invalidateQueries({ queryKey: ["hire-vehicles"] });
+    },
+    onError: (error) => setNotice((error as Error).message),
+  });
 
   const save = useMutation({
     mutationFn: async ({
@@ -396,6 +406,19 @@ export function HireVehicleManager({
               </label>
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 p-3 sm:col-span-2 lg:col-span-4">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={Boolean((vehicle as { hire_hourly_available?: boolean }).hire_hourly_available)}
+                    disabled={hourlyOptIn.isPending}
+                    onChange={(event) => hourlyOptIn.mutate({ vehicleId: vehicle.id, enabled: event.target.checked })}
+                  />
+                  <span className="text-xs text-foreground">
+                    <span className="block font-semibold">Accept hourly chauffeured charter requests for this car</span>
+                    <span className="mt-0.5 block text-muted-foreground">It appears separately under “By the hour.” Customers request an offer; you negotiate the total before they pay.</span>
+                  </span>
+                </label>
                 <label className="block">
                   <span className="text-[11px] text-muted-foreground">Daily price (KES)</span>
                   <input

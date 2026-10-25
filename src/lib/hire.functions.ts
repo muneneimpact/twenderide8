@@ -176,9 +176,9 @@ async function requireManagedVehicle(userId: string, vehicleId: string) {
 }
 
 const VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_hourly_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 const PUBLIC_HIRE_VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_hourly_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
@@ -200,6 +200,7 @@ export const listPublicHireVehicles = createServerFn({ method: "GET" }).handler(
     seats: v.seats,
     vehicle_class: v.vehicle_class,
     hire_mode: v.hire_mode,
+    hire_hourly_available: Boolean((v as unknown as { hire_hourly_available?: boolean }).hire_hourly_available),
     hire_payment_policy: v.hire_payment_policy,
     hire_pay_later_allowed: v.hire_pay_later_allowed,
     hire_deposit_policy: v.hire_deposit_policy,
@@ -628,6 +629,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
       .object({
         vehicleId: z.string().uuid(),
         hireAvailable: z.boolean().optional(),
+        hourlyAvailable: z.boolean().optional(),
         hireMode: z.enum(["self_drive", "chauffeured", "both"]).optional(),
         paymentPolicy: z.enum(["full", "daily_flexible"]).optional(),
         dailyRate: z.number().min(0).max(1_000_000).nullable().optional(),
@@ -681,6 +683,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
 
     const patch: Record<string, unknown> = {};
     if (data.hireMode !== undefined) patch["hire_mode"] = data.hireMode;
+    if (data.hourlyAvailable !== undefined) patch["hire_hourly_available"] = data.hourlyAvailable;
     if (data.paymentPolicy !== undefined) patch["hire_payment_policy"] = data.paymentPolicy;
     if (data.depositPolicy !== undefined) {
       if (data.depositPolicy !== "none" && !(data.depositAmount && data.depositAmount > 0))
@@ -2312,7 +2315,7 @@ export const makeHireOffer = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: vehicle } = await supabaseAdmin
       .from("vehicles")
-      .select("id, owner_driver_id, fleet_id, status")
+      .select("id, owner_driver_id, fleet_id, status, hire_hourly_available")
       .eq("id", data.vehicleId)
       .maybeSingle();
     if (!vehicle || vehicle.status !== "approved") throw new Error("That vehicle is not approved.");
@@ -2340,6 +2343,9 @@ export const makeHireOffer = createServerFn({ method: "POST" })
     if (!quote || !["submitted", "quoted"].includes(quote.status)) {
       throw new Error("This request is already closed.");
     }
+    const hourly = (quote as typeof quote & { service_type?: string; vehicle_id?: string | null }).service_type === "hourly_charter";
+    if (hourly && (quote.vehicle_id !== data.vehicleId || !(vehicle as typeof vehicle & { hire_hourly_available?: boolean }).hire_hourly_available))
+      throw new Error("This hourly request is tied to the selected hourly-enabled car.");
     if (quote.vehicle_id && quote.payment_policy !== "legacy") {
       throw new Error("Listed-car bookings are pay-first and cannot receive competing offers.");
     }
@@ -2352,6 +2358,8 @@ export const makeHireOffer = createServerFn({ method: "POST" })
         price: data.price,
         note: data.note ?? null,
         status: "offered",
+        counter_price: null,
+        counter_note: null,
       } as never,
       { onConflict: "quote_id,responder_id" },
     );
@@ -2379,7 +2387,7 @@ export const makeHireOffer = createServerFn({ method: "POST" })
 export const respondToHireOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ offerId: z.string().uuid(), action: z.enum(["accept", "decline"]) }).parse(input),
+    z.object({ offerId: z.string().uuid(), action: z.enum(["accept", "decline", "counter"]), counterPrice: z.number().positive().max(10_000_000).optional(), counterNote: z.string().trim().max(400).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -2392,11 +2400,23 @@ export const respondToHireOffer = createServerFn({ method: "POST" })
 
     const { data: quote } = await supabaseAdmin
       .from("hire_quotes")
-      .select("id, reference, requester_id, status, start_at")
+      .select("id, reference, requester_id, status, start_at, service_type")
       .eq("id", offer.quote_id)
       .maybeSingle();
     if (!quote || quote.requester_id !== context.userId) throw new Error("Not your request.");
 
+    if (data.action === "counter") {
+      if ((quote as typeof quote & { service_type?: string }).service_type !== "hourly_charter" || !data.counterPrice)
+        throw new Error("Counteroffers are available for hourly charter requests only. Enter a positive price.");
+      if (offer.status !== "offered") throw new Error("This offer is no longer open for a counteroffer.");
+      const { error } = await supabaseAdmin.from("hire_offers").update({ counter_price: data.counterPrice, counter_note: data.counterNote ?? null } as never).eq("id", offer.id);
+      if (error) throw new Error(error.message);
+      try {
+        const { notify } = await import("./notifications.server");
+        await notify({ userId: offer.responder_id, templateCode: "hire_offer_received", title: "Customer counteroffer", body: `Request ${quote.reference}: the customer proposed KES ${data.counterPrice.toLocaleString("en-KE")}. Review it in Hire requests.`, dedupeKey: `hire-counter:${offer.id}:${data.counterPrice}`, critical: true });
+      } catch (error) { console.error("hourly counteroffer notification failed", error); }
+      return { ok: true, countered: true };
+    }
     if (data.action === "decline") {
       await supabaseAdmin.from("hire_offers").update({ status: "declined" }).eq("id", offer.id);
       const { count } = await supabaseAdmin
@@ -2415,6 +2435,11 @@ export const respondToHireOffer = createServerFn({ method: "POST" })
         const { assertVehicleHasNoLiveRide } = await import("./vehicle-hire-lock.server");
         await assertVehicleHasNoLiveRide(offer.vehicle_id, new Date(quote.start_at));
       }
+      const isHourly = (quote as typeof quote & { service_type?: string }).service_type === "hourly_charter";
+      const price = Number(offer.price);
+      const hourlyCommission = isHourly
+        ? await (await import("./hire-payments.server")).getHireCommissionPercent()
+        : null;
       const { error: confirmError } = await supabaseAdmin
         .from("hire_quotes")
         .update({
@@ -2423,6 +2448,7 @@ export const respondToHireOffer = createServerFn({ method: "POST" })
           vehicle_id: offer.vehicle_id,
           assigned_driver_id: offer.responder_id,
           accepted_offer_id: offer.id,
+          ...(isHourly ? { payment_policy: "full", payment_status: "unpaid", payment_minimum_amount: price, estimated_total: 0, commission_percent_snapshot: hourlyCommission } : {}),
         } as never)
         .eq("id", offer.quote_id);
       if (confirmError) throw new Error(confirmError.message);

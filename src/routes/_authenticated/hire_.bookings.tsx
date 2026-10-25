@@ -57,6 +57,7 @@ function HireBookingsPage() {
   const [payCard, setPayCard] = useState<{ quoteId: string; amount?: number | null } | null>(null);
   const [paymentPhone, setPaymentPhone] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [counterPrices, setCounterPrices] = useState<Record<string, string>>({});
 
   const quotes = useQuery({
     queryKey: ["hire-quotes"],
@@ -77,7 +78,7 @@ function HireBookingsPage() {
   }, []);
 
   const respond = useMutation({
-    mutationFn: (vars: { offerId: string; action: "accept" | "decline" }) =>
+    mutationFn: (vars: { offerId: string; action: "accept" | "decline" | "counter"; counterPrice?: number }) =>
       respondFn({ data: vars }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hire-quotes"] }),
   });
@@ -141,7 +142,7 @@ function HireBookingsPage() {
                     {new Date(
                       q.end_at ?? new Date(new Date(q.start_at).getTime() + q.days * DAY),
                     ).toLocaleString("en-KE")}{" "}
-                    · {q.days} day(s) · {q.passengers} people ·{" "}
+                    · {(q as { service_type?: string }).service_type === "hourly_charter" ? `${(q as { duration_hours?: number }).duration_hours ?? "—"} hour(s) · hourly charter` : `${q.days} day(s)`} · {q.passengers} people ·{" "}
                     {q.drive_mode === "self_drive" ? "Self drive" : "With driver"}
                   </p>
                   <p className="mt-1 font-display text-sm font-semibold text-foreground">
@@ -267,6 +268,15 @@ function HireBookingsPage() {
                         </p>
                         {o.note ? (
                           <p className="mt-0.5 text-xs text-muted-foreground">{o.note}</p>
+                        ) : null}
+                        {(q as { service_type?: string }).service_type === "hourly_charter" ? (
+                          <div className="mt-2 rounded-lg bg-secondary/50 p-2">
+                            <label className="block text-xs text-muted-foreground">Your counteroffer (KES total)
+                              <input type="number" min="1" value={counterPrices[o.id] ?? ""} onChange={(event) => setCounterPrices((current) => ({ ...current, [o.id]: event.target.value }))} className="input-base mt-1" placeholder="Total you can pay" />
+                            </label>
+                            <button onClick={() => respond.mutate({ offerId: o.id, action: "counter", counterPrice: Number(counterPrices[o.id]) })} disabled={respond.isPending || Number(counterPrices[o.id]) <= 0} className="mt-2 rounded-full border border-primary px-3 py-1.5 text-xs font-semibold text-primary disabled:opacity-50">Send counteroffer</button>
+                            {(o as typeof o & { counter_price?: number | null }).counter_price ? <p className="mt-1 text-[10px] text-muted-foreground">Your counteroffer: KES {Number((o as typeof o & { counter_price?: number }).counter_price).toLocaleString("en-KE")} · awaiting owner response</p> : null}
+                          </div>
                         ) : null}
                         <div className="mt-2 flex gap-2">
                           <button

@@ -24,6 +24,7 @@ import {
   submitHireQuote,
 } from "@/lib/hire.functions";
 import { clearRememberedHireVehicle, readRememberedHireVehicle } from "@/lib/hire-selection";
+import { HourlyCharterBrowse } from "@/components/HourlyCharterBrowse";
 
 type KycKind = "certificate" | "kra_pin" | "cr12" | "other";
 const KYC_SLOTS: Array<{ kind: KycKind; label: string }> = [
@@ -223,6 +224,7 @@ function HirePage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [bookingStep, setBookingStep] = useState<"browse" | "details">("browse");
+  const [servicePeriod, setServicePeriod] = useState<"daily" | "hourly">("daily");
 
   // Filters
   const [fSeats, setFSeats] = useState("");
@@ -620,6 +622,20 @@ function HirePage() {
   if (chosen && !rulesAccepted) missing.push("accept the owner's rules");
   if (clash) missing.push("choose available pickup and return times");
   const canSubmit = missing.length === 0 && !submit.isPending && !savedDocuments.isPending;
+  if (servicePeriod === "hourly") {
+    return (
+      <AppShell title="Chauffeured charter">
+        <div className="space-y-4 pb-24">
+          <div className="mx-3 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1">
+            <button type="button" onClick={() => setServicePeriod("hourly")} className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">By the hour</button>
+            <button type="button" onClick={() => setServicePeriod("daily")} className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground">By the day · car hire</button>
+          </div>
+          <div className="mx-3"><Link to="/hire/bookings" className="block rounded-full border border-input px-3 py-2 text-center text-xs font-semibold text-foreground">Your requests and offers</Link></div>
+          <HourlyCharterBrowse ownerSlug={ownerSlug} />
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="Hire a car">
@@ -648,6 +664,10 @@ function HirePage() {
               Register company details & KYC once
             </p>
           </Link>
+        </div>
+        <div className="mx-3 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1">
+          <button type="button" onClick={() => setServicePeriod("hourly")} className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground">By the hour · charter</button>
+          <button type="button" onClick={() => setServicePeriod("daily")} className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">By the day · car hire</button>
         </div>
         <div className="flex gap-2">
           {(

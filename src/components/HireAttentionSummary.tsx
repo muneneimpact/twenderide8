@@ -35,7 +35,7 @@ export function HireAttentionSummary() {
         item.payment_status === "partial" &&
         Number(item.payment_paid_total ?? 0) < Number(item.quoted_total ?? item.estimated_total)
       );
-    return ["submitted", "quoted"].includes(item.status) && !item.my_offer;
+    return ["submitted", "quoted"].includes(item.status) && (!item.my_offer || Number((item.my_offer as { counter_price?: number | null }).counter_price ?? 0) > 0);
   }).length;
   const total = bookingCount + requestCount;
 
