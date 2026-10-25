@@ -231,7 +231,14 @@ export function HireVehicleManager({
       {vehicles.isPending ? (
         <p className="mt-3 text-xs text-muted-foreground">Loading your vehicles…</p>
       ) : null}
-      {!vehicles.isPending && vehicleRows.length === 0 ? (
+      {vehicles.isError ? (
+        <div role="alert" className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+          <p className="font-semibold">We couldn’t load your registered vehicles, so we can’t show your listings yet.</p>
+          <p className="mt-1">{(vehicles.error as Error).message}</p>
+          <button type="button" onClick={() => void vehicles.refetch()} className="mt-2 rounded-full border border-destructive/30 px-3 py-1.5 font-semibold">Try again</button>
+        </div>
+      ) : null}
+      {!vehicles.isPending && !vehicles.isError && vehicleRows.length === 0 ? (
         <div className="mt-3 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-xs text-muted-foreground">
           {showAddVehicle
             ? "No approved hire vehicles yet. Add a vehicle below, then complete its photos, daily rate and hire details and submit it for Operations approval."
@@ -277,6 +284,9 @@ export function HireVehicleManager({
             vehicle.status === "approved" &&
             Number(draft.dailyRate) > 0 &&
             vehicle.photo_links.length + photos.length > 0;
+          const hourlyEnabled = Boolean(
+            (vehicle as { hire_hourly_available?: boolean }).hire_hourly_available,
+          );
           return (
             <article key={vehicle.id} className="rounded-2xl border border-border p-3">
               <button
@@ -298,6 +308,13 @@ export function HireVehicleManager({
                 </p>
                 <p className="mt-1 text-[11px] font-medium text-foreground">
                   Hire option: {vehicle.hire_mode === "self_drive" ? "Self-drive only" : vehicle.hire_mode === "chauffeured" ? "Chauffeured only" : "Self-drive or chauffeured"}
+                </p>
+                <p className={`mt-1 text-[11px] font-semibold ${hourlyEnabled ? "text-success" : "text-muted-foreground"}`}>
+                  {hourlyEnabled
+                    ? "Hourly chauffeured trips: enabled"
+                    : vehicle.hire_mode === "self_drive"
+                      ? "Hourly trips: set this car to chauffeured or both first"
+                      : "Hourly chauffeured trips: off · edit to enable"}
                 </p>
                 {listingLive ? (
                   <p className="mt-1 text-[11px] font-semibold text-success">
@@ -410,13 +427,17 @@ export function HireVehicleManager({
                   <input
                     type="checkbox"
                     className="mt-0.5"
-                    checked={Boolean((vehicle as { hire_hourly_available?: boolean }).hire_hourly_available)}
-                    disabled={hourlyOptIn.isPending}
+                    checked={hourlyEnabled}
+                    disabled={hourlyOptIn.isPending || (vehicle.hire_mode === "self_drive" && !hourlyEnabled)}
                     onChange={(event) => hourlyOptIn.mutate({ vehicleId: vehicle.id, enabled: event.target.checked })}
                   />
                   <span className="text-xs text-foreground">
-                    <span className="block font-semibold">Accept hourly chauffeured charter requests for this car</span>
-                    <span className="mt-0.5 block text-muted-foreground">It appears separately under “By the hour.” Customers request an offer; you negotiate the total before they pay.</span>
+                    <span className="block font-semibold">Offer this car for chauffeured trips by the hour</span>
+                    <span className="mt-0.5 block text-muted-foreground">
+                      {vehicle.hire_mode === "self_drive"
+                        ? "Hourly trips require a driver. Change this car’s hire options to Chauffeured only or Both below, save the change, then enable hourly here."
+                        : "It appears separately under “By the hour.” Customers request an offer; you negotiate the total before they pay."}
+                    </span>
                   </span>
                 </label>
                 <label className="block">

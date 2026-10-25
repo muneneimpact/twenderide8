@@ -670,7 +670,7 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
     const { data: current, error: loadError } = await supabaseAdmin
       .from("vehicles")
       .select(
-        "id, owner_driver_id, fleet_id, status, hire_available, hire_approval_status, hire_daily_rate, hire_payment_policy, photo_url, photo_urls",
+        "id, owner_driver_id, fleet_id, status, hire_mode, hire_available, hire_approval_status, hire_daily_rate, hire_payment_policy, photo_url, photo_urls",
       )
       .eq("id", data.vehicleId)
       .maybeSingle();
@@ -679,6 +679,12 @@ export const updateVehicleHire = createServerFn({ method: "POST" })
     const isFleetOwner = Boolean(current?.fleet_id && fleetIds.includes(current.fleet_id));
     if (!current || (!isDirectOwner && !isFleetOwner)) {
       throw new Error("Vehicle not found or you do not manage it.");
+    }
+    if (
+      data.hourlyAvailable === true &&
+      (data.hireMode ?? current.hire_mode) === "self_drive"
+    ) {
+      throw new Error("Choose Chauffeured only or Both for this car, save it, then enable hourly trips.");
     }
 
     const patch: Record<string, unknown> = {};
