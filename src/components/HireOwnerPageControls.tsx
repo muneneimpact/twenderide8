@@ -1,11 +1,12 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Copy, Globe, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, Circle, Copy, Globe, Sparkles, Trash2, Upload } from "lucide-react";
 import {
   createOfflineHire,
   deleteOfflineHire,
   getMyHireBrand,
+  listMyVehicles,
   saveMyHireBrand,
 } from "@/lib/hire.functions";
 
@@ -49,7 +50,9 @@ export function HireOwnerBrandCard() {
   const queryClient = useQueryClient();
   const getFn = useServerFn(getMyHireBrand);
   const saveFn = useServerFn(saveMyHireBrand);
+  const vehiclesFn = useServerFn(listMyVehicles);
   const brand = useQuery({ queryKey: ["my-hire-brand"], queryFn: () => getFn() });
+  const vehicles = useQuery({ queryKey: ["my-vehicles"], queryFn: () => vehiclesFn() });
   const [form, setForm] = useState<BrandForm>(emptyBrand);
   const [origin, setOrigin] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -93,6 +96,27 @@ export function HireOwnerBrandCard() {
   });
 
   const shareUrl = brand.data?.slug && origin ? `${origin}/${brand.data.slug}` : "";
+  const registeredVehicle = Boolean(vehicles.data?.length);
+  const vehicleApproved = Boolean(vehicles.data?.some((vehicle) => vehicle.status === "approved"));
+  const bookableListing = Boolean(
+    vehicles.data?.some(
+      (vehicle) =>
+        vehicle.status === "approved" &&
+        vehicle.hire_approval_status === "approved" &&
+        vehicle.hire_available,
+    ),
+  );
+  const hasBrandName = form.brandName.trim().length >= 2;
+  const hasMarketingContent = Boolean(
+    form.logoDataUrl || form.ownerBio.trim() || form.businessInfo.trim() || form.marketingContent.trim(),
+  );
+  const setupSteps = [
+    { label: "Register at least one vehicle", detail: "Add its number plate and vehicle class in Vehicles.", done: registeredVehicle },
+    { label: "Complete vehicle approval", detail: "Operations approves the vehicle before a hire listing can be reviewed.", done: vehicleApproved },
+    { label: "Publish a bookable hire listing", detail: "Add clear photos, a daily rate and hire details, then submit the listing for review.", done: bookableListing },
+    { label: "Name and personalise your storefront", detail: "Add a brand name; a logo, owner introduction, service area and promotion help customers choose you.", done: hasBrandName && hasMarketingContent },
+    { label: "Save and share your unique page", detail: "Create the page to generate its public brand-name link.", done: Boolean(shareUrl) },
+  ];
   const selectLogo = (file?: File) => {
     if (!file) return;
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
@@ -140,6 +164,37 @@ export function HireOwnerBrandCard() {
       ) : null}
       {!brand.isPending && !brand.isError ? (
         <div className="mt-4 space-y-3">
+          <div className="rounded-2xl border border-primary/20 bg-background p-3 sm:p-4">
+            <div className="flex items-start gap-2">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div>
+                <p className="text-xs font-bold text-foreground">Set up your car-hire storefront</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                  Your link is also your marketing page. Complete these steps to turn views into bookable listings.
+                </p>
+              </div>
+            </div>
+            {vehicles.isError ? (
+              <p className="mt-2 text-xs text-destructive">Could not check vehicles: {(vehicles.error as Error).message}</p>
+            ) : (
+              <ol className="mt-3 space-y-2">
+                {setupSteps.map((step, index) => (
+                  <li key={step.label} className="flex items-start gap-2.5">
+                    {step.done ? (
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                    ) : (
+                      <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-foreground">{index + 1}. {step.label}</p>
+                      <p className="text-[10px] leading-relaxed text-muted-foreground">{step.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {vehicles.isPending ? <p className="mt-2 text-[10px] text-muted-foreground">Checking your vehicle setup…</p> : null}
+          </div>
           {shareUrl ? (
             <div className="rounded-xl border border-border bg-background p-3">
               <p className="text-[11px] font-semibold text-muted-foreground">

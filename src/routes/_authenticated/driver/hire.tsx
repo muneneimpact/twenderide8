@@ -117,7 +117,7 @@ function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
         <div>
           <h2 className="mb-2 text-sm font-semibold text-foreground">Your shareable owner page</h2>
           <p className="mb-3 text-xs text-muted-foreground">
-            Save a unique brand name and profile. Your public link and Copy link button will appear here after you save.
+            Turn your hire profile into a marketing storefront. The checklist below shows what to add and what still needs Operations approval before customers can book; save your brand name to create the unique link.
           </p>
           <HireOwnerBrandCard />
         </div>

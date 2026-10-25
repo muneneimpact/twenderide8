@@ -1,6 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CalendarCheck, CarFront, MapPin, Users } from "lucide-react";
+import { ArrowDown, ArrowRight, CalendarCheck, CarFront, MapPin, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { getPublicHireBrand } from "@/lib/hire.functions";
 import { nextAvailableLabel } from "@/lib/next-available";
 import { rememberHireVehicle } from "@/lib/hire-selection";
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/$brandSlug")({
       ? `${loaderData.brand.brand_name} — Cars for hire`
       : "Car hire owner page";
     const description =
-      loaderData?.brand.marketing_content ||
+      loaderData?.brand.marketing_content || loaderData?.brand.business_info ||
       `Browse hire cars from ${loaderData?.brand.brand_name ?? "this car owner"} and check availability.`;
     return {
       meta: [
@@ -56,20 +56,22 @@ function HireBrandPage() {
   const ownerTitle = owner.company_name || owner.full_name;
 
   return (
-    <main className="min-h-screen bg-background pb-12">
+    <main className="min-h-screen bg-secondary/20 pb-12">
       <header className="relative overflow-hidden bg-primary text-primary-foreground">
-        <div className="absolute inset-0 opacity-20" aria-hidden="true">
+        <div className="absolute inset-0 opacity-25" aria-hidden="true">
           <div className="absolute -right-16 -top-24 h-72 w-72 rounded-full bg-brand-foreground/40 blur-3xl" />
           <div className="absolute -bottom-32 left-0 h-72 w-72 rounded-full bg-accent blur-3xl" />
+          <div className="absolute right-1/3 top-1/2 h-48 w-48 rounded-full border border-primary-foreground/20" />
         </div>
         <div className="relative mx-auto max-w-6xl px-4 pb-9 pt-6 sm:px-6 sm:pb-12 sm:pt-10">
           <Link
             to="/cars"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-primary-foreground/80 hover:text-primary-foreground"
+            className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-3 py-1.5 text-xs font-semibold text-primary-foreground/85 hover:bg-primary-foreground/15 hover:text-primary-foreground"
           >
             ← All hire cars
           </Link>
-          <div className="mt-7 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-7">
+          <div className="mt-8 grid items-center gap-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-12">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-7">
             {brand.logo_data_url ? (
               <img
                 src={brand.logo_data_url}
@@ -85,42 +87,56 @@ function HireBrandPage() {
               </div>
             )}
             <div className="max-w-3xl">
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary-foreground/75">
-                Car hire · Owner collection
+              <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-primary-foreground/75">
+                <Sparkles className="h-3.5 w-3.5" /> A personal car-hire experience
               </p>
-              <h1 className="mt-1 font-display text-3xl font-extrabold sm:text-4xl">
-                {brand.brand_name}
+              <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight sm:text-4xl lg:text-5xl">
+                Go places with <span className="text-primary-foreground/80">{brand.brand_name}</span>
               </h1>
               {ownerTitle ? (
-                <p className="mt-2 text-sm text-primary-foreground/85">{ownerTitle}</p>
+                <p className="mt-2 text-sm font-medium text-primary-foreground/85">Local service from {ownerTitle}</p>
               ) : null}
-              {brand.marketing_content ? (
-                <p className="mt-3 max-w-2xl whitespace-pre-line text-sm leading-relaxed text-primary-foreground/90 sm:text-base">
-                  {brand.marketing_content}
-                </p>
-              ) : null}
+              <p className="mt-3 max-w-2xl whitespace-pre-line text-sm leading-relaxed text-primary-foreground/90 sm:text-base">
+                {brand.marketing_content || "Find a car that fits your plans, check availability before you book, and keep your booking and payment safely in Twende."}
+              </p>
+              <a href="#owner-fleet" className="mt-5 inline-flex w-fit items-center gap-2 rounded-full bg-background px-5 py-3 text-sm font-bold text-primary shadow-lg transition hover:-translate-y-0.5">
+                Explore the cars <ArrowDown className="h-4 w-4" />
+              </a>
+            </div>
+            </div>
+            <div className="hidden rounded-3xl border border-primary-foreground/20 bg-primary-foreground/10 p-5 backdrop-blur-sm lg:block">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary-foreground/15"><ShieldCheck className="h-5 w-5" /></div>
+              <p className="mt-4 font-display text-lg font-bold">Book with confidence</p>
+              <p className="mt-2 text-xs leading-relaxed text-primary-foreground/80">Check live dates and complete your booking and payment through Twende. Your chosen owner’s cars stay together in one place.</p>
+              <div className="mt-4 border-t border-primary-foreground/15 pt-3 text-xs font-semibold">
+                {vehicles.length} {vehicles.length === 1 ? "available car" : "available cars"} from this owner
+              </div>
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap gap-2 text-xs font-semibold">
-            <span className="rounded-full bg-primary-foreground/15 px-3 py-1.5">
-              {vehicles.length} {vehicles.length === 1 ? "car" : "cars"} listed
-            </span>
-            <span className="rounded-full bg-primary-foreground/15 px-3 py-1.5">
-              Check dates before booking
-            </span>
+          <div className="mt-7 grid gap-2 sm:grid-cols-3">
+            {[
+              { icon: CarFront, title: "Owner-curated cars", text: "Browse this owner’s own fleet." },
+              { icon: CalendarCheck, title: "Know your dates", text: "Check availability before requesting." },
+              { icon: ShieldCheck, title: "Book in Twende", text: "Keep booking and payment on-platform." },
+            ].map((item) => (
+              <div key={item.title} className="flex items-center gap-3 rounded-2xl border border-primary-foreground/15 bg-primary-foreground/10 px-3 py-3">
+                <item.icon className="h-4 w-4 shrink-0" />
+                <div><p className="text-xs font-bold">{item.title}</p><p className="mt-0.5 text-[10px] text-primary-foreground/75">{item.text}</p></div>
+              </div>
+            ))}
           </div>
         </div>
       </header>
 
       <div className="mx-auto grid max-w-6xl gap-7 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:py-9">
-        <section>
+        <section id="owner-fleet" className="scroll-mt-6">
           <div className="mb-4 flex items-end justify-between gap-3">
             <div>
               <h2 className="font-display text-xl font-bold text-foreground sm:text-2xl">
-                Cars from {brand.brand_name}
+                Find your car
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Only cars listed by this owner are shown here.
+                Explore {brand.brand_name}’s available cars, then check dates and continue to booking.
               </p>
             </div>
             <span className="hidden rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary sm:inline-flex">
@@ -252,6 +268,18 @@ function HireBrandPage() {
               })}
             </div>
           )}
+          <section className="mt-6 overflow-hidden rounded-3xl border border-border bg-card p-5 sm:p-7">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">A better way to hire</p>
+            <h2 className="mt-2 max-w-xl font-display text-xl font-extrabold text-foreground sm:text-2xl">
+              A local car, a smoother plan.
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              Compare the cars in {brand.brand_name}’s collection, see the availability before you request, and keep your booking and payment together in Twende.
+            </p>
+            <a href="#owner-fleet" className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-primary">
+              See the available cars <ArrowRight className="h-4 w-4" />
+            </a>
+          </section>
         </section>
 
         <aside className="space-y-4">

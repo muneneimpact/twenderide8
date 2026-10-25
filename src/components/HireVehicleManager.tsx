@@ -232,11 +232,11 @@ export function HireVehicleManager({
         <p className="mt-3 text-xs text-muted-foreground">Loading your vehicles…</p>
       ) : null}
       {!vehicles.isPending && vehicleRows.length === 0 ? (
-        <p className="mt-3 text-xs text-muted-foreground">
+        <div className="mt-3 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-xs text-muted-foreground">
           {showAddVehicle
-            ? "You have no approved vehicles yet. Add a vehicle below or first submit one for vehicle approval."
-            : "No vehicle is registered yet. Add a vehicle in Step 1 above; Operations must approve it before it can be hired."}
-        </p>
+            ? "No approved hire vehicles yet. Add a vehicle below, then complete its photos, daily rate and hire details and submit it for Operations approval."
+            : "No vehicle is registered yet. Open the Vehicles tab above and choose ‘Add a car for hire’. Start with the number plate and vehicle class; make, model, colour and year help customers identify it. After vehicle approval, add clear photos, a daily rate and hire details, then submit the hire listing for Operations approval before customers can book it."}
+        </div>
       ) : null}
 
       <div className="mt-3 space-y-3">
