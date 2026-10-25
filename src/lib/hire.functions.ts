@@ -90,6 +90,7 @@ export interface HireVehicleRow {
   hire_description: string | null;
   hire_features: string | null;
   hire_available: boolean;
+  hire_hourly_available?: boolean;
   hire_approval_status: string;
   hire_rejection_reason: string | null;
   photo_url: string | null;
@@ -227,7 +228,7 @@ export const getMyHireBrand = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("hire_owner_brands")
-      .select("brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content")
+      .select("brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content, profile_type")
       .eq("owner_user_id", context.userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -244,6 +245,7 @@ export const saveMyHireBrand = createServerFn({ method: "POST" })
         ownerBio: z.string().trim().max(1200),
         businessInfo: z.string().trim().max(1000),
         marketingContent: z.string().trim().max(1500),
+        profileType: z.enum(["person", "company"]).default("person"),
       })
       .parse(input),
   )
@@ -297,11 +299,12 @@ export const saveMyHireBrand = createServerFn({ method: "POST" })
           owner_bio: data.ownerBio,
           business_info: data.businessInfo,
           marketing_content: data.marketingContent,
+          profile_type: data.profileType,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "owner_user_id" },
       )
-      .select("brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content")
+      .select("brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content, profile_type")
       .single();
     if (error) {
       if (error.code === "23505") throw new Error("That brand name is already in use. Choose a unique name.");
@@ -316,7 +319,7 @@ export const getPublicHireBrand = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: brand, error } = await supabaseAdmin
       .from("hire_owner_brands")
-      .select("owner_user_id, brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content")
+      .select("owner_user_id, brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content, profile_type")
       .eq("slug", data.slug.toLowerCase())
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -345,6 +348,7 @@ export const getPublicHireBrand = createServerFn({ method: "GET" })
         seats: vehicle.seats,
         vehicle_class: vehicle.vehicle_class,
         hire_mode: vehicle.hire_mode,
+        hire_hourly_available: vehicle.hire_hourly_available,
         hire_payment_policy: vehicle.hire_payment_policy,
         hire_pay_later_allowed: vehicle.hire_pay_later_allowed,
         hire_deposit_policy: vehicle.hire_deposit_policy,
@@ -366,6 +370,7 @@ export const getPublicHireBrand = createServerFn({ method: "GET" })
         owner_bio: brand.owner_bio,
         business_info: brand.business_info,
         marketing_content: brand.marketing_content,
+        profile_type: brand.profile_type,
       },
       owner: {
         full_name: profile?.full_name ?? null,

@@ -11,6 +11,7 @@ import {
 } from "@/lib/hire.functions";
 
 type BrandForm = {
+  profileType: "person" | "company";
   brandName: string;
   logoDataUrl: string | null;
   ownerBio: string;
@@ -26,6 +27,7 @@ type OfflineHire = {
 };
 
 const emptyBrand: BrandForm = {
+  profileType: "person",
   brandName: "",
   logoDataUrl: null,
   ownerBio: "",
@@ -62,6 +64,7 @@ export function HireOwnerBrandCard() {
   useEffect(() => {
     if (!brand.data) return;
     setForm({
+      profileType: brand.data.profile_type === "company" ? "company" : "person",
       brandName: brand.data.brand_name,
       logoDataUrl: brand.data.logo_data_url,
       ownerBio: brand.data.owner_bio,
@@ -74,6 +77,7 @@ export function HireOwnerBrandCard() {
     mutationFn: () =>
       saveFn({
         data: {
+          profileType: form.profileType,
           brandName: form.brandName,
           logoDataUrl: form.logoDataUrl,
           ownerBio: form.ownerBio,
@@ -85,6 +89,7 @@ export function HireOwnerBrandCard() {
       setMessage("Your public owner page is ready to share.");
       await queryClient.invalidateQueries({ queryKey: ["my-hire-brand"] });
       setForm({
+        profileType: saved.profile_type === "company" ? "company" : "person",
         brandName: saved.brand_name,
         logoDataUrl: saved.logo_data_url,
         ownerBio: saved.owner_bio,
@@ -235,6 +240,30 @@ export function HireOwnerBrandCard() {
             </div>
           ) : null}
 
+          <fieldset>
+            <legend className="text-xs font-semibold text-foreground">How should your page present your profile?</legend>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {([
+                ["person", "As a person", "Show your name and personal profile."],
+                ["company", "As a company", "Lead with your company name and brand."],
+              ] as const).map(([value, title, hint]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={form.profileType === value}
+                  onClick={() => setForm((current) => ({ ...current, profileType: value }))}
+                  className={`rounded-xl border p-3 text-left ${form.profileType === value ? "border-primary bg-primary/10" : "border-border bg-background"}`}
+                >
+                  <span className="block text-xs font-bold text-foreground">{title}</span>
+                  <span className="mt-1 block text-[10px] leading-relaxed text-muted-foreground">{hint}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Company pages use your account’s company name, or your brand name if no company name is on file.
+            </p>
+          </fieldset>
+
           <label className="block">
             <span className="text-xs font-semibold text-foreground">Unique brand name</span>
             <input
@@ -262,7 +291,7 @@ export function HireOwnerBrandCard() {
               />
             ) : null}
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground">
-              <Upload className="h-4 w-4" /> {form.logoDataUrl ? "Change logo" : "Upload logo"}
+              <Upload className="h-4 w-4" /> {form.logoDataUrl ? "Change logo" : form.profileType === "company" ? "Upload company logo" : "Upload brand logo"}
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -283,12 +312,16 @@ export function HireOwnerBrandCard() {
           </div>
 
           <label className="block">
-            <span className="text-xs font-semibold text-foreground">Owner profile</span>
+            <span className="text-xs font-semibold text-foreground">
+              {form.profileType === "company" ? "About the company" : "About you"}
+            </span>
             <textarea
               value={form.ownerBio}
               maxLength={1200}
               rows={3}
-              placeholder="Introduce yourself and your experience caring for these cars."
+              placeholder={form.profileType === "company"
+                ? "Introduce your company, its service standards and the team behind the fleet."
+                : "Introduce yourself and your experience caring for these cars."}
               onChange={(event) =>
                 setForm((current) => ({ ...current, ownerBio: event.target.value }))
               }
