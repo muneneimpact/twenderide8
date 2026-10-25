@@ -10,6 +10,7 @@ import { HireRequestsBoard } from "@/components/HireRequestsBoard";
 import { HirePortfolioFinance } from "@/components/HirePortfolioFinance";
 import { HireAttentionSummary } from "@/components/HireAttentionSummary";
 import { OwnerHireBookings } from "@/components/OwnerHireBookings";
+import { HireOwnerBrandCard } from "@/components/HireOwnerPageControls";
 import { VehicleTeamBoard } from "@/components/VehicleTeamBoard";
 
 export const Route = createFileRoute("/_authenticated/fleet")({
@@ -212,6 +213,7 @@ function FleetBoard() {
 
         <VehicleTeamBoard />
         <HireAttentionSummary />
+        <HireOwnerBrandCard />
         <HireVehicleManager />
         <OwnerHireBookings />
         <HireRequestsBoard />

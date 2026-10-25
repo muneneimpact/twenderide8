@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { listMyVehicles, updateVehicleHire } from "@/lib/hire.functions";
 import { AddVehicleForHire } from "@/components/AddVehicleForHire";
-import { HireOwnerBrandCard, VehicleOfflineDates } from "@/components/HireOwnerPageControls";
+import { VehicleOfflineDates } from "@/components/HireOwnerPageControls";
 
 type HireMode = "self_drive" | "chauffeured" | "both";
 type Draft = {
@@ -218,7 +218,6 @@ export function HireVehicleManager({
         ask customers to pay you directly or outside the system; this helps prevent extortion and
         protects both parties.
       </p>
-      {vehicleRows.length > 0 ? <HireOwnerBrandCard /> : null}
       {vehicles.isPending ? (
         <p className="mt-3 text-xs text-muted-foreground">Loading your vehicles…</p>
       ) : null}
@@ -286,6 +285,9 @@ export function HireVehicleManager({
                 <p className="text-xs text-muted-foreground">
                   {vehicle.plate_number} · vehicle {vehicle.status} · hire{" "}
                   {vehicle.hire_approval_status.replaceAll("_", " ")}
+                </p>
+                <p className="mt-1 text-[11px] font-medium text-foreground">
+                  Hire option: {vehicle.hire_mode === "self_drive" ? "Self-drive only" : vehicle.hire_mode === "chauffeured" ? "Chauffeured only" : "Self-drive or chauffeured"}
                 </p>
                 {listingLive ? (
                   <p className="mt-1 text-[11px] font-semibold text-success">
@@ -413,7 +415,7 @@ export function HireVehicleManager({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-muted-foreground">Hire type</span>
+                  <span className="text-[11px] font-semibold text-foreground">What hire options does this car support?</span>
                   <select
                     value={draft.hireMode}
                     onChange={(event) =>
@@ -421,10 +423,11 @@ export function HireVehicleManager({
                     }
                     className="input-base"
                   >
-                    <option value="self_drive">Customer drives</option>
-                    <option value="chauffeured">With a driver</option>
-                    <option value="both">Either</option>
+                    <option value="self_drive">Self-drive only — customer drives</option>
+                    <option value="chauffeured">Chauffeured only — owner supplies a driver</option>
+                    <option value="both">Both — self-drive or chauffeured</option>
                   </select>
+                  <span className="mt-1 block text-[10px] text-muted-foreground">This choice applies to this car. Customers can only select a service mode you enable.</span>
                 </label>
                 <label className="block">
                   <span className="text-[11px] text-muted-foreground">Payment terms</span>

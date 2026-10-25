@@ -10,6 +10,7 @@ import { RoleGate } from "@/components/RoleGate";
 import { OwnerHireBookings } from "@/components/OwnerHireBookings";
 import { HireAttentionSummary } from "@/components/HireAttentionSummary";
 import { OwnerSignatureSettings } from "@/components/OwnerSignatureSettings";
+import { HireOwnerBrandCard } from "@/components/HireOwnerPageControls";
 
 export const Route = createFileRoute("/_authenticated/driver/hire")({
   head: () => ({
@@ -28,9 +29,9 @@ export const Route = createFileRoute("/_authenticated/driver/hire")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>): { section?: "bookings" | "finances" | "vehicles" | "documents" } => {
+  validateSearch: (search: Record<string, unknown>): { section?: "bookings" | "finances" | "vehicles" | "documents" | "brand" } => {
     const v = search["section"];
-    return v === "bookings" || v === "finances" || v === "vehicles" || v === "documents" ? { section: v } : {};
+    return v === "bookings" || v === "finances" || v === "vehicles" || v === "documents" || v === "brand" ? { section: v } : {};
   },
   component: DriverHirePage,
 });
@@ -64,7 +65,7 @@ const SECTIONS = [
   { key: "vehicles", label: "Vehicles" },
   { key: "documents", label: "Documents" },
 ] as const;
-type SectionKey = (typeof SECTIONS)[number]["key"];
+type SectionKey = (typeof SECTIONS)[number]["key"] | "brand";
 
 function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
   const initial = Route.useSearch().section;
@@ -72,6 +73,17 @@ function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
   return (
     <div className="mx-auto w-full max-w-md space-y-4 px-3 py-4 sm:px-4">
       <div className="py-1">
+        <button
+          type="button"
+          aria-pressed={section === "brand"}
+          onClick={() => setSection("brand")}
+          className={`w-full rounded-2xl border p-3 text-left ${section === "brand" ? "border-primary bg-primary text-primary-foreground" : "border-primary/30 bg-primary/5 text-foreground"}`}
+        >
+          <span className="block text-sm font-bold">Get / share my car-hire link</span>
+          <span className={`mt-0.5 block text-xs ${section === "brand" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+            Create your branded owner page, then copy its unique booking link.
+          </span>
+        </button>
         <div role="tablist" className="grid grid-cols-4 gap-1 rounded-2xl border border-border bg-card p-1">
           {SECTIONS.map((s) => (
             <button
@@ -101,6 +113,15 @@ function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
         </>
       )}
       {section === "finances" && <HirePortfolioFinance />}
+      {section === "brand" && (
+        <div>
+          <h2 className="mb-2 text-sm font-semibold text-foreground">Your shareable owner page</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Save a unique brand name and profile. Your public link and Copy link button will appear here after you save.
+          </p>
+          <HireOwnerBrandCard />
+        </div>
+      )}
       {section === "vehicles" && (
         <>
           <section className="surface-card p-4">
