@@ -33,6 +33,22 @@ const DAY_RATE: Record<VehicleClass, number> = {
 
 const CHAUFFEUR_DAY_RATE = 2500;
 const STOP_ALLOWANCE = 600;
+const DAY_MS = 86_400_000;
+
+function nairobiDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Nairobi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function blackoutWindow(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00+03:00`);
+  const end = new Date(new Date(`${endDate}T00:00:00+03:00`).getTime() + DAY_MS);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
 
 export function estimateHireTotal(input: {
   vehicleClass: VehicleClass;
@@ -122,10 +138,47 @@ async function withPhotos(
   });
 }
 
+async function managedVehicleScope(userId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: fleets, error } = await supabaseAdmin
+    .from("fleets")
+    .select("id")
+    .eq("owner_id", userId);
+  if (error) throw new Error(error.message);
+  const fleetIds = (fleets ?? []).map((fleet) => fleet.id);
+  return {
+    fleetIds,
+    filter: fleetIds.length
+      ? `owner_driver_id.eq.${userId},fleet_id.in.(${fleetIds.join(",")})`
+      : `owner_driver_id.eq.${userId}`,
+  };
+}
+
+async function requireManagedVehicle(userId: string, vehicleId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const [{ data: vehicle, error }, { fleetIds }] = await Promise.all([
+    supabaseAdmin
+      .from("vehicles")
+      .select("id, owner_driver_id, fleet_id")
+      .eq("id", vehicleId)
+      .maybeSingle(),
+    managedVehicleScope(userId),
+  ]);
+  if (error) throw new Error(error.message);
+  if (
+    !vehicle ||
+    (vehicle.owner_driver_id !== userId &&
+      (!vehicle.fleet_id || !fleetIds.includes(vehicle.fleet_id)))
+  ) {
+    throw new Error("Vehicle not found or you do not manage it.");
+  }
+  return vehicle;
+}
+
 const VEHICLE_FIELDS =
   "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 const PUBLIC_HIRE_VEHICLE_FIELDS =
-  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status";
+  "id, plate_number, make, model, colour, year, seats, vehicle_class, hire_mode, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_daily_rate, hire_cancellation_policy, hire_chauffeur_daily_rate, hire_insurance_type, hire_insurance_details, hire_minimum_age, hire_notes, hire_description, hire_features, hire_available, hire_approval_status, hire_rejection_reason, photo_url, photo_urls, hire_rules, status, owner_driver_id, fleet_id";
 
 /** Every approved car currently listed for hire. */
 export const listHireVehicles = createServerFn({ method: "GET" })
@@ -166,6 +219,161 @@ export const listPublicHireVehicles = createServerFn({ method: "GET" }).handler(
     chauffeur_daily_rate: v.chauffeur_daily_rate,
   }));
 });
+
+export const getMyHireBrand = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("hire_owner_brands")
+      .select("brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content")
+      .eq("owner_user_id", context.userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  });
+
+export const saveMyHireBrand = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        brandName: z.string().trim().min(2).max(80),
+        logoDataUrl: z.string().max(450_000).nullable(),
+        ownerBio: z.string().trim().max(1200),
+        businessInfo: z.string().trim().max(1000),
+        marketingContent: z.string().trim().max(1500),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    if (
+      data.logoDataUrl &&
+      !/^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(data.logoDataUrl)
+    ) {
+      throw new Error("Upload a PNG, JPG or WebP logo image.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { filter } = await managedVehicleScope(context.userId);
+    const { data: ownedVehicles, error: ownerError } = await supabaseAdmin
+      .from("vehicles")
+      .select("id")
+      .or(filter)
+      .limit(1);
+    if (ownerError) throw new Error(ownerError.message);
+    if (!ownedVehicles?.length) throw new Error("Add or manage a hire vehicle before creating your owner page.");
+    const baseSlug = data.brandName
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 56)
+      .replace(/-+$/g, "");
+    if (!baseSlug) throw new Error("Choose a brand name that can be used in a web address.");
+    const reservedSlugs = new Set([
+      "admin", "auth", "book", "cars", "driver", "fleet", "hire", "rides", "account",
+      "company", "drive-or-list", "forgot-password", "privacy", "terms", "status",
+    ]);
+    if (reservedSlugs.has(baseSlug)) throw new Error("That brand name is reserved. Choose another name for your page.");
+    const { data: collision, error: collisionError } = await supabaseAdmin
+      .from("hire_owner_brands")
+      .select("owner_user_id")
+      .eq("slug", baseSlug)
+      .maybeSingle();
+    if (collisionError) throw new Error(collisionError.message);
+    const slug = collision && collision.owner_user_id !== context.userId
+      ? `${baseSlug.slice(0, 48)}-${context.userId.slice(0, 7).toLowerCase()}`
+      : baseSlug;
+    const { data: saved, error } = await supabaseAdmin
+      .from("hire_owner_brands")
+      .upsert(
+        {
+          owner_user_id: context.userId,
+          brand_name: data.brandName,
+          slug,
+          logo_data_url: data.logoDataUrl,
+          owner_bio: data.ownerBio,
+          business_info: data.businessInfo,
+          marketing_content: data.marketingContent,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "owner_user_id" },
+      )
+      .select("brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content")
+      .single();
+    if (error) {
+      if (error.code === "23505") throw new Error("That brand name is already in use. Choose a unique name.");
+      throw new Error(error.message);
+    }
+    return saved;
+  });
+
+export const getPublicHireBrand = createServerFn({ method: "GET" })
+  .inputValidator((input) => z.object({ slug: z.string().min(1).max(80) }).parse(input))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: brand, error } = await supabaseAdmin
+      .from("hire_owner_brands")
+      .select("owner_user_id, brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content")
+      .eq("slug", data.slug.toLowerCase())
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!brand) return null;
+    const [{ data: profile }, { data: fleets }, available] = await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select("full_name, avatar_url, company_name")
+        .eq("id", brand.owner_user_id)
+        .maybeSingle(),
+      supabaseAdmin.from("fleets").select("id").eq("owner_id", brand.owner_user_id),
+      loadAvailableHireVehicles(),
+    ]);
+    const fleetIds = (fleets ?? []).map((fleet) => fleet.id);
+    const vehicles = available
+      .filter((vehicle) =>
+        vehicle.owner_driver_id === brand.owner_user_id ||
+        Boolean(vehicle.fleet_id && fleetIds.includes(vehicle.fleet_id)),
+      )
+      .map((vehicle) => ({
+        id: vehicle.id,
+        make: vehicle.make,
+        model: vehicle.model,
+        colour: vehicle.colour,
+        year: vehicle.year,
+        seats: vehicle.seats,
+        vehicle_class: vehicle.vehicle_class,
+        hire_mode: vehicle.hire_mode,
+        hire_payment_policy: vehicle.hire_payment_policy,
+        hire_pay_later_allowed: vehicle.hire_pay_later_allowed,
+        hire_deposit_policy: vehicle.hire_deposit_policy,
+        hire_deposit_amount: vehicle.hire_deposit_amount,
+        hire_cancellation_policy: vehicle.hire_cancellation_policy,
+        hire_description: vehicle.hire_description,
+        hire_features: vehicle.hire_features,
+        photo_link: vehicle.photo_link,
+        photo_links: vehicle.photo_links,
+        bookings: vehicle.bookings,
+        day_rate: vehicle.day_rate,
+        chauffeur_daily_rate: vehicle.chauffeur_daily_rate,
+      }));
+    return {
+      brand: {
+        brand_name: brand.brand_name,
+        slug: brand.slug,
+        logo_data_url: brand.logo_data_url,
+        owner_bio: brand.owner_bio,
+        business_info: brand.business_info,
+        marketing_content: brand.marketing_content,
+      },
+      owner: {
+        full_name: profile?.full_name ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+        company_name: profile?.company_name ?? null,
+      },
+      vehicles,
+    };
+  });
 
 async function loadAvailableHireVehicles() {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -209,9 +417,20 @@ async function loadAvailableHireVehicles() {
       if (error) throw new Error(`Could not load hire availability: ${error.message}`);
       booked.push(...((data ?? []) as typeof booked));
     }
+    const offline: Array<{ vehicle_id: string; start_date: string; end_date: string }> = [];
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const { data, error } = await supabaseAdmin
+        .from("hire_vehicle_blackouts")
+        .select("vehicle_id, start_date, end_date")
+        .in("vehicle_id", ids.slice(offset, offset + 100))
+        .gte("end_date", nairobiDateKey());
+      if (error) throw new Error(`Could not load offline hire dates: ${error.message}`);
+      offline.push(...((data ?? []) as typeof offline));
+    }
     return list.map((vehicle) => ({
       ...vehicle,
-      bookings: booked
+      bookings: [
+        ...booked
         .filter(
           (row) =>
             row.vehicle_id === vehicle.id &&
@@ -230,6 +449,10 @@ async function loadAvailableHireVehicles() {
             new Date(new Date(row.start_at).getTime() + row.days * 86_400_000).toISOString(),
         }))
         .filter((range) => new Date(range.end).getTime() > Date.now()),
+        ...offline
+          .filter((range) => range.vehicle_id === vehicle.id)
+          .map((range) => blackoutWindow(range.start_date, range.end_date)),
+      ],
       day_rate:
         Number(vehicle.hire_daily_rate ?? 0) > 0
           ? Number(vehicle.hire_daily_rate)
@@ -282,6 +505,14 @@ export const listMyVehicles = createServerFn({ method: "GET" })
             pay_later_method: string | null;
           }>,
         };
+    const { data: offlineHires, error: offlineError } = vehicleIds.length
+      ? await supabaseAdmin
+          .from("hire_vehicle_blackouts")
+          .select("id, vehicle_id, start_date, end_date, note, created_at")
+          .in("vehicle_id", vehicleIds)
+          .order("start_date", { ascending: true })
+      : { data: [] as Array<{ id: string; vehicle_id: string; start_date: string; end_date: string; note: string; created_at: string }> };
+    if (offlineError) throw new Error(`Could not load offline hire dates: ${offlineError.message}`);
     return list.map((vehicle) => ({
       ...vehicle,
       hire_bookings: (bookings ?? [])
@@ -305,7 +536,88 @@ export const listMyVehicles = createServerFn({ method: "GET" })
             ).toISOString(),
           status: booking.status,
         })),
+      offline_hires: (offlineHires ?? [])
+        .filter((offlineHire) => offlineHire.vehicle_id === vehicle.id)
+        .map(({ vehicle_id: _vehicleId, ...offlineHire }) => offlineHire),
     }));
+  });
+
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a valid date.")
+  .refine((value) => {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, "Choose a valid calendar date.");
+
+export const createOfflineHire = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        vehicleId: z.string().uuid(),
+        startDate: calendarDateSchema,
+        endDate: calendarDateSchema,
+        note: z.string().trim().max(200).default(""),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const vehicle = await requireManagedVehicle(context.userId, data.vehicleId);
+    if (data.endDate < data.startDate) throw new Error("End date must be on or after the start date.");
+    if (data.startDate < nairobiDateKey()) throw new Error("Offline hire dates must start today or later.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("hire_quotes")
+      .select("start_at, end_at, days, status, payment_status, payment_hold_expires_at, pay_later_method")
+      .eq("vehicle_id", data.vehicleId)
+      .in("status", ["submitted", "quoted", "confirmed"]);
+    if (existingError) throw new Error(`Could not verify existing bookings: ${existingError.message}`);
+    const window = blackoutWindow(data.startDate, data.endDate);
+    const activeBooking = (existing ?? []).some((booking) => {
+      const active =
+        ["legacy", "partial", "paid"].includes(booking.payment_status) ||
+        (booking.status === "confirmed" && Boolean(booking.pay_later_method)) ||
+        (booking.payment_status === "pending" &&
+          Boolean(booking.payment_hold_expires_at && new Date(booking.payment_hold_expires_at).getTime() > Date.now()));
+      const bookingEnd = booking.end_at ?? new Date(new Date(booking.start_at).getTime() + booking.days * DAY_MS).toISOString();
+      return active && new Date(booking.start_at).getTime() < new Date(window.end).getTime() && new Date(bookingEnd).getTime() > new Date(window.start).getTime();
+    });
+    if (activeBooking) throw new Error("Those dates overlap an existing platform booking.");
+    const { data: row, error } = await supabaseAdmin
+      .from("hire_vehicle_blackouts")
+      .insert({
+        vehicle_id: vehicle.id,
+        owner_user_id: context.userId,
+        start_date: data.startDate,
+        end_date: data.endDate,
+        note: data.note,
+      })
+      .select("id, vehicle_id, start_date, end_date, note, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const deleteOfflineHire = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error: loadError } = await supabaseAdmin
+      .from("hire_vehicle_blackouts")
+      .select("id, vehicle_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (loadError) throw new Error(loadError.message);
+    if (!row) throw new Error("Offline hire dates not found.");
+    await requireManagedVehicle(context.userId, row.vehicle_id);
+    const { error } = await supabaseAdmin
+      .from("hire_vehicle_blackouts")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 /** Owners save listing details; Ops approval is required before public hire. */
@@ -631,6 +943,19 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         throw new Error(
           "This owner allows immediate payments only — please choose Pay now (M-PESA) to book this car.",
         );
+      }
+      const selectedStartDate = nairobiDateKey(startAt);
+      const selectedEndDate = nairobiDateKey(new Date(endAt.getTime() - 1));
+      const { data: offlineConflict, error: offlineConflictError } = await supabaseAdmin
+        .from("hire_vehicle_blackouts")
+        .select("id")
+        .eq("vehicle_id", data.vehicleId)
+        .lte("start_date", selectedEndDate)
+        .gte("end_date", selectedStartDate)
+        .limit(1);
+      if (offlineConflictError) throw new Error(`Could not verify vehicle availability: ${offlineConflictError.message}`);
+      if (offlineConflict?.length) {
+        throw new Error("That car is unavailable for some of those dates. Choose another date to see the next available option.");
       }
       dailyRate = vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate);
       chauffeurDailyRate = Number(vehicle.hire_chauffeur_daily_rate ?? CHAUFFEUR_DAY_RATE);

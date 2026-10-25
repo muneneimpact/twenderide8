@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { z } from "zod";
 import type { DateRange } from "react-day-picker";
 import { CorporateHireTerms, type CorporateTerms } from "@/components/CorporateHireTerms";
 import { AppShell } from "@/components/AppShell";
@@ -15,6 +16,7 @@ import {
   getMyBusinessKyc,
   checkHirePaymentNow,
   getMyHireDocuments,
+  getPublicHireBrand,
   listHireVehicles,
   payHireBooking,
   saveBusinessKycDocument,
@@ -31,6 +33,7 @@ const KYC_SLOTS: Array<{ kind: KycKind; label: string }> = [
 ];
 
 export const Route = createFileRoute("/_authenticated/hire")({
+  validateSearch: z.object({ owner: z.string().optional() }),
   head: () => ({
     meta: [
       { title: "Hire a car in Meru | Twende Meru Rides" },
@@ -180,6 +183,7 @@ function insuranceLabel(value: string | null) {
 }
 
 function HirePage() {
+  const { owner: ownerSlug } = Route.useSearch();
   const queryClient = useQueryClient();
   const submitFn = useServerFn(submitHireQuote);
   const savedDocsFn = useServerFn(getMyHireDocuments);
@@ -188,6 +192,7 @@ function HirePage() {
   const saveKycFn = useServerFn(saveBusinessKycDocument);
   const checkPaymentFn = useServerFn(checkHirePaymentNow);
   const vehiclesFn = useServerFn(listHireVehicles);
+  const publicBrandFn = useServerFn(getPublicHireBrand);
   const payFn = useServerFn(payHireBooking);
   const [accountId, setAccountId] = useState<string | null>(null);
 
@@ -206,6 +211,11 @@ function HirePage() {
     queryFn: () => vehiclesFn(),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
+  });
+  const ownerBrand = useQuery({
+    queryKey: ["public-hire-brand", ownerSlug],
+    queryFn: () => publicBrandFn({ data: { slug: ownerSlug! } }),
+    enabled: Boolean(ownerSlug),
   });
 
   const [tab, setTab] = useState<"self_drive" | "chauffeured">("self_drive");
@@ -318,7 +328,12 @@ function HirePage() {
     days <= 90,
   );
 
-  const all = useMemo(() => vehicles.data ?? [], [vehicles.data]);
+  const all = useMemo(() => {
+    const loaded = vehicles.data ?? [];
+    if (!ownerSlug) return loaded;
+    const ownerVehicleIds = new Set(ownerBrand.data?.vehicles.map((vehicle) => vehicle.id) ?? []);
+    return loaded.filter((vehicle) => ownerVehicleIds.has(vehicle.id));
+  }, [ownerBrand.data, ownerSlug, vehicles.data]);
   useEffect(() => {
     const remembered = readRememberedHireVehicle();
     if (!remembered || !all.some((vehicle) => vehicle.id === remembered)) return;
@@ -715,12 +730,16 @@ function HirePage() {
               />
             </div>
 
-            {vehicles.isPending ? (
+            {vehicles.isPending || (Boolean(ownerSlug) && ownerBrand.isPending) ? (
               <p className="mt-3 text-xs text-muted-foreground">Loading cars…</p>
             ) : null}
-            {!vehicles.isPending && listed.length === 0 ? (
+            {!vehicles.isPending && !(Boolean(ownerSlug) && ownerBrand.isPending) && listed.length === 0 ? (
               <p className="mt-3 text-xs text-muted-foreground">
-                {fSeats || fMake || fModel || fMaxPrice
+                {ownerSlug && !ownerBrand.data
+                  ? "This owner page is no longer available. Browse all hire cars instead."
+                  : ownerSlug && !ownerBrand.data?.vehicles.length
+                    ? "This owner has no cars available for hire right now."
+                    : fSeats || fMake || fModel || fMaxPrice
                   ? "No cars match these filters. Clear a filter to see more listings."
                   : "No hire cars are currently published. Operations-approved and published cars appear here automatically; this list refreshes every 30 seconds."}
               </p>

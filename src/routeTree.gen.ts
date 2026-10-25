@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BrandSlugRouteImport } from './routes/$brandSlug'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as CarsRouteImport } from './routes/cars'
 import { Route as DriveOrListRouteImport } from './routes/drive-or-list'
@@ -50,6 +51,11 @@ import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/publi
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrandSlugRoute = BrandSlugRouteImport.update({
+  id: '/$brandSlug',
+  path: '/$brandSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -253,6 +259,7 @@ const ApiPublicWhatsappWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$brandSlug': typeof BrandSlugRoute
   '/cars': typeof CarsRoute
   '/drive-or-list': typeof DriveOrListRoute
   '/account': typeof AuthenticatedAccountRoute
@@ -291,6 +298,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$brandSlug': typeof BrandSlugRoute
   '/cars': typeof CarsRoute
   '/drive-or-list': typeof DriveOrListRoute
   '/account': typeof AuthenticatedAccountRoute
@@ -331,6 +339,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/$brandSlug': typeof BrandSlugRoute
   '/cars': typeof CarsRoute
   '/drive-or-list': typeof DriveOrListRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
@@ -371,6 +380,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$brandSlug'
     | '/cars'
     | '/drive-or-list'
     | '/account'
@@ -409,6 +419,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$brandSlug'
     | '/cars'
     | '/drive-or-list'
     | '/account'
@@ -448,6 +459,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/$brandSlug'
     | '/cars'
     | '/drive-or-list'
     | '/_authenticated/account'
@@ -488,6 +500,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  BrandSlugRoute: typeof BrandSlugRoute
   CarsRoute: typeof CarsRoute
   DriveOrListRoute: typeof DriveOrListRoute
   AuthAdminRoute: typeof AuthAdminRoute
@@ -508,6 +521,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$brandSlug': {
+      id: '/$brandSlug'
+      path: '/$brandSlug'
+      fullPath: '/$brandSlug'
+      preLoaderRoute: typeof BrandSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -826,6 +846,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  BrandSlugRoute: BrandSlugRoute,
   CarsRoute: CarsRoute,
   DriveOrListRoute: DriveOrListRoute,
   AuthAdminRoute: AuthAdminRoute,

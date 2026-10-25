@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { nextAvailableLabel } from "@/lib/next-available";
 import { publicCarsQuery } from "@/lib/public-cars-query";
 import { rememberHireVehicle } from "@/lib/hire-selection";
+import { z } from "zod";
 
 export const Route = createFileRoute("/cars_/$carId")({
+  validateSearch: z.object({ owner: z.string().optional() }),
   loader: async ({ context, params }) => {
     const cars = await context.queryClient.ensureQueryData(publicCarsQuery);
     const car = cars.find((c) => c.id === params.carId);
@@ -39,6 +41,7 @@ export const Route = createFileRoute("/cars_/$carId")({
 
 function CarDetail() {
   const { carId } = Route.useParams();
+  const { owner } = Route.useSearch();
   const { data: cars } = useSuspenseQuery(publicCarsQuery);
   const car = cars.find((c) => c.id === carId)!;
   const [idx, setIdx] = useState(0);
@@ -134,7 +137,7 @@ function CarDetail() {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <p className="font-bold">{fmt(car.day_rate)} <span className="text-xs font-normal text-muted-foreground">/ day</span></p>
           <Button asChild size="lg">
-            {signedIn ? <Link to="/hire" onClick={() => rememberHireVehicle(car.id)}>Book this car</Link> : <Link to="/auth" search={{ redirect: "/hire" }} onClick={() => rememberHireVehicle(car.id)}>Sign in to book</Link>}
+            {signedIn ? <Link to="/hire" search={{ owner }} onClick={() => rememberHireVehicle(car.id)}>Book this car</Link> : <Link to="/auth" search={{ redirect: owner ? `/hire?owner=${owner}` : "/hire" }} onClick={() => rememberHireVehicle(car.id)}>Sign in to book</Link>}
           </Button>
         </div>
       </div>

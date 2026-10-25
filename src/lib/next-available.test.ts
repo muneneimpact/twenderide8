@@ -9,9 +9,17 @@ describe("nextAvailableLabel", () => {
     expect(nextAvailableLabel([], now).label).toBe("Available today");
   });
   it("booked today until tomorrow", () => {
-    expect(nextAvailableLabel([{ start: iso(2026, 9, 21), end: iso(2026, 9, 23) }], now).label).toBe("Available tomorrow");
+    expect(
+      nextAvailableLabel([{ start: iso(2026, 9, 21), end: iso(2026, 9, 23) }], now).label,
+    ).toBe("Available tomorrow");
   });
   it("booked until 27 Oct", () => {
-    expect(nextAvailableLabel([{ start: iso(2026, 9, 21), end: iso(2026, 9, 27) }], now).label).toBe("Available 27 Oct 2026");
+    expect(
+      nextAvailableLabel([{ start: iso(2026, 9, 21), end: iso(2026, 9, 27) }], now).label,
+    ).toBe("Available 27 Oct 2026");
+  });
+  it("shows the first day after an owner-recorded offline hire", () => {
+    const offlineHire = { start: iso(2026, 9, 22), end: iso(2026, 9, 25) };
+    expect(nextAvailableLabel([offlineHire], now).label).toBe("Available 25 Oct 2026");
   });
 });

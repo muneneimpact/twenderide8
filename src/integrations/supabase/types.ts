@@ -1339,6 +1339,75 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_owner_brands: {
+        Row: {
+          business_info: string
+          brand_name: string
+          created_at: string
+          id: string
+          logo_data_url: string | null
+          marketing_content: string
+          owner_bio: string
+          owner_user_id: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          business_info?: string
+          brand_name: string
+          created_at?: string
+          id?: string
+          logo_data_url?: string | null
+          marketing_content?: string
+          owner_bio?: string
+          owner_user_id: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          business_info?: string
+          brand_name?: string
+          created_at?: string
+          id?: string
+          logo_data_url?: string | null
+          marketing_content?: string
+          owner_bio?: string
+          owner_user_id?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hire_vehicle_blackouts: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          note: string
+          owner_user_id: string
+          start_date: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          note?: string
+          owner_user_id: string
+          start_date: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          note?: string
+          owner_user_id?: string
+          start_date?: string
+          vehicle_id?: string
+        }
+        Relationships: []
+      }
       hire_quotes: {
         Row: {
           accepted_offer_id: string | null

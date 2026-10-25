@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { listMyVehicles, updateVehicleHire } from "@/lib/hire.functions";
 import { AddVehicleForHire } from "@/components/AddVehicleForHire";
+import { HireOwnerBrandCard, VehicleOfflineDates } from "@/components/HireOwnerPageControls";
 
 type HireMode = "self_drive" | "chauffeured" | "both";
 type Draft = {
@@ -217,6 +218,7 @@ export function HireVehicleManager({
         ask customers to pay you directly or outside the system; this helps prevent extortion and
         protects both parties.
       </p>
+      {vehicleRows.length > 0 ? <HireOwnerBrandCard /> : null}
       {vehicles.isPending ? (
         <p className="mt-3 text-xs text-muted-foreground">Loading your vehicles…</p>
       ) : null}
@@ -317,6 +319,12 @@ export function HireVehicleManager({
                   {editingId === vehicle.id ? "Close" : "Edit"}
                 </span>
               </button>
+
+              <VehicleOfflineDates
+                vehicleId={vehicle.id}
+                vehicleName={[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"}
+                entries={vehicle.offline_hires}
+              />
 
               {editingId === vehicle.id ? (<>
               <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
