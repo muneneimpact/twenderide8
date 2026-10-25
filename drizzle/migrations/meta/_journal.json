@@ -92,6 +92,13 @@
       "when": 1792878264867,
       "tag": "0012_compliance_tables_persist",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792924938537,
+      "tag": "0013_apply_owner_pages_wiring",
+      "breakpoints": true
     }
   ]
 }

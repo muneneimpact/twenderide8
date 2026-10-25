@@ -1,0 +1,1 @@
+COMMENT ON TABLE public.vehicles IS 'Vehicles for rides and car hire';
