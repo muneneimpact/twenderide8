@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Bike, Car, MapPin, ShieldCheck, Sparkles, Wallet } from "lucide-react";
+import { ArrowRight, Bike, Car } from "lucide-react";
 import { InstallPrompt } from "@/components/InstallPrompt";
 
 /**
@@ -28,12 +28,6 @@ export const Route = createFileRoute("/")({
 });
 
 function HomePage() {
-  const perks = [
-    { icon: ShieldCheck, title: "Upfront fares", text: "See the price before you request.", tone: "bg-primary/10 text-primary" },
-    { icon: Wallet, title: "Pay your way", text: "M-PESA, Twende wallet or cash.", tone: "bg-gold/20 text-gold-foreground" },
-    { icon: MapPin, title: "Live tracking", text: "Watch your driver arrive.", tone: "bg-sky/15 text-sky" },
-    { icon: Sparkles, title: "Rated drivers", text: "Top-rated nearby drivers first.", tone: "bg-coral/15 text-coral" },
-  ];
   return (
     <main className="flex h-[100svh] flex-col overflow-hidden bg-background lg:flex-row">
       <section className="hero-gradient relative shrink-0 overflow-hidden px-4 pb-6 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:pb-8 lg:flex lg:flex-1 lg:items-center lg:px-10 lg:py-8">
@@ -105,20 +99,6 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="mt-3 border-t border-border pt-3 sm:mt-8 lg:mt-5">
-          <h2 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:text-xs">Why Twende</h2>
-          <div className="grid grid-cols-4 gap-2 sm:gap-3">
-          {perks.map(({ icon: Icon, title, text, tone }) => (
-            <div key={title} className="rounded-2xl border bg-card p-2 shadow-sm sm:p-3">
-              <span className={`mb-1 grid h-7 w-7 place-items-center rounded-lg ${tone} sm:mb-2 sm:h-9 sm:w-9 sm:rounded-xl`}>
-                <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-              </span>
-              <p className="text-[10px] font-bold leading-tight sm:text-sm">{title}</p>
-              <p className="hidden text-xs text-muted-foreground sm:block">{text}</p>
-            </div>
-          ))}
-          </div>
-        </section>
 
         <section className="mt-3 border-t border-border pt-3 sm:mt-8 lg:mt-5">
           <h2 className="sr-only">Partner with Twende</h2>
