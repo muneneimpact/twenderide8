@@ -8,6 +8,7 @@ import { HireRequestsBoard } from "@/components/HireRequestsBoard";
 import { HireVehicleManager } from "@/components/HireVehicleManager";
 import { RoleGate } from "@/components/RoleGate";
 import { OwnerHireBookings } from "@/components/OwnerHireBookings";
+import { HireAttentionSummary } from "@/components/HireAttentionSummary";
 import { OwnerSignatureSettings } from "@/components/OwnerSignatureSettings";
 
 export const Route = createFileRoute("/_authenticated/driver/hire")({
@@ -90,6 +91,7 @@ function HireManagement({ hireOnly = false }: { hireOnly?: boolean }) {
 
       {section === "bookings" && (
         <>
+          <HireAttentionSummary />
           <OwnerHireBookings />
           <OwnerSignatureSettings />
           <HireRequestsBoard />

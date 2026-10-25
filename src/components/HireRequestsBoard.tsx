@@ -28,12 +28,14 @@ export function HireRequestsBoard() {
     "whatsapp",
   ]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
 
   const offer = useMutation({
     mutationFn: (vars: { quoteId: string; vehicleId: string; price: number; note?: string }) =>
       offerFn({ data: vars }),
     onSuccess: () => {
       setNotice("Offer sent to the customer.");
+      setSelectedRequest(null);
       queryClient.invalidateQueries({ queryKey: ["hire-provider-board"] });
     },
     onError: (error) => setNotice((error as Error).message),
@@ -46,6 +48,7 @@ export function HireRequestsBoard() {
       channels: Array<"sms" | "email" | "whatsapp">;
     }) => reminderFn({ data: vars }),
     onSuccess: (result) => {
+      setSelectedRequest(null);
       const statuses = Object.entries(result.channels ?? {})
         .map(([channel, status]) => `${channel}: ${status.replaceAll("_", " ")}`)
         .join(" · ");
@@ -69,7 +72,7 @@ export function HireRequestsBoard() {
   };
 
   return (
-    <section className="surface-card p-4">
+    <section id="hire-requests" className="surface-card scroll-mt-20 p-4">
       <h3 className="text-sm font-semibold text-foreground">Hire bookings and requests</h3>
       <p className="mt-1 text-xs text-muted-foreground">
         Listed-car requests appear here only after the required payment clears. Unpaid requests
@@ -97,7 +100,7 @@ export function HireRequestsBoard() {
       ) : null}
 
       <div className="mt-3 space-y-3">
-        {requests.map((request) => {
+        {requests.filter((request) => !selectedRequest || request.id === selectedRequest).map((request) => {
           const stops = Array.isArray(request.stops) ? (request.stops as { label?: string }[]) : [];
           const fixedPriceBooking = Boolean(
             request.vehicle_id && request.payment_policy !== "legacy",
@@ -116,8 +119,17 @@ export function HireRequestsBoard() {
           );
           const perBooking = request.settlement_totals;
           const plate = vehicles.find((vehicle) => vehicle.id === request.vehicle_id)?.plate_number;
+          const nextAction = fixedPriceBooking
+            ? request.payment_status === "partial" && remaining > 0 ? "Request outstanding payment" : "No action needed"
+            : ["submitted", "quoted"].includes(request.status) && !request.my_offer ? "Send an offer" : "Waiting for customer";
           return (
-            <article key={request.id} className="rounded-2xl border border-border p-3">
+            <article key={request.id} className={selectedRequest === request.id ? "fixed inset-0 z-50 overflow-y-auto bg-background p-4 pb-10" : "rounded-2xl border border-border p-3"}>
+              <button type="button" onClick={() => setSelectedRequest(request.id)} className={`w-full rounded-xl bg-secondary/50 p-3 text-left ${selectedRequest ? "hidden" : ""}`}>
+                <span className="flex flex-wrap items-start justify-between gap-2"><span><span className="block text-sm font-semibold text-foreground">{request.reference}</span><span className="mt-0.5 block text-xs text-muted-foreground">{new Date(request.start_at).toLocaleString("en-KE")} · {request.days} day(s) · {request.vehicle_class}</span></span><span className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">{nextAction} →</span></span>
+                <span className="mt-2 block text-xs text-muted-foreground">{request.renter_name ?? "Customer request"} · {fixedPriceBooking ? `Paid ${paid.toLocaleString("en-KE")} / ${total.toLocaleString("en-KE")}` : request.my_offer ? `Your offer: KES ${Number(request.my_offer.price).toLocaleString("en-KE")}` : "Needs your price"}</span>
+              </button>
+              {selectedRequest === request.id ? <button type="button" onClick={() => setSelectedRequest(null)} className="mb-3 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground">← All requests</button> : null}
+              <div className={selectedRequest === request.id ? "mx-auto max-w-2xl rounded-2xl border border-border bg-card p-4 shadow-xl" : "hidden"}>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-foreground">{request.reference}</p>
                 <span className="rounded-full bg-secondary px-2.5 py-1 text-xs text-foreground">
@@ -317,6 +329,7 @@ export function HireRequestsBoard() {
                   </button>
                 </>
               )}
+              </div>
             </article>
           );
         })}

@@ -8,6 +8,8 @@ import { getFleetBoard, updateFleetSettlement } from "@/lib/admin.functions";
 import { HireVehicleManager } from "@/components/HireVehicleManager";
 import { HireRequestsBoard } from "@/components/HireRequestsBoard";
 import { HirePortfolioFinance } from "@/components/HirePortfolioFinance";
+import { HireAttentionSummary } from "@/components/HireAttentionSummary";
+import { OwnerHireBookings } from "@/components/OwnerHireBookings";
 import { VehicleTeamBoard } from "@/components/VehicleTeamBoard";
 
 export const Route = createFileRoute("/_authenticated/fleet")({
@@ -209,7 +211,9 @@ function FleetBoard() {
         </section>
 
         <VehicleTeamBoard />
+        <HireAttentionSummary />
         <HireVehicleManager />
+        <OwnerHireBookings />
         <HireRequestsBoard />
         <HirePortfolioFinance />
       </div>

@@ -14,6 +14,12 @@ const statusTone: Record<string, string> = {
   missing_expiry: "bg-destructive/15 text-destructive",
 };
 
+function localDayOffset(day: string, offset: number) {
+  const [year, month, date] = day.split("-").map(Number);
+  const target = new Date(year!, month! - 1, date! + offset);
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`;
+}
+
 export function DriverComplianceDocuments({
   heading = "Step 2 · Compliance documents",
   includeDriverDocuments = true,
@@ -33,11 +39,18 @@ export function DriverComplianceDocuments({
   const [docExpiry, setDocExpiry] = useState("");
   const [docVehicle, setDocVehicle] = useState("");
   const [docFile, setDocFile] = useState<File | null>(null);
+  const [insuranceProvider, setInsuranceProvider] = useState("");
+  const [insuranceCoverage, setInsuranceCoverage] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
 
   const addDoc = useMutation({
     mutationFn: async () => {
       if (!docType) throw new Error("Choose a document type.");
+      const selectedType = board.data?.documentTypes.find((type) => type.id === docType);
+      const isVehicleInsurance = selectedType?.code === "vehicle_insurance";
+      if (isVehicleInsurance && (!insuranceProvider.trim() || !docRef.trim() || !insuranceCoverage.trim())) {
+        throw new Error("Enter the insurer, policy number and coverage details.");
+      }
       let filePath: string | undefined;
       if (docFile) {
         if (docFile.size > 10 * 1024 * 1024) {
@@ -73,6 +86,11 @@ export function DriverComplianceDocuments({
             ...(docExpiry ? { expiresOn: docExpiry } : {}),
             ...(docVehicle ? { vehicleId: docVehicle } : {}),
             ...(filePath ? { filePath } : {}),
+            ...(isVehicleInsurance ? {
+              insuranceProvider: insuranceProvider.trim(),
+              insurancePolicyNumber: docRef.trim(),
+              insuranceCoverageDetails: insuranceCoverage.trim(),
+            } : {}),
           },
         });
       } catch (error) {
@@ -87,6 +105,8 @@ export function DriverComplianceDocuments({
       setDocExpiry("");
       setDocVehicle("");
       setDocFile(null);
+      setInsuranceProvider("");
+      setInsuranceCoverage("");
       setNotice("Compliance document submitted. Operations will review it before approval.");
       void queryClient.invalidateQueries({ queryKey: ["driver-onboarding"] });
     },
@@ -121,17 +141,32 @@ export function DriverComplianceDocuments({
     includeOwner: true,
     includeVehicle: false,
   });
-  const vehicleCompliance = vehicles.map((vehicle) => ({
-    vehicle,
-    summary: evaluateCompliance({
-      documentTypes,
-      documents,
-      userId,
-      vehicleId: vehicle.id,
-      includeDriver: includeDriverDocuments,
-      includeOwner: true,
-    }),
-  }));
+  const insuranceType = documentTypes.find((type) => type.code === "vehicle_insurance");
+  const vehicleCompliance = vehicles.map((vehicle) => {
+    const insuranceCandidates = documents
+      .filter((document) => document.document_type_id === insuranceType?.id && document.subject_vehicle_id === vehicle.id)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const activePolicy = insuranceCandidates.find((document) => document.status === "approved" && Boolean(document.expires_on && document.expires_on >= today));
+    const insurance = activePolicy ?? insuranceCandidates[0];
+    const renewalPending = Boolean(activePolicy && insuranceCandidates.some((document) => document.status === "pending" && new Date(document.created_at).getTime() > new Date(activePolicy.created_at).getTime()));
+    const expired = Boolean(insurance?.expires_on && insurance.expires_on < today);
+    const expiringSoon = Boolean(insurance?.expires_on && !expired && insurance.expires_on <= localDayOffset(today, 30));
+    return {
+      vehicle,
+      insurance,
+      renewalPending,
+      insuranceStatus: !insurance ? "Missing" : expired ? "Expired" : expiringSoon ? "Expires soon" : (insurance.status ?? "pending").replaceAll("_", " "),
+      insuranceTone: !insurance || expired ? "bg-destructive/15 text-destructive" : expiringSoon || insurance.status !== "approved" ? "bg-warning/20 text-warning-foreground" : "bg-success/15 text-success",
+      summary: evaluateCompliance({
+        documentTypes,
+        documents,
+        userId,
+        vehicleId: vehicle.id,
+        includeDriver: includeDriverDocuments,
+        includeOwner: true,
+      }),
+    };
+  });
   const complianceLabel = (compliant: boolean, requiredCount: number) =>
     requiredCount === 0
       ? "No required documents configured"
@@ -173,33 +208,49 @@ export function DriverComplianceDocuments({
               .join(" · ")}
           </p>
         ) : null}
-        {vehicleCompliance.map(({ vehicle, summary }) => (
+        {vehicleCompliance.map(({ vehicle, summary, insurance, insuranceStatus, insuranceTone, renewalPending }) => (
           <div
             key={vehicle.id}
-            className="flex flex-wrap items-start justify-between gap-2 border-t border-border pt-2"
+            className="border-t border-border pt-2"
           >
-            <div>
-              <p className="text-xs font-semibold text-foreground">
-                {vehicle.plate_number} · vehicle compliance
-              </p>
-              {!summary.compliant && summary.requiredCount > 0 ? (
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  {summary.items
-                    .filter((item) => item.status !== "approved")
-                    .map((item) => `${item.label}: ${item.status.replaceAll("_", " ")}`)
-                    .join(" · ")}
-                </p>
-              ) : null}
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold text-foreground">{vehicle.plate_number} · vehicle compliance</p>
+                {!summary.compliant && summary.requiredCount > 0 ? <p className="mt-0.5 text-[10px] text-muted-foreground">{summary.items.filter((item) => item.status !== "approved").map((item) => `${item.label}: ${item.status.replaceAll("_", " ")}`).join(" · ")}</p> : null}
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${summary.compliant ? "bg-success/15 text-success" : "bg-warning/20 text-warning-foreground"}`}>
+                {complianceLabel(summary.compliant, summary.requiredCount)}
+              </span>
             </div>
-            <span
-              className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                summary.compliant
-                  ? "bg-success/15 text-success"
-                  : "bg-warning/20 text-warning-foreground"
-              }`}
-            >
-              {complianceLabel(summary.compliant, summary.requiredCount)}
-            </span>
+            <div className="mt-2 rounded-xl bg-secondary/50 p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-foreground">Insurance documents</p>
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize ${insuranceTone}`}>{insuranceStatus}</span>
+              </div>
+              {insurance ? (
+                <div className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+                  <p>Provider: {insurance.insurance_provider || "Not recorded"} · Policy: {insurance.insurance_policy_number || insurance.reference || "Not recorded"}</p>
+                  <p>Expires: {insurance.expires_on ? new Date(`${insurance.expires_on}T12:00:00`).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "Not recorded"}</p>
+                  <p>Cover: {insurance.insurance_coverage_details || "Not recorded"} · Review: {insurance.status.replaceAll("_", " ")}</p>
+                  {renewalPending ? <p className="font-medium text-warning-foreground">A newer insurance document is waiting for Operations review; this approved policy remains current until then.</p> : null}
+                </div>
+              ) : <p className="mt-1 text-[11px] text-muted-foreground">No insurance policy has been submitted for this car yet.</p>}
+              {insuranceType ? (
+                <button type="button" onClick={() => {
+                  setDocType(insuranceType.id);
+                  setDocVehicle(vehicle.id);
+                  setDocRef(insurance?.insurance_policy_number ?? insurance?.reference ?? "");
+                  setDocExpiry("");
+                  setInsuranceProvider(insurance?.insurance_provider ?? "");
+                  setInsuranceCoverage(insurance?.insurance_coverage_details ?? "");
+                  setDocFile(null);
+                  setNotice(null);
+                  document.getElementById("compliance-document-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }} className="mt-2 rounded-full border border-primary px-3 py-1.5 text-[11px] font-semibold text-primary">
+                  {insurance ? "Renew / update insurance" : "Add insurance details"}
+                </button>
+              ) : <p className="mt-1 text-[10px] text-destructive">Vehicle insurance document type is not configured. Contact Operations.</p>}
+            </div>
           </div>
         ))}
       </div>
@@ -213,7 +264,7 @@ export function DriverComplianceDocuments({
           No active compliance document types are configured. Contact Operations.
         </p>
       ) : (
-        <ul className="mt-3 space-y-2">
+        <ul id="compliance-document-form" className="mt-3 scroll-mt-20 space-y-2">
           {documentTypes.map((type) => {
             const mine = documents
               .filter(
@@ -252,6 +303,8 @@ export function DriverComplianceDocuments({
                     setDocExpiry("");
                     setDocVehicle("");
                     setDocFile(null);
+                    setInsuranceProvider("");
+                    setInsuranceCoverage("");
                     setNotice(null);
                     addDoc.reset();
                   }}
@@ -317,17 +370,28 @@ export function DriverComplianceDocuments({
                     {docFile ? (
                       <p className="text-xs text-muted-foreground">Attached: {docFile.name}</p>
                     ) : null}
-                    <input
-                      value={docRef}
-                      onChange={(event) => setDocRef(event.target.value)}
-                      placeholder={
-                        type.code === "vehicle_insurance"
-                          ? "Insurer and policy number"
-                          : "Document number / reference"
-                      }
-                      maxLength={80}
-                      className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
-                    />
+                    {type.code !== "vehicle_insurance" ? (
+                      <input
+                        value={docRef}
+                        onChange={(event) => setDocRef(event.target.value)}
+                        placeholder="Document number / reference"
+                        maxLength={80}
+                        className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm"
+                      />
+                    ) : null}
+                    {type.code === "vehicle_insurance" ? (
+                      <>
+                        <input value={insuranceProvider} onChange={(event) => setInsuranceProvider(event.target.value)} maxLength={120} placeholder="Insurance agency / provider" className="w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm" />
+                        <label className="block text-xs font-medium text-muted-foreground">
+                          Policy number
+                          <input value={docRef} onChange={(event) => setDocRef(event.target.value)} maxLength={100} placeholder="Policy number" className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm" />
+                        </label>
+                        <label className="block text-xs font-medium text-muted-foreground">
+                          Cover / coverage details
+                          <textarea value={insuranceCoverage} onChange={(event) => setInsuranceCoverage(event.target.value)} maxLength={1000} rows={3} placeholder="What the policy covers, limits or exclusions relevant to the hire car" className="mt-1 w-full rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm" />
+                        </label>
+                      </>
+                    ) : null}
                     <label className="block text-xs font-medium text-muted-foreground">
                       Expiry date {type.expires ? "(required)" : "(if any)"}
                       <input
@@ -345,7 +409,8 @@ export function DriverComplianceDocuments({
                         docRef.trim().length < 3 ||
                         (needsPhoto && !docFile) ||
                         (type.expires && !docExpiry) ||
-                        (needsVehicle && !docVehicle)
+                        (needsVehicle && !docVehicle) ||
+                        (type.code === "vehicle_insurance" && (!insuranceProvider.trim() || !insuranceCoverage.trim()))
                       }
                       className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
                     >

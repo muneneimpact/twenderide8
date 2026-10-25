@@ -442,13 +442,16 @@ export const submitDocument = createServerFn({ method: "POST" })
         expiresOn: z.string().max(10).optional(),
         vehicleId: z.string().uuid().optional(),
         filePath: z.string().max(300).optional(),
+        insuranceProvider: z.string().trim().min(2).max(120).optional(),
+        insurancePolicyNumber: z.string().trim().min(3).max(100).optional(),
+        insuranceCoverageDetails: z.string().trim().min(3).max(1000).optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { data: type } = await context.supabase
       .from("document_types")
-      .select("label, requires_image, active, applies_to, expires")
+      .select("code, label, requires_image, active, applies_to, expires")
       .eq("id", data.documentTypeId)
       .maybeSingle();
     if (!type?.active || !["driver", "owner", "vehicle"].includes(type.applies_to)) {
@@ -465,6 +468,19 @@ export const submitDocument = createServerFn({ method: "POST" })
     }
     if (type.applies_to !== "vehicle" && data.vehicleId) {
       throw new Error("This document belongs to your profile, not a vehicle.");
+    }
+    const isVehicleInsurance = type.code === "vehicle_insurance";
+    if (isVehicleInsurance) {
+      if (type.applies_to !== "vehicle" || !data.vehicleId)
+        throw new Error("Choose the vehicle this insurance policy covers.");
+      if (!data.insuranceProvider || !data.insurancePolicyNumber || !data.insuranceCoverageDetails)
+        throw new Error("Enter the insurance provider, policy number, and coverage details.");
+    } else if (
+      data.insuranceProvider !== undefined ||
+      data.insurancePolicyNumber !== undefined ||
+      data.insuranceCoverageDetails !== undefined
+    ) {
+      throw new Error("Insurance details can only be attached to a vehicle insurance document.");
     }
     // A driver may only reference a file inside their own folder.
     if (data.filePath && !data.filePath.startsWith(`${context.userId}/`)) {
@@ -497,6 +513,9 @@ export const submitDocument = createServerFn({ method: "POST" })
       subject_user_id: context.userId,
       subject_vehicle_id: data.vehicleId ?? null,
       reference: data.reference,
+      insurance_provider: data.insuranceProvider ?? null,
+      insurance_policy_number: data.insurancePolicyNumber ?? null,
+      insurance_coverage_details: data.insuranceCoverageDetails ?? null,
       issued_on: data.issuedOn || null,
       expires_on: data.expiresOn || null,
       file_path: data.filePath ?? null,

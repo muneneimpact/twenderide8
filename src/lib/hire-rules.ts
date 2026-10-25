@@ -19,8 +19,19 @@ export function canOwnerDecline(input: { startAt: Date; bookedAt: Date; now?: Da
 }
 
 const FREE_MAIL = new Set([
-  "gmail.com", "yahoo.com", "yahoo.co.uk", "hotmail.com", "outlook.com", "live.com",
-  "icloud.com", "aol.com", "proton.me", "protonmail.com", "gmx.com", "mail.com", "ymail.com",
+  "gmail.com",
+  "yahoo.com",
+  "yahoo.co.uk",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+  "icloud.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "mail.com",
+  "ymail.com",
 ]);
 
 /** Business emails look like name@company.tld (com, org, co.ke, ac.ke, go.ke …), not free mail. */
@@ -36,13 +47,56 @@ export function isBusinessEmail(email: string): boolean {
 export const HIRE_INCLUDED_KM_PER_DAY = 300;
 export const HIRE_EXCESS_KM_RATE = 30;
 
+const FUEL_LEVEL_PERCENT: Record<string, number> = {
+  full: 100,
+  "3/4": 75,
+  "1/2": 50,
+  "1/4": 25,
+  reserve: 0,
+  empty: 0,
+};
+
+/** Fuel gauge levels use the labels shown in pickup/return inspection screens. */
+export function fuelLevelPercent(level: string | null | undefined): number | null {
+  if (!level) return null;
+  return FUEL_LEVEL_PERCENT[level.trim().toLowerCase()] ?? null;
+}
+
+export function calculateFuelShortfall(
+  pickup: string | null | undefined,
+  returned: string | null | undefined,
+) {
+  const pickupPercent = fuelLevelPercent(pickup);
+  const returnPercent = fuelLevelPercent(returned);
+  if (pickupPercent == null || returnPercent == null) return null;
+  return Math.max(0, pickupPercent - returnPercent);
+}
+
 /** Split the refundable deposit at return: what is kept, returned, and still owed. */
-export function settleHireReturn(input: { deposit: number; days: number; kmDriven: number; fuelCharge: number; penalties: number }) {
+export function settleHireReturn(input: {
+  deposit: number;
+  days: number;
+  kmDriven: number;
+  fuelCharge: number;
+  penalties: number;
+  waiveExcessKm?: boolean;
+  waiveFuel?: boolean;
+}) {
   const allowance = HIRE_INCLUDED_KM_PER_DAY * Math.max(1, input.days);
   const excessKm = Math.max(0, Math.round(input.kmDriven - allowance));
-  const excessCharge = excessKm * HIRE_EXCESS_KM_RATE;
-  const deductions = excessCharge + Math.max(0, input.fuelCharge) + Math.max(0, input.penalties);
+  const excessCharge = input.waiveExcessKm ? 0 : excessKm * HIRE_EXCESS_KM_RATE;
+  const fuelCharge = input.waiveFuel ? 0 : Math.max(0, input.fuelCharge);
+  const deductions = excessCharge + fuelCharge + Math.max(0, input.penalties);
   const deposit = Math.max(0, input.deposit);
   const kept = Math.min(deposit, deductions);
-  return { allowance, excessKm, excessCharge, deductions, kept, returned: deposit - kept, balanceDue: deductions - kept };
+  return {
+    allowance,
+    excessKm,
+    excessCharge,
+    fuelCharge,
+    deductions,
+    kept,
+    returned: deposit - kept,
+    balanceDue: deductions - kept,
+  };
 }

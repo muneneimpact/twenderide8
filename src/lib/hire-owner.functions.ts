@@ -7,6 +7,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { canOwnerDecline } from "./hire-rules";
+import { calculateFuelShortfall, fuelLevelPercent } from "./hire-rules";
 
 export interface OwnerBooking {
   deposit_policy: "upfront" | "handover" | "none";
@@ -38,6 +39,16 @@ export interface OwnerBooking {
   owner_signed: boolean;
   hirer_signed: boolean;
   agreement_completed: boolean;
+  pickup_odometer: number | null;
+  pickup_fuel: string | null;
+  return_odometer: number | null;
+  return_fuel_level: string | null;
+  return_fuel_missing_percent: number | null;
+  return_km_driven: number | null;
+  return_excess_km_charge: number | null;
+  return_fuel_charge: number | null;
+  return_excess_km_waived: boolean;
+  return_fuel_waived: boolean;
 }
 
 const KYC_LABELS: Record<string, string> = {
@@ -50,7 +61,11 @@ const KYC_LABELS: Record<string, string> = {
 async function loadBookingFor(userId: string, quoteId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { ownedVehicleIds } = await import("./hire-owner.server");
-  const { data: q } = await supabaseAdmin.from("hire_quotes").select("*").eq("id", quoteId).maybeSingle();
+  const { data: q } = await supabaseAdmin
+    .from("hire_quotes")
+    .select("*")
+    .eq("id", quoteId)
+    .maybeSingle();
   if (!q) throw new Error("Booking not found.");
   const owned = await ownedVehicleIds(userId);
   if (!(q.vehicle_id && owned.includes(q.vehicle_id)) && q.assigned_driver_id !== userId)
@@ -83,10 +98,24 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
     const vIds = [...new Set(list.map((r) => r.vehicle_id).filter((x): x is string => Boolean(x)))];
     const { data: vehicles } = vIds.length
       ? await supabaseAdmin.from("vehicles").select("id, make, model, plate_number").in("id", vIds)
-      : { data: [] as Array<{ id: string; make: string | null; model: string | null; plate_number: string }> };
-    const vmap = new Map((vehicles ?? []).map((v) => [v.id, `${[v.make, v.model].filter(Boolean).join(" ")} ${v.plate_number}`.trim()]));
+      : {
+          data: [] as Array<{
+            id: string;
+            make: string | null;
+            model: string | null;
+            plate_number: string;
+          }>,
+        };
+    const vmap = new Map(
+      (vehicles ?? []).map((v) => [
+        v.id,
+        `${[v.make, v.model].filter(Boolean).join(" ")} ${v.plate_number}`.trim(),
+      ]),
+    );
     // Company KYC documents for pay-later bookings, with short-lived private links.
-    const kycUserIds = [...new Set(list.filter((r) => r.pay_later_method).map((r) => r.requester_id))];
+    const kycUserIds = [
+      ...new Set(list.filter((r) => r.pay_later_method).map((r) => r.requester_id)),
+    ];
     const kycByUser = new Map<string, Array<{ kind: string; label: string; url: string }>>();
     if (kycUserIds.length) {
       const { data: docs } = await supabaseAdmin
@@ -95,12 +124,17 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
         .in("user_id", kycUserIds);
       const paths = (docs ?? []).map((d) => d.file_path);
       const signed = paths.length
-        ? ((await supabaseAdmin.storage.from("hire-documents").createSignedUrls(paths, 1800)).data ?? [])
+        ? ((await supabaseAdmin.storage.from("hire-documents").createSignedUrls(paths, 1800))
+            .data ?? [])
         : [];
       const urlOf = (p: string) => signed.find((s) => s.path === p)?.signedUrl ?? "";
       for (const d of docs ?? []) {
         const arr = kycByUser.get(d.user_id) ?? [];
-        arr.push({ kind: d.document_kind, label: KYC_LABELS[d.document_kind] ?? "Business document", url: urlOf(d.file_path) });
+        arr.push({
+          kind: d.document_kind,
+          label: KYC_LABELS[d.document_kind] ?? "Business document",
+          url: urlOf(d.file_path),
+        });
         kycByUser.set(d.user_id, arr);
       }
     }
@@ -119,7 +153,9 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
       payment_status: r.payment_status ?? "pending",
       total: Number(r.quoted_total ?? r.estimated_total),
       paid: Number(r.payment_paid_total ?? 0),
-      pay_later: r.pay_later_method ? `${r.pay_later_method.replace("_", " ")} by ${r.pay_later_due_date}` : null,
+      pay_later: r.pay_later_method
+        ? `${r.pay_later_method.replace("_", " ")} by ${r.pay_later_due_date}`
+        : null,
       company_verified: Boolean(r.company_verified_at),
       business_email: r.business_email ?? null,
       business_registration: r.business_registration_number ?? null,
@@ -133,6 +169,24 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
       owner_signed: Boolean(r.owner_signed_at),
       hirer_signed: Boolean(r.agreement_signed_at),
       agreement_completed: Boolean(r.agreement_completed_at),
+      pickup_odometer:
+        r.inspection_odometer ??
+        (r.hirer_inspection as { pickup?: { odometer?: number } } | null)?.pickup?.odometer ??
+        null,
+      pickup_fuel:
+        r.inspection_fuel ??
+        (r.hirer_inspection as { pickup?: { fuel?: string } } | null)?.pickup?.fuel ??
+        null,
+      return_odometer: r.return_odometer == null ? null : Number(r.return_odometer),
+      return_fuel_level: r.return_fuel_level ?? null,
+      return_fuel_missing_percent:
+        r.return_fuel_missing_percent == null ? null : Number(r.return_fuel_missing_percent),
+      return_km_driven: r.return_km_driven == null ? null : Number(r.return_km_driven),
+      return_excess_km_charge:
+        r.return_excess_km_charge == null ? null : Number(r.return_excess_km_charge),
+      return_fuel_charge: r.return_fuel_charge == null ? null : Number(r.return_fuel_charge),
+      return_excess_km_waived: Boolean(r.return_excess_km_waived),
+      return_fuel_waived: Boolean(r.return_fuel_waived),
       deposit_policy: (r.deposit_policy ?? "none") as "upfront" | "handover" | "none",
       deposit_amount: Number(r.deposit_amount ?? 0),
       deposit_requested: Boolean(r.deposit_requested_at),
@@ -153,17 +207,22 @@ export const ownerConfirmCompanyBooking = createServerFn({ method: "POST" })
       .select("id")
       .eq("user_id", q.requester_id)
       .limit(1);
-    if (!kyc?.length)
-      throw new Error("This company has not uploaded any business documents yet.");
+    if (!kyc?.length) throw new Error("This company has not uploaded any business documents yet.");
     const now = new Date().toISOString();
     const { error } = await supabaseAdmin
       .from("hire_quotes")
-      .update({ status: "confirmed", company_verified_at: now, company_verified_by: context.userId } as never)
+      .update({
+        status: "confirmed",
+        company_verified_at: now,
+        company_verified_by: context.userId,
+      } as never)
       .eq("id", q.id)
       .eq("status", "submitted");
     if (error) {
       if (error.message.includes("already booked"))
-        throw new Error("Those dates were just taken by another booking. Decline this one instead.");
+        throw new Error(
+          "Those dates were just taken by another booking. Decline this one instead.",
+        );
       throw new Error(error.message);
     }
     const { notify, audit } = await import("./notifications.server");
@@ -189,9 +248,12 @@ export const markHireHandover = createServerFn({ method: "POST" })
         settlement: z
           .object({
             deposit: z.number().min(0).max(1_000_000),
-            kmDriven: z.number().min(0).max(100_000),
+            odometer: z.number().int().min(0).max(5_000_000),
+            fuelLevel: z.enum(["Full", "3/4", "1/2", "1/4", "Reserve"]),
             fuelCharge: z.number().min(0).max(1_000_000),
             penalties: z.number().min(0).max(1_000_000),
+            waiveExcessKm: z.boolean().default(false),
+            waiveFuel: z.boolean().default(false),
             notes: z.string().trim().max(500).optional(),
           })
           .optional(),
@@ -202,12 +264,19 @@ export const markHireHandover = createServerFn({ method: "POST" })
     const q = await loadBookingFor(context.userId, data.quoteId);
     if (q.status !== "confirmed") throw new Error("Only confirmed bookings can be handed over.");
     if (data.step === "returned" && !q.handed_over_at) throw new Error("Mark the handover first.");
-    if (data.step === "handed_over" && q.deposit_policy === "handover" && Number(q.deposit_amount) > 0) {
+    if (data.step === "returned" && q.returned_at)
+      throw new Error("This car return was already recorded.");
+    if (
+      data.step === "handed_over" &&
+      q.deposit_policy === "handover" &&
+      Number(q.deposit_amount) > 0
+    ) {
       const due = Number(q.quoted_total ?? q.estimated_total);
       if (!q.deposit_requested_at || Number(q.payment_paid_total ?? 0) < due)
         throw new Error("The hirer must pay the deposit in the app before you hand over the car.");
     }
-    if (data.step === "returned" && !data.settlement) throw new Error("Enter the deposit and return readings.");
+    if (data.step === "returned" && !data.settlement)
+      throw new Error("Enter the deposit and return readings.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const kes = (n: number) => `KES ${Math.round(n).toLocaleString("en-KE")}`;
     let body = `Hire ${q.reference}: the car has been handed over to you. Drive safely!`;
@@ -215,13 +284,46 @@ export const markHireHandover = createServerFn({ method: "POST" })
     if (data.step === "returned" && data.settlement) {
       const { settleHireReturn } = await import("./hire-rules");
       const s = data.settlement;
-      const r = settleHireReturn({ deposit: s.deposit, days: Number(q.days ?? 1), kmDriven: s.kmDriven, fuelCharge: s.fuelCharge, penalties: s.penalties });
+      const inspection = (q.hirer_inspection ?? {}) as {
+        pickup?: { odometer?: number; fuel?: string };
+      };
+      const pickupOdometer = q.inspection_odometer ?? inspection.pickup?.odometer;
+      const pickupFuel = q.inspection_fuel ?? inspection.pickup?.fuel;
+      if (pickupOdometer == null)
+        throw new Error(
+          "Record the pickup odometer in the walkaround or hirer pickup details before completing return.",
+        );
+      if (!pickupFuel || fuelLevelPercent(pickupFuel) == null)
+        throw new Error("Record the pickup fuel level before completing return.");
+      if (s.odometer < Number(pickupOdometer))
+        throw new Error(
+          `Return odometer can't be below pickup (${Number(pickupOdometer).toLocaleString("en-KE")} km).`,
+        );
+      const kmDriven = s.odometer - Number(pickupOdometer);
+      const fuelMissingPercent = calculateFuelShortfall(pickupFuel, s.fuelLevel);
+      if (fuelMissingPercent == null)
+        throw new Error("Could not calculate the fuel difference. Check the pickup fuel level.");
+      const fuelCharge = fuelMissingPercent === 0 ? 0 : s.fuelCharge;
+      const r = settleHireReturn({
+        deposit: s.deposit,
+        days: Number(q.days ?? 1),
+        kmDriven,
+        fuelCharge,
+        penalties: s.penalties,
+        waiveExcessKm: s.waiveExcessKm,
+        waiveFuel: s.waiveFuel,
+      });
       patch = {
         returned_at: new Date().toISOString(),
+        return_odometer: s.odometer,
+        return_fuel_level: s.fuelLevel,
+        return_fuel_missing_percent: fuelMissingPercent,
         return_deposit_held: s.deposit,
-        return_km_driven: s.kmDriven,
+        return_km_driven: kmDriven,
         return_excess_km_charge: r.excessCharge,
-        return_fuel_charge: s.fuelCharge,
+        return_fuel_charge: r.fuelCharge,
+        return_excess_km_waived: s.waiveExcessKm,
+        return_fuel_waived: s.waiveFuel,
         return_penalties: s.penalties,
         return_deposit_kept: r.kept,
         return_deposit_returned: r.returned,
@@ -229,19 +331,27 @@ export const markHireHandover = createServerFn({ method: "POST" })
         return_notes: s.notes || null,
       };
       const parts = [
-        r.excessCharge > 0 ? `extra ${r.excessKm} km ${kes(r.excessCharge)}` : null,
-        s.fuelCharge > 0 ? `fuel ${kes(s.fuelCharge)}` : null,
+        r.excessKm > 0
+          ? `extra ${r.excessKm} km ${s.waiveExcessKm ? "waived" : kes(r.excessCharge)}`
+          : null,
+        fuelMissingPercent > 0
+          ? `fuel ${fuelMissingPercent}% short ${s.waiveFuel ? "waived" : kes(r.fuelCharge)}`
+          : null,
         s.penalties > 0 ? `fines/parking ${kes(s.penalties)}` : null,
       ].filter(Boolean);
       body =
-        `Twende: hire ${q.reference} returned. Deposit ${kes(s.deposit)}. ` +
+        `Twende: hire ${q.reference} returned. Odometer ${s.odometer.toLocaleString("en-KE")} km; ${kmDriven.toLocaleString("en-KE")} km driven. Fuel ${s.fuelLevel} (${fuelMissingPercent}% below pickup). Deposit ${kes(s.deposit)}. ` +
         (parts.length ? `Kept ${kes(r.kept)} (${parts.join(", ")}). ` : "Nothing kept. ") +
         `Coming back to you: ${kes(r.returned)}.` +
         (r.balanceDue > 0 ? ` Still owed: ${kes(r.balanceDue)}.` : "");
     }
-    await supabaseAdmin.from("hire_quotes").update(patch as never).eq("id", q.id);
+    await supabaseAdmin
+      .from("hire_quotes")
+      .update(patch as never)
+      .eq("id", q.id);
     const { notify, audit } = await import("./notifications.server");
-    if (data.step === "returned") await audit(context.userId, "hire_return_settled", "hire_quote", q.id, patch);
+    if (data.step === "returned")
+      await audit(context.userId, "hire_return_settled", "hire_quote", q.id, patch);
     await notify({
       userId: q.requester_id,
       templateCode: `hire_${data.step}`,
@@ -256,7 +366,9 @@ export const markHireHandover = createServerFn({ method: "POST" })
 export const ownerDeclineHire = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ quoteId: z.string().uuid(), reason: z.string().trim().min(5).max(500) }).parse(input),
+    z
+      .object({ quoteId: z.string().uuid(), reason: z.string().trim().min(5).max(500) })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const q = await loadBookingFor(context.userId, data.quoteId);
@@ -278,7 +390,10 @@ export const ownerDeclineHire = createServerFn({ method: "POST" })
       })
       .eq("id", q.id);
     const { notify, audit } = await import("./notifications.server");
-    await audit(context.userId, "hire_owner_declined", "hire_quote", q.id, { reason: data.reason, paid });
+    await audit(context.userId, "hire_owner_declined", "hire_quote", q.id, {
+      reason: data.reason,
+      paid,
+    });
     await notify({
       userId: q.requester_id,
       templateCode: "hire_owner_declined",
@@ -340,10 +455,16 @@ export const verifyBusinessEmailCode = createServerFn({ method: "POST" })
     if (row.attempts >= 5) throw new Error("Too many attempts. Send a new code.");
     const { hashOtp } = await import("./otp.server");
     if ((await hashOtp(data.code, `${context.userId}:${email}`)) !== row.code_hash) {
-      await supabaseAdmin.from("business_email_otps").update({ attempts: row.attempts + 1 }).eq("id", row.id);
+      await supabaseAdmin
+        .from("business_email_otps")
+        .update({ attempts: row.attempts + 1 })
+        .eq("id", row.id);
       throw new Error("That code is not correct.");
     }
-    await supabaseAdmin.from("business_email_otps").update({ verified_at: new Date().toISOString() }).eq("id", row.id);
+    await supabaseAdmin
+      .from("business_email_otps")
+      .update({ verified_at: new Date().toISOString() })
+      .eq("id", row.id);
     return { ok: true };
   });
 
@@ -358,12 +479,30 @@ export const ownerApplySavedSignature = createServerFn({ method: "POST" })
     if (!q.vehicle_id || !(await ownedVehicleIds(context.userId)).includes(q.vehicle_id))
       throw new Error("Only the vehicle owner can sign the agreement.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: sig } = await supabaseAdmin.from("owner_signatures").select("signer_name, signature").eq("user_id", context.userId).maybeSingle();
+    const { data: sig } = await supabaseAdmin
+      .from("owner_signatures")
+      .select("signer_name, signature")
+      .eq("user_id", context.userId)
+      .maybeSingle();
     if (!sig?.signature) throw new Error("Create your signature first (Bookings → My signature).");
     const now = new Date().toISOString();
-    await supabaseAdmin.from("hire_quotes").update({ owner_signature: sig.signature, owner_signer_name: sig.signer_name, owner_signed_at: now, owner_signed_by: context.userId }).eq("id", q.id);
+    await supabaseAdmin
+      .from("hire_quotes")
+      .update({
+        owner_signature: sig.signature,
+        owner_signer_name: sig.signer_name,
+        owner_signed_at: now,
+        owner_signed_by: context.userId,
+      })
+      .eq("id", q.id);
     const { logAgreement, completeIfBothSigned } = await import("./agreements.server");
-    await logAgreement(q.id, context.userId, "owner_signed", { signer: sig.signer_name, kind: "saved", via: "bookings_list" }, { userAgent: null, ip: null });
+    await logAgreement(
+      q.id,
+      context.userId,
+      "owner_signed",
+      { signer: sig.signer_name, kind: "saved", via: "bookings_list" },
+      { userAgent: null, ip: null },
+    );
     await completeIfBothSigned(q.id);
     return { ok: true, already: false };
   });
@@ -374,8 +513,10 @@ export const requestHandoverDeposit = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ quoteId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const q = await loadBookingFor(context.userId, data.quoteId);
-    if (q.status !== "confirmed" || q.handed_over_at) throw new Error("This booking is not waiting for pickup.");
-    if (q.deposit_policy !== "handover" || Number(q.deposit_amount) <= 0) throw new Error("This booking has no pickup deposit.");
+    if (q.status !== "confirmed" || q.handed_over_at)
+      throw new Error("This booking is not waiting for pickup.");
+    if (q.deposit_policy !== "handover" || Number(q.deposit_amount) <= 0)
+      throw new Error("This booking has no pickup deposit.");
     if (q.deposit_requested_at) return { ok: true, already: true };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const amount = Number(q.deposit_amount);
@@ -385,7 +526,11 @@ export const requestHandoverDeposit = createServerFn({ method: "POST" })
       payment_status: "partial",
     };
     if (q.quoted_total != null) patch["quoted_total"] = Number(q.quoted_total) + amount;
-    const { error } = await supabaseAdmin.from("hire_quotes").update(patch as never).eq("id", q.id).is("deposit_requested_at", null);
+    const { error } = await supabaseAdmin
+      .from("hire_quotes")
+      .update(patch as never)
+      .eq("id", q.id)
+      .is("deposit_requested_at", null);
     if (error) throw new Error(error.message);
     const { notify } = await import("./notifications.server");
     await notify({

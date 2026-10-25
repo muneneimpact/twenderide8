@@ -1,6 +1,6 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PeriodSummary } from "@/components/PeriodSummary";
 import { getMyHirePortfolioFinance, requestHirePayout } from "@/lib/hire.functions";
 import { getBranding } from "@/lib/documents.functions";
@@ -9,13 +9,51 @@ import { buildStatementPdf, downloadPdf, type Branding } from "@/lib/pdf-docs";
 const money = (value: unknown) =>
   `KES ${Number(value ?? 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const localDay = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+const firstOfMonth = () => localDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+const dateBound = (day: string, addDay = false) => {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y!, m! - 1, d! + (addDay ? 1 : 0)).toISOString();
+};
+const displayDay = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" });
+
 export function HirePortfolioFinance() {
   const queryClient = useQueryClient();
   const financeFn = useServerFn(getMyHirePortfolioFinance);
   const requestFn = useServerFn(requestHirePayout);
+  const [period, setPeriod] = useState<"day" | "week" | "month" | "custom">("month");
+  const [customFrom, setCustomFrom] = useState(firstOfMonth);
+  const [customTo, setCustomTo] = useState(() => localDay(new Date()));
+  const range = useMemo(() => {
+    const today = new Date();
+    let from = localDay(today);
+    let through = from;
+    if (period === "week") {
+      const mondayOffset = (today.getDay() + 6) % 7;
+      from = localDay(new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset));
+    } else if (period === "month") {
+      from = firstOfMonth();
+    } else if (period === "custom") {
+      from = customFrom;
+      through = customTo;
+    }
+    const valid = Boolean(from && through && from <= through);
+    return {
+      from: valid ? dateBound(from) : dateBound(localDay(today)),
+      to: valid ? dateBound(through, true) : dateBound(localDay(today), true),
+      fromDay: valid ? from : localDay(today),
+      throughDay: valid ? through : localDay(today),
+      valid,
+    };
+  }, [period, customFrom, customTo]);
   const finance = useQuery({
-    queryKey: ["my-hire-portfolio-finance"],
-    queryFn: () => financeFn(),
+    queryKey: ["my-hire-portfolio-finance", range.from, range.to],
+    queryFn: () => financeFn({ data: { from: range.from, to: range.to } }),
     refetchInterval: 30_000,
   });
   const [amount, setAmount] = useState("");
@@ -42,6 +80,10 @@ export function HirePortfolioFinance() {
   const data = finance.data;
   const balance = data?.ownerBalance;
   const available = Number(data?.availableBalance ?? 0);
+  const rangeLabel = `${displayDay(range.fromDay)} – ${displayDay(range.throughDay)}`;
+  const maxVehicleNet = Math.max(0, ...(data?.vehicles.map((vehicle) =>
+    data.settlements.filter((row) => row.vehicleId === vehicle.id).reduce((sum, row) => sum + row.net, 0),
+  ) ?? []));
 
   return (
     <section className="surface-card p-4">
@@ -92,7 +134,20 @@ export function HirePortfolioFinance() {
           </div>
 
           <div className="mt-4">
-            <h4 className="text-xs font-semibold text-foreground">Your cars and what each earned</h4>
+            <h4 className="text-xs font-semibold text-foreground">Your cars and earnings</h4>
+            <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Earnings date range">
+              {([ ["day", "Day"], ["week", "Week"], ["month", "Month"], ["custom", "Custom"] ] as const).map(([key, label]) => (
+                <button key={key} type="button" onClick={() => setPeriod(key)} aria-pressed={period === key} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${period === key ? "bg-primary text-primary-foreground" : "border border-border text-foreground"}`}>{label}</button>
+              ))}
+            </div>
+            {period === "custom" ? (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="text-[11px] text-muted-foreground">From<input type="date" value={customFrom} max={customTo || undefined} onChange={(event) => setCustomFrom(event.target.value)} className="input-base mt-1" /></label>
+                <label className="text-[11px] text-muted-foreground">Through<input type="date" value={customTo} min={customFrom || undefined} onChange={(event) => setCustomTo(event.target.value)} className="input-base mt-1" /></label>
+              </div>
+            ) : null}
+            <p className="mt-2 text-xs font-medium text-foreground" aria-live="polite">Selected range: {rangeLabel}</p>
+            {!range.valid ? <p className="mt-1 text-xs text-destructive">Choose a valid custom date range.</p> : null}
             {data.vehicles.length === 0 ? (
               <p className="mt-2 text-xs text-muted-foreground">
                 No hire vehicles are linked to this account yet. Add or manage listings above;
@@ -118,15 +173,24 @@ export function HirePortfolioFinance() {
                         {money(vehicle.hire_daily_rate)} / day
                       </p>
                     </div>
-                    <div className="mt-2 grid grid-cols-3 gap-2 border-t border-border pt-2">
-                      <SmallMetric label="Hirers paid" value={vehicle.finance.gross_paid_total} />
-                      <SmallMetric label="Twende fee" value={vehicle.finance.platform_fee_total} />
-                      <SmallMetric label="You earned" value={vehicle.finance.owner_net_total} strong />
-                    </div>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
-                      {vehicle.finance.settlement_count} settled payment(s). Account wallet and
-                      payouts are shared across cars owned by this account.
-                    </p>
+                    {(() => {
+                      const earnings = data.settlements.filter((row) => row.vehicleId === vehicle.id);
+                      const gross = earnings.reduce((sum, row) => sum + row.gross, 0);
+                      const net = earnings.reduce((sum, row) => sum + row.net, 0);
+                      return <>
+                        <div className="mt-2 grid grid-cols-3 gap-2 border-t border-border pt-2">
+                          <SmallMetric label="Hirers paid" value={gross} />
+                          <SmallMetric label="Payments" value={earnings.length} currency={false} />
+                          <SmallMetric label="You earned" value={net} strong />
+                        </div>
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary" aria-label={`${vehicle.plate_number} earnings comparison`}>
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${maxVehicleNet > 0 ? (net / maxVehicleNet) * 100 : 0}%` }} />
+                        </div>
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          {earnings.length ? `${earnings.length} settled payment(s) in ${rangeLabel}.` : `No settled earnings for this car in ${rangeLabel}.`}
+                        </p>
+                      </>;
+                    })()}
                   </article>
                 ))}
               </div>
@@ -235,11 +299,11 @@ function WalletMetric({ label, value }: { label: string; value: unknown }) {
   );
 }
 
-function SmallMetric({ label, value, strong }: { label: string; value: unknown; strong?: boolean }) {
+function SmallMetric({ label, value, strong, currency = true }: { label: string; value: unknown; strong?: boolean; currency?: boolean }) {
   return (
     <div className={`min-w-0 ${strong ? "rounded-lg bg-primary/10 px-1.5 py-0.5" : ""}`}>
       <p className={`text-[10px] ${strong ? "font-bold text-primary" : "text-muted-foreground"}`}>{label}</p>
-      <p className={`truncate text-xs ${strong ? "font-extrabold" : "font-semibold"} text-foreground`}>{money(value)}</p>
+      <p className={`truncate text-xs ${strong ? "font-extrabold" : "font-semibold"} text-foreground`}>{currency ? money(value) : Number(value ?? 0).toLocaleString("en-KE")}</p>
     </div>
   );
 }

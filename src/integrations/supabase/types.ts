@@ -559,6 +559,9 @@ export type Database = {
           expiry_reminders_sent: string[]
           file_path: string | null
           id: string
+          insurance_coverage_details: string | null
+          insurance_policy_number: string | null
+          insurance_provider: string | null
           issued_on: string | null
           reference: string | null
           rejection_reason: string | null
@@ -577,6 +580,9 @@ export type Database = {
           expiry_reminders_sent?: string[]
           file_path?: string | null
           id?: string
+          insurance_coverage_details?: string | null
+          insurance_policy_number?: string | null
+          insurance_provider?: string | null
           issued_on?: string | null
           reference?: string | null
           rejection_reason?: string | null
@@ -595,6 +601,9 @@ export type Database = {
           expiry_reminders_sent?: string[]
           file_path?: string | null
           id?: string
+          insurance_coverage_details?: string | null
+          insurance_policy_number?: string | null
+          insurance_provider?: string | null
           issued_on?: string | null
           reference?: string | null
           rejection_reason?: string | null
@@ -1478,8 +1487,13 @@ export type Database = {
           return_deposit_kept: number | null
           return_deposit_returned: number | null
           return_excess_km_charge: number | null
+          return_excess_km_waived: boolean
           return_fuel_charge: number | null
+          return_fuel_level: string | null
+          return_fuel_missing_percent: number | null
+          return_fuel_waived: boolean
           return_km_driven: number | null
+          return_odometer: number | null
           return_notes: string | null
           return_penalties: number | null
           returned_at: string | null
@@ -1562,8 +1576,13 @@ export type Database = {
           return_deposit_kept?: number | null
           return_deposit_returned?: number | null
           return_excess_km_charge?: number | null
+          return_excess_km_waived?: boolean
           return_fuel_charge?: number | null
+          return_fuel_level?: string | null
+          return_fuel_missing_percent?: number | null
+          return_fuel_waived?: boolean
           return_km_driven?: number | null
+          return_odometer?: number | null
           return_notes?: string | null
           return_penalties?: number | null
           returned_at?: string | null
@@ -1646,8 +1665,13 @@ export type Database = {
           return_deposit_kept?: number | null
           return_deposit_returned?: number | null
           return_excess_km_charge?: number | null
+          return_excess_km_waived?: boolean
           return_fuel_charge?: number | null
+          return_fuel_level?: string | null
+          return_fuel_missing_percent?: number | null
+          return_fuel_waived?: boolean
           return_km_driven?: number | null
+          return_odometer?: number | null
           return_notes?: string | null
           return_penalties?: number | null
           returned_at?: string | null

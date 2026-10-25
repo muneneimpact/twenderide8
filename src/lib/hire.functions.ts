@@ -1618,7 +1618,10 @@ async function getHireCarSettlementTotals(vehicleIds: string[]) {
 /** Owner-facing hire wallet, car-by-car income and payout history. */
 export const getMyHirePortfolioFinance = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input) =>
+    z.object({ from: z.string().datetime(), to: z.string().datetime() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: fleets, error: fleetError } = await supabaseAdmin
       .from("fleets")
@@ -1680,16 +1683,43 @@ export const getMyHirePortfolioFinance = createServerFn({ method: "GET" })
       paid_out_total: 0,
       updated_at: null,
     };
-    const since = new Date(Date.now() - 400 * 86_400_000).toISOString();
-    const { data: settlementRows } = await supabaseAdmin
-      .from("hire_payment_settlements")
-      .select("gross_amount, owner_net_amount, created_at")
-      .eq("owner_user_id", context.userId)
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(2000);
+    const vehicleByQuote = new Map<string, string>();
+    const vehicleIds = vehicles.map((vehicle) => vehicle.id);
+    for (let start = 0; start < vehicleIds.length; start += 100) {
+      const pageIds = vehicleIds.slice(start, start + 100);
+      for (let offset = 0; ; offset += 1000) {
+        const { data: quotes, error } = await supabaseAdmin
+          .from("hire_quotes")
+          .select("id, vehicle_id")
+          .in("vehicle_id", pageIds)
+          .order("id")
+          .range(offset, offset + 999);
+        if (error) throw new Error(`Could not load hire finance bookings: ${error.message}`);
+        for (const quote of quotes ?? []) if (quote.vehicle_id) vehicleByQuote.set(quote.id, quote.vehicle_id);
+        if ((quotes ?? []).length < 1000) break;
+      }
+    }
+    const settlementRows: Array<{ hire_quote_id: string; gross_amount: number; owner_net_amount: number; created_at: string }> = [];
+    const quoteIds = [...vehicleByQuote.keys()];
+    for (let start = 0; start < quoteIds.length; start += 100) {
+      const pageIds = quoteIds.slice(start, start + 100);
+      for (let offset = 0; ; offset += 1000) {
+        const { data: rows, error } = await supabaseAdmin
+          .from("hire_payment_settlements")
+          .select("hire_quote_id, gross_amount, owner_net_amount, created_at")
+          .in("hire_quote_id", pageIds)
+          .gte("created_at", data.from)
+          .lt("created_at", data.to)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + 999);
+        if (error) throw new Error(`Could not load hire earnings: ${error.message}`);
+        settlementRows.push(...(rows ?? []));
+        if ((rows ?? []).length < 1000) break;
+      }
+    }
     return {
-      settlements: (settlementRows ?? []).map((r) => ({
+      settlements: settlementRows.map((r) => ({
+        vehicleId: vehicleByQuote.get(r.hire_quote_id) ?? "",
         gross: Number(r.gross_amount),
         net: Number(r.owner_net_amount),
         at: r.created_at,
