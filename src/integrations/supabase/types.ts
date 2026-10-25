@@ -559,6 +559,10 @@ export type Database = {
           expiry_reminders_sent: string[]
           file_path: string | null
           id: string
+          insurance_cover_type: string | null
+          insurance_coverage_details: string | null
+          insurance_policy_number: string | null
+          insurance_provider: string | null
           issued_on: string | null
           reference: string | null
           rejection_reason: string | null
@@ -577,6 +581,10 @@ export type Database = {
           expiry_reminders_sent?: string[]
           file_path?: string | null
           id?: string
+          insurance_cover_type?: string | null
+          insurance_coverage_details?: string | null
+          insurance_policy_number?: string | null
+          insurance_provider?: string | null
           issued_on?: string | null
           reference?: string | null
           rejection_reason?: string | null
@@ -595,6 +603,10 @@ export type Database = {
           expiry_reminders_sent?: string[]
           file_path?: string | null
           id?: string
+          insurance_cover_type?: string | null
+          insurance_coverage_details?: string | null
+          insurance_policy_number?: string | null
+          insurance_provider?: string | null
           issued_on?: string | null
           reference?: string | null
           rejection_reason?: string | null
@@ -1158,6 +1170,8 @@ export type Database = {
       }
       hire_offers: {
         Row: {
+          counter_note: string | null
+          counter_price: number | null
           created_at: string
           id: string
           note: string | null
@@ -1169,6 +1183,8 @@ export type Database = {
           vehicle_id: string | null
         }
         Insert: {
+          counter_note?: string | null
+          counter_price?: number | null
           created_at?: string
           id?: string
           note?: string | null
@@ -1180,6 +1196,8 @@ export type Database = {
           vehicle_id?: string | null
         }
         Update: {
+          counter_note?: string | null
+          counter_price?: number | null
           created_at?: string
           id?: string
           note?: string | null
@@ -1233,6 +1251,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      hire_owner_brands: {
+        Row: {
+          brand_name: string
+          business_info: string
+          created_at: string
+          id: string
+          logo_data_url: string | null
+          marketing_content: string
+          owner_bio: string
+          owner_user_id: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          brand_name: string
+          business_info?: string
+          created_at?: string
+          id?: string
+          logo_data_url?: string | null
+          marketing_content?: string
+          owner_bio?: string
+          owner_user_id: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          brand_name?: string
+          business_info?: string
+          created_at?: string
+          id?: string
+          logo_data_url?: string | null
+          marketing_content?: string
+          owner_bio?: string
+          owner_user_id?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hire_owner_brands_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hire_payment_settlements: {
         Row: {
@@ -1366,6 +1431,7 @@ export type Database = {
           deposit_policy: string
           deposit_requested_at: string | null
           drive_mode: string
+          duration_hours: number | null
           end_at: string | null
           estimated_total: number
           handed_over_at: string | null
@@ -1409,14 +1475,20 @@ export type Database = {
           return_deposit_kept: number | null
           return_deposit_returned: number | null
           return_excess_km_charge: number | null
+          return_excess_km_waived: boolean
           return_fuel_charge: number | null
+          return_fuel_level: string | null
+          return_fuel_missing_percent: number | null
+          return_fuel_waived: boolean
           return_km_driven: number | null
           return_notes: string | null
+          return_odometer: number | null
           return_penalties: number | null
           returned_at: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           rules_accepted_at: string | null
+          service_type: string
           start_at: string
           status: string
           stops: Json
@@ -1450,6 +1522,7 @@ export type Database = {
           deposit_policy?: string
           deposit_requested_at?: string | null
           drive_mode?: string
+          duration_hours?: number | null
           end_at?: string | null
           estimated_total?: number
           handed_over_at?: string | null
@@ -1493,14 +1566,20 @@ export type Database = {
           return_deposit_kept?: number | null
           return_deposit_returned?: number | null
           return_excess_km_charge?: number | null
+          return_excess_km_waived?: boolean
           return_fuel_charge?: number | null
+          return_fuel_level?: string | null
+          return_fuel_missing_percent?: number | null
+          return_fuel_waived?: boolean
           return_km_driven?: number | null
           return_notes?: string | null
+          return_odometer?: number | null
           return_penalties?: number | null
           returned_at?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           rules_accepted_at?: string | null
+          service_type?: string
           start_at: string
           status?: string
           stops?: Json
@@ -1534,6 +1613,7 @@ export type Database = {
           deposit_policy?: string
           deposit_requested_at?: string | null
           drive_mode?: string
+          duration_hours?: number | null
           end_at?: string | null
           estimated_total?: number
           handed_over_at?: string | null
@@ -1577,14 +1657,20 @@ export type Database = {
           return_deposit_kept?: number | null
           return_deposit_returned?: number | null
           return_excess_km_charge?: number | null
+          return_excess_km_waived?: boolean
           return_fuel_charge?: number | null
+          return_fuel_level?: string | null
+          return_fuel_missing_percent?: number | null
+          return_fuel_waived?: boolean
           return_km_driven?: number | null
           return_notes?: string | null
+          return_odometer?: number | null
           return_penalties?: number | null
           returned_at?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           rules_accepted_at?: string | null
+          service_type?: string
           start_at?: string
           status?: string
           stops?: Json
@@ -1595,6 +1681,51 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "hire_quotes_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hire_vehicle_blackouts: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          note: string
+          owner_user_id: string
+          start_date: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          note?: string
+          owner_user_id: string
+          start_date: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          note?: string
+          owner_user_id?: string
+          start_date?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hire_vehicle_blackouts_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hire_vehicle_blackouts_vehicle_id_fkey"
             columns: ["vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"
@@ -3160,6 +3291,7 @@ export type Database = {
           hire_deposit_policy: string
           hire_description: string | null
           hire_features: string | null
+          hire_hourly_available: boolean
           hire_insurance_details: string | null
           hire_insurance_type: string | null
           hire_minimum_age: number | null
@@ -3198,6 +3330,7 @@ export type Database = {
           hire_deposit_policy?: string
           hire_description?: string | null
           hire_features?: string | null
+          hire_hourly_available?: boolean
           hire_insurance_details?: string | null
           hire_insurance_type?: string | null
           hire_minimum_age?: number | null
@@ -3236,6 +3369,7 @@ export type Database = {
           hire_deposit_policy?: string
           hire_description?: string | null
           hire_features?: string | null
+          hire_hourly_available?: boolean
           hire_insurance_details?: string | null
           hire_insurance_type?: string | null
           hire_minimum_age?: number | null
