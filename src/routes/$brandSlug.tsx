@@ -183,7 +183,7 @@ function HireBrandPage() {
               <button type="button" onClick={() => setFleetFilter("all")} className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground">Show all cars</button>
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
               {filteredVehicles.map((vehicle) => {
                 const available = nextAvailableLabel(vehicle.bookings, new Date());
                 const photo = vehicle.photo_links[0] ?? null;
@@ -196,7 +196,7 @@ function HireBrandPage() {
                 return (
                   <article
                     key={vehicle.id}
-                    className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    className="min-w-0 overflow-hidden rounded-xl border border-border bg-card shadow-sm sm:rounded-2xl"
                   >
                     <Link
                       to="/cars/$carId"
@@ -210,67 +210,67 @@ function HireBrandPage() {
                           src={photo}
                           alt={`${vehicle.make ?? "Hire car"} ${vehicle.model ?? ""}`}
                           loading="lazy"
-                          className="aspect-[16/10] w-full object-cover"
+                          className="aspect-[4/3] w-full object-cover sm:aspect-[16/10]"
                         />
                       ) : (
-                        <div className="grid aspect-[16/10] place-items-center bg-secondary text-sm text-muted-foreground">
+                        <div className="grid aspect-[4/3] place-items-center bg-secondary text-[10px] text-muted-foreground sm:aspect-[16/10] sm:text-sm">
                           Photos coming soon
                         </div>
                       )}
                     </Link>
-                    <div className="space-y-3 p-4">
+                    <div className="space-y-1.5 p-2 sm:space-y-3 sm:p-4">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="min-w-0 font-display text-base font-bold text-foreground">
+                        <h3 className="min-w-0 truncate font-display text-xs font-bold text-foreground sm:text-base">
                           {[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Hire car"}
                           {vehicle.year ? (
-                            <span className="ml-1 text-sm font-medium text-muted-foreground">
+                            <span className="ml-0.5 text-[10px] font-medium text-muted-foreground sm:ml-1 sm:text-sm">
                               ({vehicle.year})
                             </span>
                           ) : null}
                         </h3>
-                        <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">
-                          {available.label}
+                        <span className="max-w-[45%] shrink-0 truncate rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] font-bold text-primary sm:max-w-none sm:px-2.5 sm:py-1 sm:text-[10px]">
+                          {available.today ? "Available" : available.label}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                      <div className="flex flex-wrap gap-x-2 gap-y-1 text-[9px] text-muted-foreground sm:gap-x-3 sm:text-[11px]">
                         {vehicle.seats ? (
                           <span className="inline-flex items-center gap-1">
-                            <Users className="h-3.5 w-3.5" />
+                            <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                             {vehicle.seats} seats
                           </span>
                         ) : null}
                         <span className="inline-flex items-center gap-1">
-                          <CarFront className="h-3.5 w-3.5" />
+                          <CarFront className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                           {mode}
                         </span>
                         {vehicle.colour ? <span>{vehicle.colour}</span> : null}
                         {vehicle.hire_hourly_available ? (
-                          <span className="rounded-full bg-accent/15 px-2 py-0.5 font-semibold text-accent-foreground">Hourly offers</span>
+                          <span className="rounded-full bg-accent/15 px-1.5 py-0.5 font-semibold text-accent-foreground sm:px-2">Hourly</span>
                         ) : null}
                       </div>
                       {vehicle.hire_description ? (
-                        <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+                        <p className="hidden line-clamp-3 text-xs leading-relaxed text-muted-foreground sm:block">
                           {vehicle.hire_description}
                         </p>
                       ) : null}
-                      <div className="flex items-center justify-between border-t border-border pt-3">
-                        <p className="font-display text-lg font-extrabold text-foreground">
+                      <div className="flex items-center justify-between gap-1 border-t border-border pt-1.5 sm:pt-3">
+                        <p className="font-display text-xs font-extrabold text-foreground sm:text-lg">
                           KES {Math.round(vehicle.day_rate).toLocaleString("en-KE")}
-                          <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                          <span className="ml-0.5 text-[8px] font-normal text-muted-foreground sm:ml-1 sm:text-[10px]">
                             / day
                           </span>
                         </p>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                        <span className="hidden items-center gap-1 text-[10px] font-semibold text-muted-foreground sm:inline-flex">
                           <CalendarCheck className="h-3.5 w-3.5" /> Check dates
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 sm:gap-2">
                         <Link
                           to="/cars/$carId"
                           params={{ carId: vehicle.id }}
                           search={{ owner: brand.slug }}
                           onClick={() => rememberHireVehicle(vehicle.id)}
-                          className="rounded-full border border-input px-3 py-2 text-center text-xs font-semibold text-foreground"
+                          className="hidden rounded-full border border-input px-3 py-2 text-center text-xs font-semibold text-foreground sm:block"
                         >
                           Car details
                         </Link>
@@ -279,7 +279,7 @@ function HireBrandPage() {
                             to="/hire"
                             search={{ owner: brand.slug, vehicle: vehicle.id }}
                             onClick={() => rememberHireVehicle(vehicle.id)}
-                            className="rounded-full bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground"
+                            className="rounded-full bg-primary px-1.5 py-1.5 text-center text-[10px] font-semibold text-primary-foreground sm:px-3 sm:py-2 sm:text-xs"
                           >
                             Choose dates
                           </Link>
@@ -288,7 +288,7 @@ function HireBrandPage() {
                             to="/auth"
                             search={{ redirect: `/hire?owner=${encodeURIComponent(brand.slug)}&vehicle=${encodeURIComponent(vehicle.id)}` }}
                             onClick={() => rememberHireVehicle(vehicle.id)}
-                            className="rounded-full bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground"
+                            className="rounded-full bg-primary px-1.5 py-1.5 text-center text-[10px] font-semibold text-primary-foreground sm:px-3 sm:py-2 sm:text-xs"
                           >
                             Sign in to book
                           </Link>
