@@ -1262,7 +1262,6 @@ export type Database = {
           marketing_content: string
           owner_bio: string
           owner_user_id: string
-          profile_type: string
           slug: string
           updated_at: string
         }
@@ -1275,7 +1274,6 @@ export type Database = {
           marketing_content?: string
           owner_bio?: string
           owner_user_id: string
-          profile_type?: string
           slug: string
           updated_at?: string
         }
@@ -1288,7 +1286,6 @@ export type Database = {
           marketing_content?: string
           owner_bio?: string
           owner_user_id?: string
-          profile_type?: string
           slug?: string
           updated_at?: string
         }
