@@ -92,6 +92,20 @@
       "when": 1792878264867,
       "tag": "0012_compliance_tables_persist",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792924938537,
+      "tag": "0013_apply_owner_pages_wiring",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792924988637,
+      "tag": "0014_owner_brand_pages_returns_insurance_hourly",
+      "breakpoints": true
     }
   ]
 }
