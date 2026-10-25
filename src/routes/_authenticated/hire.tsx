@@ -3,7 +3,7 @@ import { PaymentProgressCard, type PayState } from "@/components/PaymentProgress
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import type { DateRange } from "react-day-picker";
 import { CorporateHireTerms, type CorporateTerms } from "@/components/CorporateHireTerms";
@@ -34,7 +34,7 @@ const KYC_SLOTS: Array<{ kind: KycKind; label: string }> = [
 ];
 
 export const Route = createFileRoute("/_authenticated/hire")({
-  validateSearch: z.object({ owner: z.string().optional() }),
+  validateSearch: z.object({ owner: z.string().optional(), vehicle: z.string().optional() }),
   head: () => ({
     meta: [
       { title: "Hire a car in Meru | Twende Meru Rides" },
@@ -186,7 +186,7 @@ function insuranceLabel(value: string | null) {
 }
 
 function HirePage() {
-  const { owner: ownerSlug } = Route.useSearch();
+  const { owner: ownerSlug, vehicle: preselectedVehicleId } = Route.useSearch();
   const queryClient = useQueryClient();
   const submitFn = useServerFn(submitHireQuote);
   const savedDocsFn = useServerFn(getMyHireDocuments);
@@ -224,6 +224,7 @@ function HirePage() {
   const [tab, setTab] = useState<"self_drive" | "chauffeured">("self_drive");
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const prefilledVehicle = useRef<string | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [bookingStep, setBookingStep] = useState<"browse" | "details">("browse");
   const [servicePeriod, setServicePeriod] = useState<"daily" | "hourly">("daily");
@@ -339,11 +340,22 @@ function HirePage() {
     return loaded.filter((vehicle) => ownerVehicleIds.has(vehicle.id));
   }, [ownerBrand.data, ownerSlug, vehicles.data]);
   useEffect(() => {
-    const remembered = readRememberedHireVehicle();
-    if (!remembered || !all.some((vehicle) => vehicle.id === remembered)) return;
-    setVehicleId((current) => current ?? remembered);
+    const requestedVehicleId = preselectedVehicleId ?? readRememberedHireVehicle();
+    if (!requestedVehicleId || prefilledVehicle.current === requestedVehicleId) return;
+    if (vehicles.isPending || (Boolean(ownerSlug) && ownerBrand.isPending)) return;
+    const requestedVehicle = all.find((vehicle) => vehicle.id === requestedVehicleId);
+    prefilledVehicle.current = requestedVehicleId;
     clearRememberedHireVehicle();
-  }, [all]);
+    if (!requestedVehicle) {
+      setMessage("The selected car is no longer available on this owner page. Choose another car to continue.");
+      return;
+    }
+    setVehicleId(requestedVehicleId);
+    setTab(requestedVehicle.hire_mode === "chauffeured" ? "chauffeured" : "self_drive");
+    setOpenId(requestedVehicleId);
+    setBookingStep("browse");
+    setMessage(null);
+  }, [all, ownerBrand.isPending, ownerSlug, preselectedVehicleId, vehicles.isPending]);
   const makes = useMemo(
     () => [...new Set(all.map((v) => v.make).filter(Boolean))] as string[],
     [all],

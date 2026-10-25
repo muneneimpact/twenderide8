@@ -277,7 +277,7 @@ function HireBrandPage() {
                         {signedIn ? (
                           <Link
                             to="/hire"
-                            search={{ owner: brand.slug }}
+                            search={{ owner: brand.slug, vehicle: vehicle.id }}
                             onClick={() => rememberHireVehicle(vehicle.id)}
                             className="rounded-full bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground"
                           >
@@ -286,7 +286,7 @@ function HireBrandPage() {
                         ) : (
                           <Link
                             to="/auth"
-                            search={{ redirect: `/hire?owner=${brand.slug}` }}
+                            search={{ redirect: `/hire?owner=${encodeURIComponent(brand.slug)}&vehicle=${encodeURIComponent(vehicle.id)}` }}
                             onClick={() => rememberHireVehicle(vehicle.id)}
                             className="rounded-full bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground"
                           >

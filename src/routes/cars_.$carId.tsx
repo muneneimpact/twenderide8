@@ -137,7 +137,19 @@ function CarDetail() {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <p className="font-bold">{fmt(car.day_rate)} <span className="text-xs font-normal text-muted-foreground">/ day</span></p>
           <Button asChild size="lg">
-            {signedIn ? <Link to="/hire" search={{ owner }} onClick={() => rememberHireVehicle(car.id)}>Book this car</Link> : <Link to="/auth" search={{ redirect: owner ? `/hire?owner=${owner}` : "/hire" }} onClick={() => rememberHireVehicle(car.id)}>Sign in to book</Link>}
+            {signedIn ? (
+              <Link to="/hire" search={{ owner, vehicle: car.id }} onClick={() => rememberHireVehicle(car.id)}>
+                Book this car
+              </Link>
+            ) : (
+              <Link
+                to="/auth"
+                search={{ redirect: `/hire?${owner ? `owner=${encodeURIComponent(owner)}&` : ""}vehicle=${encodeURIComponent(car.id)}` }}
+                onClick={() => rememberHireVehicle(car.id)}
+              >
+                Sign in to book
+              </Link>
+            )}
           </Button>
         </div>
       </div>
