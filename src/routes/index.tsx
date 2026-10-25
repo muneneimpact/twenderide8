@@ -120,7 +120,7 @@ function HomePage() {
           <InstallPrompt showOnHome inline />
         </div>
 
-        <p className="mt-3 hidden text-center text-xs text-muted-foreground sm:mt-6 sm:block lg:mt-4">
+        <p className="mt-3 text-center text-xs text-muted-foreground sm:mt-6 lg:mt-4">
           Already have an account?{" "}
           <Link to="/auth" search={{ redirect: "/book" }} className="font-semibold text-primary">
             Sign in
