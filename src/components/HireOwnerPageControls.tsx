@@ -9,6 +9,7 @@ import {
   listMyVehicles,
   saveMyHireBrand,
 } from "@/lib/hire.functions";
+import { generateHireOwnerMarketingCopy } from "@/lib/hire-marketing.functions";
 
 type BrandForm = {
   profileType: "person" | "company";
@@ -53,12 +54,14 @@ export function HireOwnerBrandCard() {
   const getFn = useServerFn(getMyHireBrand);
   const saveFn = useServerFn(saveMyHireBrand);
   const vehiclesFn = useServerFn(listMyVehicles);
+  const generateFn = useServerFn(generateHireOwnerMarketingCopy);
   const brand = useQuery({ queryKey: ["my-hire-brand"], queryFn: () => getFn() });
   const vehicles = useQuery({ queryKey: ["my-vehicles"], queryFn: () => vehiclesFn() });
   const [form, setForm] = useState<BrandForm>(emptyBrand);
   const [origin, setOrigin] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyFocus, setCopyFocus] = useState<"executive" | "family" | "value" | "safari">("value");
 
   useEffect(() => setOrigin(window.location.origin), []);
   useEffect(() => {
@@ -96,6 +99,37 @@ export function HireOwnerBrandCard() {
         businessInfo: saved.business_info,
         marketingContent: saved.marketing_content,
       });
+    },
+    onError: (error) => setMessage((error as Error).message),
+  });
+
+  const generateCopy = useMutation({
+    mutationFn: async () => {
+      const vehicle = vehicles.data?.find((item) => item.status === "approved") ?? vehicles.data?.[0];
+      if (!vehicle) throw new Error("Add a hire vehicle before generating marketing copy.");
+      return generateFn({
+        data: {
+          brandName: form.brandName,
+          ownerBio: form.ownerBio,
+          businessInfo: form.businessInfo,
+          focus: copyFocus,
+          vehicle: {
+            make: vehicle.make,
+            model: vehicle.model,
+            seats: vehicle.seats,
+            dailyRate: vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate),
+            hireMode: (vehicle.hire_mode ?? "both") as "self_drive" | "chauffeured" | "both",
+            features: vehicle.hire_features,
+          },
+        },
+      });
+    },
+    onSuccess: (copy) => {
+      setForm((current) => ({
+        ...current,
+        marketingContent: `${copy.headline}\n\n${copy.intro}\n\n${copy.highlights.map((item) => `• ${item}`).join("\n")}`,
+      }));
+      setMessage("AI copy applied. Review it, then save your brand page.");
     },
     onError: (error) => setMessage((error as Error).message),
   });
@@ -356,6 +390,23 @@ export function HireOwnerBrandCard() {
               className="input-base mt-1"
             />
           </label>
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold text-foreground">Generate copy with AI</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">Uses your brand details and approved vehicle context. Review before saving.</p>
+              </div>
+              <select value={copyFocus} onChange={(event) => setCopyFocus(event.target.value as typeof copyFocus)} className="input-base w-auto text-xs">
+                <option value="executive">Executive / corporate</option>
+                <option value="family">Family trips</option>
+                <option value="value">Budget & transparent</option>
+                <option value="safari">Safari / rugged 4x4</option>
+              </select>
+            </div>
+            <button type="button" onClick={() => generateCopy.mutate()} disabled={generateCopy.isPending || vehicles.isPending} className="mt-2 rounded-full border border-primary/30 px-3 py-1.5 text-xs font-semibold text-primary disabled:opacity-50">
+              {generateCopy.isPending ? "Generating…" : "Generate and apply to marketing content"}
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => {

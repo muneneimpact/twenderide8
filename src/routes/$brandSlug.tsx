@@ -1,7 +1,10 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowDown, ArrowRight, CalendarCheck, CarFront, MapPin, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { getPublicHireBrand } from "@/lib/hire.functions";
+import { submitPublicHireInquiry } from "@/lib/hire-marketing.functions";
 import { nextAvailableLabel } from "@/lib/next-available";
 import { rememberHireVehicle } from "@/lib/hire-selection";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,6 +54,20 @@ function HireBrandPage() {
   const { brand, owner, vehicles } = Route.useLoaderData();
   const [signedIn, setSignedIn] = useState(false);
   const [fleetFilter, setFleetFilter] = useState<"all" | "self_drive" | "chauffeured" | "hourly">("all");
+  const [inquiryVehicleId, setInquiryVehicleId] = useState<string | null>(null);
+  const [inquiryName, setInquiryName] = useState("");
+  const [inquiryPhone, setInquiryPhone] = useState("");
+  const [inquiryEmail, setInquiryEmail] = useState("");
+  const [inquiryService, setInquiryService] = useState<"self_drive" | "chauffeured" | "hourly" | "general">("general");
+  const [inquiryDates, setInquiryDates] = useState("");
+  const [inquiryMessage, setInquiryMessage] = useState("");
+  const submitInquiryFn = useServerFn(submitPublicHireInquiry);
+  const inquiry = useMutation({
+    mutationFn: () => submitInquiryFn({ data: { slug: brand.slug, customerName: inquiryName, customerPhone: inquiryPhone, customerEmail: inquiryEmail, vehicleId: inquiryVehicleId, serviceType: inquiryService, datesNote: inquiryDates, message: inquiryMessage } }),
+    onSuccess: () => {
+      setInquiryName(""); setInquiryPhone(""); setInquiryEmail(""); setInquiryDates(""); setInquiryMessage("");
+    },
+  });
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => setSignedIn(Boolean(data.session)));
   }, []);
@@ -294,6 +311,13 @@ function HireBrandPage() {
                           </Link>
                         )}
                       </div>
+                      <a
+                        href="#owner-contact"
+                        onClick={() => setInquiryVehicleId(vehicle.id)}
+                        className="block rounded-full border border-primary/30 px-3 py-2 text-center text-[10px] font-semibold text-primary sm:text-xs"
+                      >
+                        Ask about this car
+                      </a>
                     </div>
                   </article>
                 );
@@ -347,6 +371,32 @@ function HireBrandPage() {
               </p>
             </section>
           ) : null}
+          <section id="owner-contact" className="scroll-mt-5 rounded-2xl border border-primary/20 bg-card p-4 sm:p-5">
+            <h2 className="font-display text-base font-bold text-foreground">Contact the owner</h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Ask about a car, wedding hire, corporate travel, long-term hire, or a trip outside the county. No sign-in required.</p>
+            <div className="mt-3 space-y-2.5">
+              <input value={inquiryName} onChange={(event) => setInquiryName(event.target.value)} placeholder="Your name *" className="input-base" />
+              <input value={inquiryPhone} onChange={(event) => setInquiryPhone(event.target.value.replace(/\s/g, ""))} placeholder="Kenyan phone: 0712345678 or +254712345678 *" className="input-base" />
+              <input type="email" value={inquiryEmail} onChange={(event) => setInquiryEmail(event.target.value)} placeholder="Email (optional)" className="input-base" />
+              <select value={inquiryVehicleId ?? ""} onChange={(event) => setInquiryVehicleId(event.target.value || null)} className="input-base">
+                <option value="">Any available car</option>
+                {vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Hire car"}</option>)}
+              </select>
+              <select value={inquiryService} onChange={(event) => setInquiryService(event.target.value as typeof inquiryService)} className="input-base">
+                <option value="general">General question</option>
+                <option value="self_drive">Self-drive</option>
+                <option value="chauffeured">With driver</option>
+                <option value="hourly">Hourly hire</option>
+              </select>
+              <input value={inquiryDates} onChange={(event) => setInquiryDates(event.target.value)} placeholder="Desired dates or timing (optional)" className="input-base" />
+              <textarea value={inquiryMessage} onChange={(event) => setInquiryMessage(event.target.value)} placeholder="What would you like to ask? *" rows={4} className="input-base" />
+              <button type="button" onClick={() => inquiry.mutate()} disabled={inquiry.isPending} className="w-full rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+                {inquiry.isPending ? "Sending…" : "Send inquiry"}
+              </button>
+              {inquiry.isSuccess ? <p role="status" className="text-xs text-success">Inquiry sent! The owner has received your request and will contact you via phone or WhatsApp.</p> : null}
+              {inquiry.isError ? <p role="alert" className="text-xs text-destructive">{(inquiry.error as Error).message}</p> : null}
+            </div>
+          </section>
           <section className="rounded-2xl border border-primary/15 bg-primary/5 p-4 sm:p-5">
             <h2 className="font-display text-base font-bold text-foreground">How to book</h2>
             <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
