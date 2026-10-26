@@ -31,10 +31,10 @@ async function gatewayErrorReason(response: Response) {
   }
   const record = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const nested =
-    record.error && typeof record.error === "object"
-      ? (record.error as Record<string, unknown>)
+    record["error"] && typeof record["error"] === "object"
+      ? (record["error"] as Record<string, unknown>)
       : record;
-  const message = typeof nested.message === "string" ? nested.message.trim() : "";
+  const message = typeof nested["message"] === "string" ? nested["message"].trim() : "";
   if (!message || message.length > 300) return "";
   return message;
 }
