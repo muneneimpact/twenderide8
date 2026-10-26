@@ -427,7 +427,9 @@ export function HireOwnerBrandCard() {
       {message ? (
         <p
           role="status"
-          className={`mt-2 text-xs ${save.isError ? "text-destructive" : "text-muted-foreground"}`}
+          className={`mt-2 text-xs ${
+            save.isError || generateCopy.isError ? "text-destructive" : "text-muted-foreground"
+          }`}
         >
           {message}
         </p>
