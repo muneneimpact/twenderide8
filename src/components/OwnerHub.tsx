@@ -12,13 +12,16 @@ import { OwnerSignatureSettings } from "@/components/OwnerSignatureSettings";
 import { HireOwnerBrandCard } from "@/components/HireOwnerPageControls";
 import { VehicleTeamBoard } from "@/components/VehicleTeamBoard";
 import { useMe } from "@/hooks/useMe";
-
-type Section = "overview" | "vehicles" | "bookings" | "earnings" | "marketing" | "documents" | "lost-found";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { createOwnerPromotion, listOwnerCustomers, listOwnerPromotions } from "@/lib/owner-rewards.functions";
+type Section = "overview" | "vehicles" | "bookings" | "customers" | "earnings" | "marketing" | "documents" | "lost-found";
 
 const sections: Array<{ key: Section; label: string }> = [
   { key: "overview", label: "Overview" },
   { key: "vehicles", label: "Cars" },
   { key: "bookings", label: "Bookings" },
+  { key: "customers", label: "Customers & promos" },
   { key: "earnings", label: "Earnings" },
   { key: "marketing", label: "Marketing" },
   { key: "documents", label: "Documents" },
@@ -27,6 +30,21 @@ const sections: Array<{ key: Section; label: string }> = [
 
 export function OwnerHub() {
   const { me } = useMe();
+  const queryClient = useQueryClient();
+  const customersFn = useServerFn(listOwnerCustomers);
+  const promotionsFn = useServerFn(listOwnerPromotions);
+  const createPromotionFn = useServerFn(createOwnerPromotion);
+  const customers = useQuery({ queryKey: ["owner-customers"], queryFn: () => customersFn() });
+  const promotions = useQuery({ queryKey: ["owner-promotions"], queryFn: () => promotionsFn() });
+  const [promoTitle, setPromoTitle] = useState("");
+  const [promoDescription, setPromoDescription] = useState("");
+  const [promoDiscount, setPromoDiscount] = useState("0");
+  const [promoPoints, setPromoPoints] = useState("1");
+  const [promoMerchandise, setPromoMerchandise] = useState("");
+  const createPromotion = useMutation({
+    mutationFn: () => createPromotionFn({ data: { title: promoTitle, description: promoDescription, discountPercent: Number(promoDiscount), rewardPoints: Number(promoPoints), merchandise: promoMerchandise || undefined } }),
+    onSuccess: () => { setPromoTitle(""); setPromoDescription(""); setPromoDiscount("0"); setPromoPoints("1"); setPromoMerchandise(""); void queryClient.invalidateQueries({ queryKey: ["owner-promotions"] }); },
+  });
   const [section, setSection] = useState<Section>("overview");
   const profile = me?.profile as { full_name?: string | null } | null | undefined;
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] || "Owner";
@@ -142,6 +160,23 @@ export function OwnerHub() {
             <OwnerHireBookings />
             <OwnerSignatureSettings />
             <HireRequestsBoard />
+          </div>
+        ) : null}
+
+        {section === "customers" ? (
+          <div className="space-y-4">
+            <section className="surface-card p-4">
+              <h2 className="font-display text-lg font-bold text-foreground">Your customers</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Customers earn one point for each eligible paid hire from your cars. Points are calculated from confirmed bookings.</p>
+              {customers.data?.length ? <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-border text-muted-foreground"><th className="py-2">Customer</th><th className="py-2">Hires</th><th className="py-2">Points</th><th className="py-2">Last hire</th></tr></thead><tbody>{customers.data.map((customer) => <tr key={customer.id} className="border-b border-border/60"><td className="py-2.5 font-semibold text-foreground">{customer.name}<span className="block text-[10px] font-normal text-muted-foreground">{customer.phone ?? customer.email ?? ""}</span></td><td className="py-2.5 text-foreground">{customer.hires}</td><td className="py-2.5 font-bold text-primary">{customer.points}</td><td className="py-2.5 text-muted-foreground">{customer.lastHireAt ? new Date(customer.lastHireAt).toLocaleDateString("en-KE") : "—"}</td></tr>)}</tbody></table></div> : <p className="mt-3 text-xs text-muted-foreground">Your customer points list will appear after eligible hires.</p>}
+            </section>
+            <section className="surface-card p-4">
+              <h2 className="font-display text-lg font-bold text-foreground">Discounts and merchandise promos</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Create an offer for your customer community. Customers will see that the promo comes from your owner page.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2"><input value={promoTitle} onChange={(e) => setPromoTitle(e.target.value)} placeholder="Promo title" className="input-base" /><input value={promoMerchandise} onChange={(e) => setPromoMerchandise(e.target.value)} placeholder="Merchandise reward (optional)" className="input-base" /><textarea value={promoDescription} onChange={(e) => setPromoDescription(e.target.value)} placeholder="Explain the offer" rows={3} className="input-base sm:col-span-2" /><input type="number" min="0" max="100" value={promoDiscount} onChange={(e) => setPromoDiscount(e.target.value)} placeholder="Discount %" className="input-base" /><input type="number" min="0" value={promoPoints} onChange={(e) => setPromoPoints(e.target.value)} placeholder="Points required" className="input-base" /></div>
+              <button type="button" onClick={() => createPromotion.mutate()} disabled={!promoTitle.trim() || !promoDescription.trim() || createPromotion.isPending} className="mt-3 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{createPromotion.isPending ? "Saving…" : "Publish promo"}</button>
+              {promotions.data?.length ? <div className="mt-4 space-y-2">{promotions.data.map((promo: { id: string; title: string; description: string; status: string; discount_percent: number; reward_points: number; merchandise: string | null }) => <div key={promo.id} className="rounded-xl border border-border p-3"><div className="flex justify-between gap-2"><p className="text-sm font-semibold text-foreground">{promo.title}</p><span className="text-xs text-primary">{promo.status}</span></div><p className="mt-1 text-xs text-muted-foreground">{promo.description}</p><p className="mt-1 text-[11px] font-semibold text-primary">{Number(promo.discount_percent)}% discount · {promo.reward_points} points{promo.merchandise ? ` · ${promo.merchandise}` : ""}</p></div>)}</div> : null}
+            </section>
           </div>
         ) : null}
 

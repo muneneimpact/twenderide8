@@ -51,7 +51,9 @@ export const Route = createFileRoute("/$brandSlug")({
 });
 
 function HireBrandPage() {
-  const { brand, owner, vehicles } = Route.useLoaderData();
+  const loader = Route.useLoaderData();
+  const { brand, owner, vehicles } = loader;
+  const promotions = (loader as typeof loader & { promotions?: Array<{ id: string; title: string; description: string; reward_points: number; discount_percent: number; merchandise: string | null }> }).promotions ?? [];
   const [signedIn, setSignedIn] = useState(false);
   const [fleetFilter, setFleetFilter] = useState<"all" | "self_drive" | "chauffeured" | "hourly">("all");
   useEffect(() => {
@@ -314,6 +316,7 @@ function HireBrandPage() {
         </section>
 
         <aside className="space-y-4">
+          {promotions.length ? <section className="rounded-2xl border border-primary/25 bg-primary/5 p-4 sm:p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">From {brand.brand_name}</p><h2 className="mt-1 font-display text-base font-bold text-foreground">Customer promos</h2><div className="mt-3 space-y-2">{promotions.map((promo: { id: string; title: string; description: string; reward_points: number; discount_percent: number; merchandise: string | null }) => <div key={promo.id} className="rounded-xl border border-border bg-card p-3"><p className="text-sm font-semibold text-foreground">{promo.title}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{promo.description}</p><p className="mt-1 text-[11px] font-bold text-primary">{Number(promo.discount_percent) > 0 ? `${Number(promo.discount_percent)}% discount · ` : ""}{promo.reward_points} points{promo.merchandise ? ` · ${promo.merchandise}` : ""}</p></div>)}</div></section> : null}
           {brand.owner_bio || isCompany ? (
             <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
               <h2 className="font-display text-base font-bold text-foreground">{isCompany ? "About the company" : "Meet the owner"}</h2>
@@ -351,7 +354,7 @@ function HireBrandPage() {
               <h2 className="font-display text-base font-bold text-foreground">Trusted brand experience</h2>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">This owner has permission to show these brands, approved by Twende.</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {trustedBrands.map((name) => <span key={name} className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">{name}</span>)}
+                {trustedBrands.map((name: string) => <span key={name} className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">{name}</span>)}
               </div>
             </section>
           ) : null}

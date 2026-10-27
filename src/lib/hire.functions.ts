@@ -371,6 +371,14 @@ export const getPublicHireBrand = createServerFn({ method: "GET" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!brand) return null;
+    const { data: promotions } = await (supabaseAdmin as any)
+      .from("hire_owner_promotions")
+      .select("id, title, description, reward_points, discount_percent, merchandise, expires_at")
+      .eq("owner_user_id", brand.owner_user_id)
+      .eq("status", "active")
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order("created_at", { ascending: false })
+      .limit(3);
     const [{ data: profile }, { data: fleets }, { data: trustedBrands }, available] = await Promise.all([
       supabaseAdmin
         .from("profiles")
@@ -430,6 +438,7 @@ export const getPublicHireBrand = createServerFn({ method: "GET" })
         profile_type: brand.profile_type,
       },
       trusted_brands: (trustedBrands ?? []).map((row: { brand_name: string }) => row.brand_name),
+      promotions: promotions ?? [],
       owner: {
         full_name: profile?.full_name ?? null,
         avatar_url: profile?.avatar_url ?? null,
