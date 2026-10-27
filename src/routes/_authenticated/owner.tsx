@@ -11,6 +11,8 @@ export const Route = createFileRoute("/_authenticated/owner")({
           "Manage your hire cars, bookings, earnings, storefront and tracked owner marketing links with Twende.",
       },
       { property: "og:title", content: "Owner Hub — Twende Meru Rides" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       {
         property: "og:description",
         content: "Your Twende owner workspace for car hire operations and marketing.",

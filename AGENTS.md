@@ -17,3 +17,4 @@
 - Dispatch order uses rankByEtaAndRating (src/lib/dispatch-rank.ts): ETA first, rating as a small tie-break bonus — closeness must stay dominant.
 - Lost & found photos live privately in driver-documents/lost-found/; never return them or driver descriptions to passengers (blind claim).
 - Company detail autosaves use the shared company-profile schema and authenticated account storage; serialize saves and preserve newer edits so refetches cannot overwrite typing.
+- Brand photos are resized in the browser before account saving so camera uploads fit the existing server payload limits and remain persistent.

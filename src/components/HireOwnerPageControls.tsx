@@ -2,6 +2,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { Button } from "@/components/ui/button";
+import { prepareBrandImage } from "@/lib/brand-image";
 import { CheckCircle2, Circle, Copy, Download, Globe, Palette, QrCode, Sparkles, Trash2, Upload } from "lucide-react";
 import {
   createOfflineHire,
@@ -127,6 +129,7 @@ export function HireOwnerBrandCard() {
   const [copyFocus, setCopyFocus] = useState<"executive" | "family" | "value" | "safari">("value");
   const [trustedBrandName, setTrustedBrandName] = useState("");
   const [permissionConfirmed, setPermissionConfirmed] = useState(false);
+  const [preparingImage, setPreparingImage] = useState(false);
 
   useEffect(() => setOrigin(window.location.origin), []);
   useEffect(() => {
@@ -245,45 +248,19 @@ export function HireOwnerBrandCard() {
     { label: "Name and personalise your storefront", detail: "Add a brand name; a logo, owner introduction, service area and promotion help customers choose you.", done: hasBrandName && hasMarketingContent },
     { label: "Save and share your unique page", detail: "Create the page to generate its public brand-name link.", done: Boolean(shareUrl) },
   ];
-  const selectLogo = (file?: File) => {
+  const selectImage = async (kind: "logo" | "cover", file?: File) => {
     if (!file) return;
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      setMessage("Choose a PNG, JPG or WebP logo image.");
-      return;
+    setPreparingImage(true);
+    setMessage("Preparing photo…");
+    try {
+      const result = await prepareBrandImage(file, kind);
+      setForm((current) => ({ ...current, [kind === "cover" ? "coverImageDataUrl" : "logoDataUrl"]: result }));
+      setMessage("Photo ready. Save your brand page to keep it.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not prepare that photo.");
+    } finally {
+      setPreparingImage(false);
     }
-    if (file.size > 300 * 1024) {
-      setMessage("Keep the logo image under 300 KB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setForm((current) => ({ ...current, logoDataUrl: reader.result as string }));
-        setMessage(null);
-      }
-    };
-    reader.onerror = () => setMessage("Could not read that logo image. Please try again.");
-    reader.readAsDataURL(file);
-  };
-  const selectCover = (file?: File) => {
-    if (!file) return;
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      setMessage("Choose a PNG, JPG or WebP cover image.");
-      return;
-    }
-    if (file.size > 500 * 1024) {
-      setMessage("Keep the cover image under 500 KB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setForm((current) => ({ ...current, coverImageDataUrl: reader.result as string }));
-        setMessage(null);
-      }
-    };
-    reader.onerror = () => setMessage("Could not read that cover image. Please try again.");
-    reader.readAsDataURL(file);
   };
 
   return (
@@ -439,7 +416,8 @@ export function HireOwnerBrandCard() {
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 className="hidden"
-                onChange={(event) => selectLogo(event.target.files?.[0])}
+                disabled={preparingImage || save.isPending}
+                onChange={(event) => { void selectImage("logo", event.target.files?.[0]); event.target.value = ""; }}
               />
             </label>
             {form.logoDataUrl ? (
@@ -451,7 +429,7 @@ export function HireOwnerBrandCard() {
                 Remove logo
               </button>
             ) : null}
-            <span className="text-[10px] text-muted-foreground">PNG/JPG/WebP · max 300 KB</span>
+            <span className="text-[10px] text-muted-foreground">PNG / JPG / WebP</span>
           </div>
 
           <div className="grid gap-3 rounded-2xl border border-border bg-background p-3 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -467,7 +445,7 @@ export function HireOwnerBrandCard() {
               {form.coverImageDataUrl ? <img src={form.coverImageDataUrl} alt="Storefront cover preview" className="h-14 w-24 rounded-xl object-cover" /> : null}
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-input px-3 py-2 text-xs font-semibold text-foreground">
                 <Upload className="h-3.5 w-3.5" /> {form.coverImageDataUrl ? "Change cover" : "Add cover"}
-                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => selectCover(event.target.files?.[0])} />
+                <input aria-label="Cover image" type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={preparingImage || save.isPending} onChange={(event) => { void selectImage("cover", event.target.files?.[0]); event.target.value = ""; }} />
               </label>
               {form.coverImageDataUrl ? <button type="button" className="text-xs font-medium text-destructive" onClick={() => setForm((current) => ({ ...current, coverImageDataUrl: null }))}>Remove cover</button> : null}
             </div>
@@ -581,13 +559,13 @@ export function HireOwnerBrandCard() {
               </div>
             </section>
           ) : null}
-          <button
+          <Button
             type="button"
             onClick={() => {
               setMessage(null);
               save.mutate();
             }}
-            disabled={save.isPending || !form.brandName.trim()}
+            disabled={save.isPending || preparingImage || !form.brandName.trim()}
             className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
           >
             {save.isPending
@@ -595,7 +573,7 @@ export function HireOwnerBrandCard() {
               : brand.data
                 ? "Save brand page"
                 : "Create public brand page"}
-          </button>
+          </Button>
         </div>
       ) : null}
       {message ? (
