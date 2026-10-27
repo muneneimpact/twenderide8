@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Current request
+- [ ] Repair owner cover-photo uploads and verify saved photos survive refresh.
 - [ ] Check latest additions against the live database and repair missing wiring.
 - [ ] Verify repaired saves and reads without triggering real payments or messages.
 
