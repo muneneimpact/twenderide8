@@ -120,6 +120,13 @@
       "when": 1793072349948,
       "tag": "0016_owner_marketing_posts_and_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793073769288,
+      "tag": "0017_owner_trusted_brands_and_promotions",
+      "breakpoints": true
     }
   ]
 }
