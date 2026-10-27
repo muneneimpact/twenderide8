@@ -350,6 +350,16 @@ function DriverHome() {
             </section>
           </div>
 
+          <section className="glass p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-foreground/70">Driver workspace</p>
+            <p className="mt-1 text-xs text-brand-foreground/75">Everything you need for driving is one tap away.</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <Link to="/driver/apply" className="rounded-xl bg-white/15 px-2 py-3 text-center text-xs font-semibold text-brand-foreground">Onboarding</Link>
+              <Link to="/driver/wallet" className="rounded-xl bg-white/15 px-2 py-3 text-center text-xs font-semibold text-brand-foreground">Wallet</Link>
+              <Link to="/lost-found" className="rounded-xl bg-white/15 px-2 py-3 text-center text-xs font-semibold text-brand-foreground">Lost &amp; found</Link>
+            </div>
+          </section>
+
           <section className="glass p-5">
             <h3 className="text-sm font-semibold text-brand-foreground">Active vehicle</h3>
             {vehicles.length === 0 && (

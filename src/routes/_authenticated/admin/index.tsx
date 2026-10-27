@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -125,6 +125,29 @@ function AdminBoard() {
           ))}
         </div>
       </div>
+
+      <section className="mx-auto max-w-2xl px-4 pt-4">
+        <div className="surface-card p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Admin workspace</p>
+          <p className="mt-1 text-sm text-muted-foreground">Open every admin area from one place. Your role controls which tools are available.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {([
+              ["/admin/unattended", "Unattended"],
+              ["/admin/support", "Claims"],
+              ["/admin/whatsapp", "WhatsApp"],
+              ["/admin/finance", "Finance"],
+              ["/admin/hire", "Hire"],
+              ["/admin/pricing", "Pricing"],
+              ["/admin/staff", "People"],
+              ["/admin/documents", "Documents"],
+            ] as const).map(([to, label]) => (
+              <Link key={to} to={to} className="rounded-xl border border-border bg-secondary/50 px-3 py-3 text-center text-xs font-semibold text-foreground hover:border-primary/40">
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
         <PartnerInterestRequestsBoard />

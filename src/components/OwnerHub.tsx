@@ -13,7 +13,7 @@ import { HireOwnerBrandCard } from "@/components/HireOwnerPageControls";
 import { VehicleTeamBoard } from "@/components/VehicleTeamBoard";
 import { useMe } from "@/hooks/useMe";
 
-type Section = "overview" | "vehicles" | "bookings" | "earnings" | "marketing" | "documents";
+type Section = "overview" | "vehicles" | "bookings" | "earnings" | "marketing" | "documents" | "lost-found";
 
 const sections: Array<{ key: Section; label: string }> = [
   { key: "overview", label: "Overview" },
@@ -22,6 +22,7 @@ const sections: Array<{ key: Section; label: string }> = [
   { key: "earnings", label: "Earnings" },
   { key: "marketing", label: "Marketing" },
   { key: "documents", label: "Documents" },
+  { key: "lost-found", label: "Lost & found" },
 ];
 
 export function OwnerHub() {
@@ -166,6 +167,19 @@ export function OwnerHub() {
             heading="Your owner documents"
             includeDriverDocuments={false}
           />
+        ) : null}
+
+        {section === "lost-found" ? (
+          <section className="surface-card p-4">
+            <h2 className="font-display text-lg font-bold text-foreground">Lost &amp; found</h2>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              Report an item found in one of your cars or follow up on a customer report through the
+              secure Twende lost-and-found workspace.
+            </p>
+            <Link to="/lost-found" className="mt-4 inline-flex rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
+              Open Lost &amp; found →
+            </Link>
+          </section>
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-xs text-muted-foreground">
