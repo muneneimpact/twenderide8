@@ -101,7 +101,7 @@ function HomePage() {
 
 
         <section className="mt-3 border-t border-border pt-3 sm:mt-8 lg:mt-5">
-          <h2 className="sr-only">Partner with Twende</h2>
+          <h2 className="sr-only">Own a car? Partner with Twende</h2>
           <Link
             to="/drive-or-list"
             className="flex items-center gap-3 rounded-2xl sunset-gradient p-3 text-coral-foreground shadow-lg sm:p-4"
@@ -110,8 +110,8 @@ function HomePage() {
             <Bike className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold sm:text-base">Drive or list your car with Twende</span>
-            <span className="block text-xs opacity-90">Earn on your own schedule. Apply in minutes.</span>
+            <span className="block text-sm font-bold sm:text-base">Own a car? Let Twende help you earn from it</span>
+            <span className="block text-xs opacity-90">Tell us about your car. Our team will contact you and help with the rest.</span>
           </span>
           <ArrowRight className="h-5 w-5 shrink-0" aria-hidden="true" />
           </Link>

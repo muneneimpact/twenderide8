@@ -15,6 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { registerAppServiceWorker } from "@/lib/pwa";
+import { captureTrafficRef } from "@/lib/traffic-ref";
 
 function NotFoundComponent() {
   return (
@@ -140,6 +141,12 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+
+  // Owner and partner links use ?ref=... so Twende can understand which
+  // message or QR code brought a visitor to the landing page.
+  useEffect(() => {
+    captureTrafficRef();
+  }, []);
 
   // Single auth subscriber: keeps the router and cache aligned with the session.
   useEffect(() => {

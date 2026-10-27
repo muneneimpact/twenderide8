@@ -65,14 +65,18 @@ export function AppShell({
   const queryClient = useQueryClient();
   const { roles, me } = useMe();
   const isStaff = roles.some((r) => r === "ops_admin" || r === "finance_admin" || r === "super_admin");
+  const canManageHire = Boolean(me?.hasHireVehicles || me?.fleets?.length || roles.includes("fleet_owner"));
   const driverApproved = !me || isStaff || !roles.includes("driver") || me.driver?.status === "approved";
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const lockedDriverPage = !driverApproved && pathname.startsWith("/driver") && !pathname.startsWith("/driver/apply");
-  const visibleTabs = driverApproved
+  const baseTabs = driverApproved
     ? (tabs ?? tabsForRoles(roles))
     : tabs === driverTabs
       ? driverTabs.filter((t) => t.to === "/driver/apply").concat(customerTabs.filter((t) => t.to === "/book" || t.to === "/account"))
       : tabsForRoles(roles, false);
+  const visibleTabs = canManageHire && !baseTabs.some((tab) => tab.to === "/owner")
+    ? [...baseTabs.slice(0, 2), { to: "/owner", label: "Owner Hub" }, ...baseTabs.slice(2)]
+    : baseTabs;
   const compactDock = visibleTabs.length <= 6;
   const dockRef = useRef<HTMLDivElement>(null);
 

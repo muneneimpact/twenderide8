@@ -8,12 +8,13 @@ export const getMe = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const [{ data: profile }, { data: roles }, { data: driver }, { data: fleets }] =
+    const [{ data: profile }, { data: roles }, { data: driver }, { data: fleets }, { data: hireVehicles }] =
       await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", userId),
         supabase.from("drivers").select("*").eq("id", userId).maybeSingle(),
         supabase.from("fleets").select("*").eq("owner_id", userId),
+        supabase.from("vehicles").select("id").eq("owner_driver_id", userId).limit(1),
       ]);
     const roleList = (roles ?? []).map((r) => r.role);
     return {
@@ -22,6 +23,7 @@ export const getMe = createServerFn({ method: "POST" })
       roles: roleList,
       driver,
       fleets: fleets ?? [],
+      hasHireVehicles: Boolean(hireVehicles?.length),
       isStaff: roleList.some((r) => ["ops_admin", "finance_admin", "super_admin"].includes(r)),
     };
   });

@@ -19,6 +19,7 @@ import { Route as AuthenticatedBookRouteImport } from './routes/_authenticated/b
 import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/fleet'
 import { Route as AuthenticatedHireRouteImport } from './routes/_authenticated/hire'
 import { Route as AuthenticatedLostFoundRouteImport } from './routes/_authenticated/lost-found'
+import { Route as AuthenticatedOwnerRouteImport } from './routes/_authenticated/owner'
 import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AuthAdminRouteImport } from './routes/auth.admin'
 import { Route as AuthDriversRouteImport } from './routes/auth.drivers'
@@ -95,6 +96,11 @@ const AuthenticatedHireRoute = AuthenticatedHireRouteImport.update({
 const AuthenticatedLostFoundRoute = AuthenticatedLostFoundRouteImport.update({
   id: '/lost-found',
   path: '/lost-found',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedOwnerRoute = AuthenticatedOwnerRouteImport.update({
+  id: '/owner',
+  path: '/owner',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthIndexRoute = AuthIndexRouteImport.update({
@@ -267,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/fleet': typeof AuthenticatedFleetRoute
   '/hire': typeof AuthenticatedHireRoute
   '/lost-found': typeof AuthenticatedLostFoundRoute
+  '/owner': typeof AuthenticatedOwnerRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
   '/cars/$carId': typeof CarsCarIdRoute
@@ -306,6 +313,7 @@ export interface FileRoutesByTo {
   '/fleet': typeof AuthenticatedFleetRoute
   '/hire': typeof AuthenticatedHireRoute
   '/lost-found': typeof AuthenticatedLostFoundRoute
+  '/owner': typeof AuthenticatedOwnerRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
   '/cars/$carId': typeof CarsCarIdRoute
@@ -347,6 +355,7 @@ export interface FileRoutesById {
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
   '/_authenticated/hire': typeof AuthenticatedHireRoute
   '/_authenticated/lost-found': typeof AuthenticatedLostFoundRoute
+  '/_authenticated/owner': typeof AuthenticatedOwnerRoute
   '/auth/admin': typeof AuthAdminRoute
   '/auth/drivers': typeof AuthDriversRoute
   '/cars_/$carId': typeof CarsCarIdRoute
@@ -388,6 +397,7 @@ export interface FileRouteTypes {
     | '/fleet'
     | '/hire'
     | '/lost-found'
+    | '/owner'
     | '/auth/admin'
     | '/auth/drivers'
     | '/cars/$carId'
@@ -427,6 +437,7 @@ export interface FileRouteTypes {
     | '/fleet'
     | '/hire'
     | '/lost-found'
+    | '/owner'
     | '/auth/admin'
     | '/auth/drivers'
     | '/cars/$carId'
@@ -467,6 +478,7 @@ export interface FileRouteTypes {
     | '/_authenticated/fleet'
     | '/_authenticated/hire'
     | '/_authenticated/lost-found'
+    | '/_authenticated/owner'
     | '/auth/admin'
     | '/auth/drivers'
     | '/cars_/$carId'
@@ -584,6 +596,13 @@ declare module '@tanstack/react-router' {
       path: '/lost-found'
       fullPath: '/lost-found'
       preLoaderRoute: typeof AuthenticatedLostFoundRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/owner': {
+      id: '/_authenticated/owner'
+      path: '/owner'
+      fullPath: '/owner'
+      preLoaderRoute: typeof AuthenticatedOwnerRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/auth/': {
@@ -791,6 +810,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
   AuthenticatedHireRoute: typeof AuthenticatedHireRoute
   AuthenticatedLostFoundRoute: typeof AuthenticatedLostFoundRoute
+  AuthenticatedOwnerRoute: typeof AuthenticatedOwnerRoute
   AuthenticatedAdminDocumentsRoute: typeof AuthenticatedAdminDocumentsRoute
   AuthenticatedAdminFinanceRoute: typeof AuthenticatedAdminFinanceRoute
   AuthenticatedAdminHireRoute: typeof AuthenticatedAdminHireRoute
@@ -818,6 +838,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFleetRoute: AuthenticatedFleetRoute,
   AuthenticatedHireRoute: AuthenticatedHireRoute,
   AuthenticatedLostFoundRoute: AuthenticatedLostFoundRoute,
+  AuthenticatedOwnerRoute: AuthenticatedOwnerRoute,
   AuthenticatedAdminDocumentsRoute: AuthenticatedAdminDocumentsRoute,
   AuthenticatedAdminFinanceRoute: AuthenticatedAdminFinanceRoute,
   AuthenticatedAdminHireRoute: AuthenticatedAdminHireRoute,

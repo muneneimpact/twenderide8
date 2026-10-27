@@ -1252,14 +1252,38 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_marketing_generations: {
+        Row: {
+          created_at: string
+          id: string
+          owner_user_id: string
+          period_key: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          owner_user_id: string
+          period_key: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_user_id?: string
+          period_key?: string
+        }
+        Relationships: []
+      }
       hire_owner_brands: {
         Row: {
+          accent_color: string
           brand_name: string
           business_info: string
+          cover_image_data_url: string | null
           created_at: string
           id: string
           logo_data_url: string | null
           marketing_content: string
+          marketing_posts: Json
           owner_bio: string
           owner_user_id: string
           profile_type: string
@@ -1267,12 +1291,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accent_color?: string
           brand_name: string
           business_info?: string
+          cover_image_data_url?: string | null
           created_at?: string
           id?: string
           logo_data_url?: string | null
           marketing_content?: string
+          marketing_posts?: Json
           owner_bio?: string
           owner_user_id: string
           profile_type?: string
@@ -1280,12 +1307,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accent_color?: string
           brand_name?: string
           business_info?: string
+          cover_image_data_url?: string | null
           created_at?: string
           id?: string
           logo_data_url?: string | null
           marketing_content?: string
+          marketing_posts?: Json
           owner_bio?: string
           owner_user_id?: string
           profile_type?: string

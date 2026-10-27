@@ -25,8 +25,11 @@ export const Route = createFileRoute("/$brandSlug")({
         { name: "description", content: description.slice(0, 160) },
         { property: "og:title", content: title },
         { property: "og:description", content: description.slice(0, 200) },
+        { property: "og:image", content: loaderData?.vehicles?.[0]?.photo_link || "/twende-meru-logo-home.png" },
+        { property: "og:image:alt", content: `${loaderData?.brand.brand_name ?? "Twende"} hire car page` },
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:image", content: loaderData?.vehicles?.[0]?.photo_link || "/twende-meru-logo-home.png" },
       ],
     };
   },
@@ -66,7 +69,8 @@ function HireBrandPage() {
 
   return (
     <main className="min-h-screen bg-secondary/20 pb-12">
-      <header className="relative overflow-hidden bg-primary text-primary-foreground">
+      <header className="relative overflow-hidden bg-primary text-primary-foreground" style={{ backgroundColor: brand.accent_color || undefined }}>
+        {brand.cover_image_data_url ? <div className="absolute inset-0 bg-cover bg-center opacity-20" style={{ backgroundImage: `url(${brand.cover_image_data_url})` }} aria-hidden="true" /> : null}
         <div className="absolute inset-0 opacity-25" aria-hidden="true">
           <div className="absolute -right-16 -top-24 h-72 w-72 rounded-full bg-brand-foreground/40 blur-3xl" />
           <div className="absolute -bottom-32 left-0 h-72 w-72 rounded-full bg-accent blur-3xl" />
@@ -97,7 +101,7 @@ function HireBrandPage() {
             )}
             <div className="max-w-3xl">
               <p className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-primary-foreground/75 sm:text-[11px] sm:tracking-[0.2em]">
-                <Sparkles className="h-3.5 w-3.5" /> {isCompany ? "A company car-hire profile" : "A personal car-hire experience"}
+                <Sparkles className="h-3.5 w-3.5" /> {isCompany ? "A company car-hire profile" : "A personal car-hire experience"} · Supported by Twende
               </p>
               <h1 className="mt-1 font-display text-2xl font-extrabold leading-tight sm:mt-2 sm:text-4xl lg:text-5xl">
                 Go places with <span className="text-primary-foreground/80">{brand.brand_name}</span>

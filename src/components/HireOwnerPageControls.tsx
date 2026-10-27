@@ -1,7 +1,8 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { CheckCircle2, Circle, Copy, Globe, Sparkles, Trash2, Upload } from "lucide-react";
+import QRCode from "qrcode";
+import { CheckCircle2, Circle, Copy, Download, Globe, Palette, QrCode, Sparkles, Trash2, Upload } from "lucide-react";
 import {
   createOfflineHire,
   deleteOfflineHire,
@@ -9,12 +10,18 @@ import {
   listMyVehicles,
   saveMyHireBrand,
 } from "@/lib/hire.functions";
-import { generateHireOwnerMarketingCopy } from "@/lib/hire-marketing.functions";
+import {
+  generateHireOwnerMarketingCopy,
+  getHireMarketingQuota,
+  type HireMarketingPost,
+} from "@/lib/hire-marketing.functions";
 
 type BrandForm = {
   profileType: "person" | "company";
   brandName: string;
   logoDataUrl: string | null;
+  coverImageDataUrl: string | null;
+  accentColor: string;
   ownerBio: string;
   businessInfo: string;
   marketingContent: string;
@@ -31,10 +38,57 @@ const emptyBrand: BrandForm = {
   profileType: "person",
   brandName: "",
   logoDataUrl: null,
+  coverImageDataUrl: null,
+  accentColor: "#22a35b",
   ownerBio: "",
   businessInfo: "",
   marketingContent: "",
 };
+
+function savedPosts(value: unknown): HireMarketingPost[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is HireMarketingPost => {
+    if (!item || typeof item !== "object") return false;
+    const post = item as Record<string, unknown>;
+    return ["whatsapp", "facebook", "sms"].includes(String(post["channel"])) &&
+      typeof post["label"] === "string" && typeof post["text"] === "string";
+  });
+}
+
+async function brandedQrDataUrl(value: string) {
+  const qrUrl = await QRCode.toDataURL(value, {
+    width: 520,
+    margin: 2,
+    errorCorrectionLevel: "H",
+    color: { dark: "#163c2b", light: "#ffffff" },
+  });
+  return new Promise<string>((resolve, reject) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 520;
+    canvas.height = 520;
+    const context = canvas.getContext("2d");
+    const qrImage = new Image();
+    qrImage.onload = () => {
+      if (!context) return reject(new Error("Could not create the QR image."));
+      context.drawImage(qrImage, 0, 0, 520, 520);
+      const markSize = 86;
+      const markX = (520 - markSize) / 2;
+      context.fillStyle = "#ffffff";
+      context.beginPath();
+      context.arc(260, 260, 54, 0, Math.PI * 2);
+      context.fill();
+      const logo = new Image();
+      logo.onload = () => {
+        context.drawImage(logo, markX, markX, markSize, markSize);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      logo.onerror = () => resolve(canvas.toDataURL("image/png"));
+      logo.src = "/twende-meru-logo.png";
+    };
+    qrImage.onerror = () => reject(new Error("Could not create the QR image."));
+    qrImage.src = qrUrl;
+  });
+}
 
 function todayKey() {
   const now = new Date();
@@ -55,12 +109,16 @@ export function HireOwnerBrandCard() {
   const saveFn = useServerFn(saveMyHireBrand);
   const vehiclesFn = useServerFn(listMyVehicles);
   const generateFn = useServerFn(generateHireOwnerMarketingCopy);
+  const quotaFn = useServerFn(getHireMarketingQuota);
   const brand = useQuery({ queryKey: ["my-hire-brand"], queryFn: () => getFn() });
   const vehicles = useQuery({ queryKey: ["my-vehicles"], queryFn: () => vehiclesFn() });
+  const quota = useQuery({ queryKey: ["hire-marketing-quota"], queryFn: () => quotaFn() });
   const [form, setForm] = useState<BrandForm>(emptyBrand);
   const [origin, setOrigin] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [posts, setPosts] = useState<HireMarketingPost[]>([]);
+  const [qrImages, setQrImages] = useState<Record<string, string>>({});
   const [copyFocus, setCopyFocus] = useState<"executive" | "family" | "value" | "safari">("value");
 
   useEffect(() => setOrigin(window.location.origin), []);
@@ -70,10 +128,13 @@ export function HireOwnerBrandCard() {
       profileType: brand.data.profile_type === "company" ? "company" : "person",
       brandName: brand.data.brand_name,
       logoDataUrl: brand.data.logo_data_url,
+      coverImageDataUrl: brand.data.cover_image_data_url ?? null,
+      accentColor: brand.data.accent_color ?? "#22a35b",
       ownerBio: brand.data.owner_bio,
       businessInfo: brand.data.business_info,
       marketingContent: brand.data.marketing_content,
     });
+    setPosts(savedPosts(brand.data.marketing_posts));
   }, [brand.data]);
 
   const save = useMutation({
@@ -83,6 +144,9 @@ export function HireOwnerBrandCard() {
           profileType: form.profileType,
           brandName: form.brandName,
           logoDataUrl: form.logoDataUrl,
+          coverImageDataUrl: form.coverImageDataUrl,
+          accentColor: form.accentColor,
+          marketingPosts: posts,
           ownerBio: form.ownerBio,
           businessInfo: form.businessInfo,
           marketingContent: form.marketingContent,
@@ -95,10 +159,13 @@ export function HireOwnerBrandCard() {
         profileType: saved.profile_type === "company" ? "company" : "person",
         brandName: saved.brand_name,
         logoDataUrl: saved.logo_data_url,
+        coverImageDataUrl: saved.cover_image_data_url ?? null,
+        accentColor: saved.accent_color ?? "#22a35b",
         ownerBio: saved.owner_bio,
         businessInfo: saved.business_info,
         marketingContent: saved.marketing_content,
       });
+      setPosts(savedPosts(saved.marketing_posts));
     },
     onError: (error) => setMessage((error as Error).message),
   });
@@ -129,12 +196,16 @@ export function HireOwnerBrandCard() {
         ...current,
         marketingContent: `${copy.headline}\n\n${copy.intro}\n\n${copy.highlights.map((item) => `• ${item}`).join("\n")}`,
       }));
-      setMessage("AI copy applied. Review it, then save your brand page.");
+      setPosts(copy.posts);
+      void queryClient.invalidateQueries({ queryKey: ["hire-marketing-quota"] });
+      setMessage("Your monthly marketing post is ready. Review it, then save your brand page.");
     },
     onError: (error) => setMessage((error as Error).message),
   });
 
   const shareUrl = brand.data?.slug && origin ? `${origin}/${brand.data.slug}` : "";
+  const trackedUrl = (channel: string) =>
+    shareUrl ? `${shareUrl}?ref=${encodeURIComponent(`${brand.data?.slug}-${channel}`)}` : "";
   const registeredVehicle = Boolean(vehicles.data?.length);
   const vehicleApproved = Boolean(vehicles.data?.some((vehicle) => vehicle.status === "approved"));
   const bookableListing = Boolean(
@@ -174,6 +245,26 @@ export function HireOwnerBrandCard() {
       }
     };
     reader.onerror = () => setMessage("Could not read that logo image. Please try again.");
+    reader.readAsDataURL(file);
+  };
+  const selectCover = (file?: File) => {
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setMessage("Choose a PNG, JPG or WebP cover image.");
+      return;
+    }
+    if (file.size > 500 * 1024) {
+      setMessage("Keep the cover image under 500 KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setForm((current) => ({ ...current, coverImageDataUrl: reader.result as string }));
+        setMessage(null);
+      }
+    };
+    reader.onerror = () => setMessage("Could not read that cover image. Please try again.");
     reader.readAsDataURL(file);
   };
 
@@ -345,6 +436,25 @@ export function HireOwnerBrandCard() {
             <span className="text-[10px] text-muted-foreground">PNG/JPG/WebP · max 300 KB</span>
           </div>
 
+          <div className="grid gap-3 rounded-2xl border border-border bg-background p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div>
+              <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground"><Palette className="h-3.5 w-3.5 text-primary" /> Storefront look</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">Choose an accent colour and optional cover image. Twende still provides the secure booking layer.</p>
+              <label className="mt-2 inline-flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+                Accent colour
+                <input type="color" value={form.accentColor} onChange={(event) => setForm((current) => ({ ...current, accentColor: event.target.value }))} className="h-8 w-12 cursor-pointer rounded border border-border bg-background p-0.5" />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {form.coverImageDataUrl ? <img src={form.coverImageDataUrl} alt="Storefront cover preview" className="h-14 w-24 rounded-xl object-cover" /> : null}
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-input px-3 py-2 text-xs font-semibold text-foreground">
+                <Upload className="h-3.5 w-3.5" /> {form.coverImageDataUrl ? "Change cover" : "Add cover"}
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => selectCover(event.target.files?.[0])} />
+              </label>
+              {form.coverImageDataUrl ? <button type="button" className="text-xs font-medium text-destructive" onClick={() => setForm((current) => ({ ...current, coverImageDataUrl: null }))}>Remove cover</button> : null}
+            </div>
+          </div>
+
           <label className="block">
             <span className="text-xs font-semibold text-foreground">
               {form.profileType === "company" ? "About the company" : "About you"}
@@ -393,8 +503,8 @@ export function HireOwnerBrandCard() {
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-bold text-foreground">Generate copy with AI</p>
-                <p className="mt-1 text-[10px] text-muted-foreground">Uses your brand details and approved vehicle context. Review before saving.</p>
+                <p className="text-xs font-bold text-foreground">Generate this month’s marketing post</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">One AI-generated post per month. It includes ready-to-share text for WhatsApp, Facebook and SMS.</p>
               </div>
               <select value={copyFocus} onChange={(event) => setCopyFocus(event.target.value as typeof copyFocus)} className="input-base w-auto text-xs">
                 <option value="executive">Executive / corporate</option>
@@ -403,10 +513,45 @@ export function HireOwnerBrandCard() {
                 <option value="safari">Safari / rugged 4x4</option>
               </select>
             </div>
-            <button type="button" onClick={() => generateCopy.mutate()} disabled={generateCopy.isPending || vehicles.isPending} className="mt-2 rounded-full border border-primary/30 px-3 py-1.5 text-xs font-semibold text-primary disabled:opacity-50">
-              {generateCopy.isPending ? "Generating…" : "Generate and apply to marketing content"}
+            <p className="mt-2 text-[10px] font-semibold text-primary">
+              {quota.isPending ? "Checking monthly allowance…" : quota.data?.remaining ? "1 post available this month" : "This month’s post has already been used"}
+            </p>
+            <button type="button" onClick={() => generateCopy.mutate()} disabled={generateCopy.isPending || vehicles.isPending || quota.data?.remaining === 0} className="mt-2 rounded-full border border-primary/30 px-3 py-1.5 text-xs font-semibold text-primary disabled:opacity-50">
+              {generateCopy.isPending ? "Generating…" : quota.data?.remaining === 0 ? "Available next month" : "Generate and apply"}
             </button>
           </div>
+          {posts.length ? (
+            <section className="rounded-2xl border border-border bg-background p-3">
+              <div className="flex items-start gap-2">
+                <QrCode className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">Your tracked sharing texts</p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">Each channel gets its own link parameter, so Twende can tell which message brought people to your page. QR codes include a Twende logo mark. Poster and image packages are not included here and can be added to your invoice separately later.</p>
+                </div>
+              </div>
+              <div className="mt-3 space-y-3">
+                {posts.map((post) => {
+                  const url = trackedUrl(post.channel);
+                  const text = url ? `${post.text}\n${url}` : post.text;
+                  return (
+                    <article key={post.channel} className="rounded-xl border border-border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-foreground">{post.label}</p>
+                        <span className="rounded-full bg-primary/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-primary">ref: {post.channel}</span>
+                      </div>
+                      <textarea readOnly value={text} rows={3} className="input-base mt-2 text-xs leading-relaxed" onFocus={(event) => event.currentTarget.select()} />
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button type="button" onClick={() => void navigator.clipboard.writeText(text).then(() => setMessage(`${post.label} copied with its tracked link.`)).catch(() => setMessage("Select the text and copy it."))} className="inline-flex items-center gap-1.5 rounded-full border border-input px-3 py-1.5 text-[11px] font-semibold text-foreground"><Copy className="h-3.5 w-3.5" /> Copy text</button>
+                        <button type="button" disabled={!url || Boolean(qrImages[post.channel])} onClick={() => void brandedQrDataUrl(url).then((image) => setQrImages((current) => ({ ...current, [post.channel]: image }))).catch((error) => setMessage((error as Error).message))} className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary disabled:opacity-50"><QrCode className="h-3.5 w-3.5" /> {qrImages[post.channel] ? "QR ready" : "Create QR code"}</button>
+                        {qrImages[post.channel] ? <a href={qrImages[post.channel]} download={`twende-${brand.data?.slug ?? "owner"}-${post.channel}-qr.png`} className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground"><Download className="h-3.5 w-3.5" /> Download QR</a> : null}
+                      </div>
+                      {qrImages[post.channel] ? <img src={qrImages[post.channel]} alt={`${post.label} tracked Twende QR code`} className="mt-3 h-36 w-36 rounded-xl border border-border bg-white p-2" /> : null}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
           <button
             type="button"
             onClick={() => {

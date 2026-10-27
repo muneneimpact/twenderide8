@@ -442,10 +442,10 @@ function AccountPage() {
             and hire inspection are reviewed separately.
           </p>
           <Link
-            to="/driver"
+            to="/owner"
             className="mt-3 block w-full rounded-full border border-input px-4 py-3 text-center text-sm font-bold text-foreground"
           >
-            Manage hire vehicles
+            Open Owner Hub
           </Link>
         </section>
 

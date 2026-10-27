@@ -54,5 +54,6 @@ export function useMe() {
     isFinance: has("finance_admin", "super_admin"),
     isSuper: has("super_admin"),
     isStaff: has("ops_admin", "finance_admin", "super_admin"),
+    isHireOwner: Boolean(query.data?.hasHireVehicles || query.data?.fleets?.length || has("fleet_owner")),
   };
 }

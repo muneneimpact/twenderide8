@@ -228,7 +228,7 @@ export const getMyHireBrand = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("hire_owner_brands")
-      .select("brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content, profile_type")
+      .select("brand_name, slug, logo_data_url, cover_image_data_url, accent_color, owner_bio, business_info, marketing_content, marketing_posts, profile_type")
       .eq("owner_user_id", context.userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -242,6 +242,15 @@ export const saveMyHireBrand = createServerFn({ method: "POST" })
       .object({
         brandName: z.string().trim().min(2).max(80),
         logoDataUrl: z.string().max(450_000).nullable(),
+        coverImageDataUrl: z.string().max(700_000).nullable(),
+        accentColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+        marketingPosts: z.array(
+          z.object({
+            channel: z.enum(["whatsapp", "facebook", "sms"]),
+            label: z.string().min(1).max(60),
+            text: z.string().min(1).max(500),
+          }),
+        ).max(3).optional(),
         ownerBio: z.string().trim().max(1200),
         businessInfo: z.string().trim().max(1000),
         marketingContent: z.string().trim().max(1500),
@@ -304,6 +313,9 @@ export const saveMyHireBrand = createServerFn({ method: "POST" })
           brand_name: data.brandName,
           slug,
           logo_data_url: data.logoDataUrl,
+          cover_image_data_url: data.coverImageDataUrl,
+          accent_color: data.accentColor,
+          ...(data.marketingPosts ? { marketing_posts: data.marketingPosts } : {}),
           owner_bio: data.ownerBio,
           business_info: data.businessInfo,
           marketing_content: data.marketingContent,
@@ -312,7 +324,7 @@ export const saveMyHireBrand = createServerFn({ method: "POST" })
         },
         { onConflict: "owner_user_id" },
       )
-      .select("brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content, profile_type")
+      .select("brand_name, slug, logo_data_url, cover_image_data_url, accent_color, owner_bio, business_info, marketing_content, marketing_posts, profile_type")
       .single();
     if (error) {
       if (error.code === "23505") throw new Error("That brand name is already in use. Choose a unique name.");
@@ -327,7 +339,7 @@ export const getPublicHireBrand = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: brand, error } = await supabaseAdmin
       .from("hire_owner_brands")
-      .select("owner_user_id, brand_name, slug, logo_data_url, owner_bio, business_info, marketing_content, profile_type")
+      .select("owner_user_id, brand_name, slug, logo_data_url, cover_image_data_url, accent_color, owner_bio, business_info, marketing_content, marketing_posts, profile_type")
       .eq("slug", data.slug.toLowerCase())
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -375,9 +387,12 @@ export const getPublicHireBrand = createServerFn({ method: "GET" })
         brand_name: brand.brand_name,
         slug: brand.slug,
         logo_data_url: brand.logo_data_url,
+        cover_image_data_url: brand.cover_image_data_url,
+        accent_color: brand.accent_color,
         owner_bio: brand.owner_bio,
         business_info: brand.business_info,
         marketing_content: brand.marketing_content,
+        marketing_posts: brand.marketing_posts,
         profile_type: brand.profile_type,
       },
       owner: {
