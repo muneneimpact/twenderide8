@@ -15,6 +15,7 @@ GRANT SELECT ON public.hire_marketing_generations TO authenticated;
 GRANT ALL ON public.hire_marketing_generations TO service_role;
 ALTER TABLE public.hire_marketing_generations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Owners read their marketing generation" ON public.hire_marketing_generations;
 CREATE POLICY "Owners read their marketing generation" ON public.hire_marketing_generations
   FOR SELECT TO authenticated USING (owner_user_id = auth.uid() OR public.is_staff(auth.uid()));
 

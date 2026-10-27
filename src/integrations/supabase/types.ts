@@ -1168,6 +1168,35 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_marketing_generations: {
+        Row: {
+          created_at: string
+          id: string
+          owner_user_id: string
+          period_key: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          owner_user_id: string
+          period_key: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_user_id?: string
+          period_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hire_marketing_generations_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hire_offers: {
         Row: {
           counter_note: string | null
@@ -1249,27 +1278,6 @@ export type Database = {
           paid_out_total?: number
           platform_fee_total?: number
           updated_at?: string
-        }
-        Relationships: []
-      }
-      hire_marketing_generations: {
-        Row: {
-          created_at: string
-          id: string
-          owner_user_id: string
-          period_key: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          owner_user_id: string
-          period_key: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          owner_user_id?: string
-          period_key?: string
         }
         Relationships: []
       }
