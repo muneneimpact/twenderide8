@@ -1,8 +1,9 @@
 # Roadmap
 
 ## Current request
-- [ ] Check latest additions against the live database and repair missing wiring.
-- [ ] Verify repaired saves and reads without triggering real payments or messages.
+- [x] Repair owner cover-photo uploads and verify saved photos survive refresh (9.4 MB camera image tested; original cover restored).
+- [x] Check latest additions against the live database and repair missing wiring (trusted brands and promotions applied with protected account storage).
+- [x] Verify cover saving and refresh; confirm new tables, grants and locked access without triggering payments or messages. Promotion creation and staff approval were not exercised.
 
 ## Done this round
 - Home page `/` is now a public chooser: big "Get a ride" (→ booking) and "Car hire" (→ public car list) options, plus driver application and sign-in links. No more automatic redirect to sign-in.

@@ -1340,6 +1340,97 @@ export type Database = {
           },
         ]
       }
+      hire_owner_promotions: {
+        Row: {
+          created_at: string
+          description: string
+          discount_percent: number
+          expires_at: string | null
+          id: string
+          merchandise: string | null
+          owner_user_id: string
+          reward_points: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          discount_percent?: number
+          expires_at?: string | null
+          id?: string
+          merchandise?: string | null
+          owner_user_id: string
+          reward_points?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          discount_percent?: number
+          expires_at?: string | null
+          id?: string
+          merchandise?: string | null
+          owner_user_id?: string
+          reward_points?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hire_owner_promotions_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hire_owner_trusted_brands: {
+        Row: {
+          admin_note: string | null
+          brand_name: string
+          created_at: string
+          id: string
+          owner_user_id: string
+          permission_confirmed: boolean
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admin_note?: string | null
+          brand_name: string
+          created_at?: string
+          id?: string
+          owner_user_id: string
+          permission_confirmed?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_note?: string | null
+          brand_name?: string
+          created_at?: string
+          id?: string
+          owner_user_id?: string
+          permission_confirmed?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hire_owner_trusted_brands_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hire_payment_settlements: {
         Row: {
           commission_percent: number

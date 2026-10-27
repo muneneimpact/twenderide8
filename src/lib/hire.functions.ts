@@ -292,6 +292,9 @@ export const saveMyHireBrand = createServerFn({ method: "POST" })
     ) {
       throw new Error("Upload a PNG, JPG or WebP logo image.");
     }
+    if (data.coverImageDataUrl && !/^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(data.coverImageDataUrl)) {
+      throw new Error("Upload a PNG, JPG or WebP cover image.");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { filter } = await managedVehicleScope(context.userId);
     const { data: ownedVehicles, error: ownerError } = await supabaseAdmin
