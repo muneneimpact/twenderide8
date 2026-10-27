@@ -7,7 +7,9 @@ import {
   createOfflineHire,
   deleteOfflineHire,
   getMyHireBrand,
+  listMyTrustedBrands,
   listMyVehicles,
+  requestTrustedBrand,
   saveMyHireBrand,
 } from "@/lib/hire.functions";
 import {
@@ -112,6 +114,9 @@ export function HireOwnerBrandCard() {
   const quotaFn = useServerFn(getHireMarketingQuota);
   const brand = useQuery({ queryKey: ["my-hire-brand"], queryFn: () => getFn() });
   const vehicles = useQuery({ queryKey: ["my-vehicles"], queryFn: () => vehiclesFn() });
+  const trustedBrandsFn = useServerFn(listMyTrustedBrands);
+  const requestTrustedBrandFn = useServerFn(requestTrustedBrand);
+  const trustedBrands = useQuery({ queryKey: ["my-trusted-brands"], queryFn: () => trustedBrandsFn() });
   const quota = useQuery({ queryKey: ["hire-marketing-quota"], queryFn: () => quotaFn() });
   const [form, setForm] = useState<BrandForm>(emptyBrand);
   const [origin, setOrigin] = useState("");
@@ -120,6 +125,8 @@ export function HireOwnerBrandCard() {
   const [posts, setPosts] = useState<HireMarketingPost[]>([]);
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
   const [copyFocus, setCopyFocus] = useState<"executive" | "family" | "value" | "safari">("value");
+  const [trustedBrandName, setTrustedBrandName] = useState("");
+  const [permissionConfirmed, setPermissionConfirmed] = useState(false);
 
   useEffect(() => setOrigin(window.location.origin), []);
   useEffect(() => {
@@ -199,6 +206,17 @@ export function HireOwnerBrandCard() {
       setPosts(copy.posts);
       void queryClient.invalidateQueries({ queryKey: ["hire-marketing-quota"] });
       setMessage("Your monthly marketing post is ready. Review it, then save your brand page.");
+    },
+    onError: (error) => setMessage((error as Error).message),
+  });
+
+  const trustedBrandRequest = useMutation({
+    mutationFn: () => requestTrustedBrandFn({ data: { brandName: trustedBrandName, permissionConfirmed: true } }),
+    onSuccess: () => {
+      setTrustedBrandName("");
+      setPermissionConfirmed(false);
+      setMessage("Brand permission request sent. Twende will review it before it appears publicly.");
+      void queryClient.invalidateQueries({ queryKey: ["my-trusted-brands"] });
     },
     onError: (error) => setMessage((error as Error).message),
   });
@@ -453,6 +471,17 @@ export function HireOwnerBrandCard() {
               </label>
               {form.coverImageDataUrl ? <button type="button" className="text-xs font-medium text-destructive" onClick={() => setForm((current) => ({ ...current, coverImageDataUrl: null }))}>Remove cover</button> : null}
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-background p-3">
+            <p className="text-xs font-semibold text-foreground">Trusted brands you have worked with</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">Ask each brand for permission first. Twende Operations must approve the request before the name appears on your public page.</p>
+            <div className="mt-3 flex gap-2">
+              <input value={trustedBrandName} onChange={(event) => setTrustedBrandName(event.target.value)} placeholder="Brand name" className="input-base min-w-0 flex-1" />
+              <button type="button" onClick={() => trustedBrandRequest.mutate()} disabled={!trustedBrandName.trim() || !permissionConfirmed || trustedBrandRequest.isPending} className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">Request approval</button>
+            </div>
+            <label className="mt-2 flex items-start gap-2 text-[11px] text-muted-foreground"><input type="checkbox" checked={permissionConfirmed} onChange={(event) => setPermissionConfirmed(event.target.checked)} className="mt-0.5" /> I confirm I have permission from this brand to request its display.</label>
+            {trustedBrands.data?.length ? <div className="mt-3 flex flex-wrap gap-2">{trustedBrands.data.map((item: { id: string; brand_name: string; status: string }) => <span key={item.id} className="rounded-full bg-secondary px-2.5 py-1 text-[11px] text-foreground">{item.brand_name} · {item.status}</span>)}</div> : null}
           </div>
 
           <label className="block">

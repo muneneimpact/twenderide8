@@ -60,6 +60,7 @@ function HireBrandPage() {
   const isCompany = brand.profile_type === "company";
   const ownerTitle = isCompany ? owner.company_name || brand.brand_name : owner.full_name;
   const profileImage = isCompany ? brand.logo_data_url : owner.avatar_url;
+  const trustedBrands = (brand as typeof brand & { trusted_brands?: string[] }).trusted_brands ?? [];
   const filteredVehicles = vehicles.filter((vehicle) => {
     if (fleetFilter === "hourly") return vehicle.hire_hourly_available;
     if (fleetFilter === "self_drive") return !vehicle.hire_mode || vehicle.hire_mode === "self_drive" || vehicle.hire_mode === "both";
@@ -69,7 +70,7 @@ function HireBrandPage() {
 
   return (
     <main className="min-h-screen bg-secondary/20 pb-12">
-      <header className="relative overflow-hidden bg-primary text-primary-foreground" style={{ backgroundColor: brand.accent_color || undefined }}>
+      <header className="relative overflow-hidden bg-primary text-primary-foreground" style={{ background: brand.accent_color ? `linear-gradient(135deg, ${brand.accent_color}, color-mix(in srgb, ${brand.accent_color} 58%, #10251b))` : undefined }}>
         {brand.cover_image_data_url ? <div className="absolute inset-0 bg-cover bg-center opacity-20" style={{ backgroundImage: `url(${brand.cover_image_data_url})` }} aria-hidden="true" /> : null}
         <div className="absolute inset-0 opacity-25" aria-hidden="true">
           <div className="absolute -right-16 -top-24 h-72 w-72 rounded-full bg-brand-foreground/40 blur-3xl" />
@@ -77,12 +78,6 @@ function HireBrandPage() {
           <div className="absolute right-1/3 top-1/2 h-48 w-48 rounded-full border border-primary-foreground/20" />
         </div>
         <div className="relative mx-auto max-w-6xl px-4 pb-5 pt-3 sm:px-6 sm:pb-12 sm:pt-10">
-          <Link
-            to="/cars"
-            className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-3 py-1.5 text-xs font-semibold text-primary-foreground/85 hover:bg-primary-foreground/15 hover:text-primary-foreground"
-          >
-            ← All hire cars
-          </Link>
           <div className="mt-4 grid items-center gap-7 sm:mt-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-12">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-7">
             {brand.logo_data_url ? (
@@ -351,6 +346,15 @@ function HireBrandPage() {
               </p>
             </section>
           ) : null}
+          {trustedBrands.length ? (
+            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <h2 className="font-display text-base font-bold text-foreground">Trusted brand experience</h2>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">This owner has permission to show these brands, approved by Twende.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {trustedBrands.map((name) => <span key={name} className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">{name}</span>)}
+              </div>
+            </section>
+          ) : null}
           <section className="rounded-2xl border border-primary/15 bg-primary/5 p-4 sm:p-5">
             <h2 className="font-display text-base font-bold text-foreground">How to book</h2>
             <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
@@ -363,12 +367,6 @@ function HireBrandPage() {
               dates are unavailable, the booking page will show the next available date.
             </p>
           </section>
-          <Link
-            to="/cars"
-            className="block rounded-xl border border-border px-4 py-3 text-center text-sm font-semibold text-primary"
-          >
-            Browse all hire cars
-          </Link>
         </aside>
       </div>
       <footer className="border-t border-border px-4 py-5 text-center text-[11px] text-muted-foreground">

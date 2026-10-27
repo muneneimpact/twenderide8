@@ -9,6 +9,7 @@ import { WalletPayoutsBoard } from "@/components/CustomerWalletCard";
 import { PartnerInterestRequestsBoard } from "@/components/PartnerInterestRequestsBoard";
 import { ApproachFeeSettingsCard } from "@/components/ApproachFeeSettingsCard";
 import { getOpsBoard, opsCancelRide, resolveIncident, reviewApproval } from "@/lib/admin.functions";
+import { listPendingTrustedBrands, reviewTrustedBrand } from "@/lib/trusted-brand.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({
@@ -45,6 +46,8 @@ function AdminBoard() {
   const reviewFn = useServerFn(reviewApproval);
   const cancelFn = useServerFn(opsCancelRide);
   const incidentFn = useServerFn(resolveIncident);
+  const trustedBrandsFn = useServerFn(listPendingTrustedBrands);
+  const reviewTrustedBrandFn = useServerFn(reviewTrustedBrand);
   const [detail, setDetail] = useState<{ kind: "driver" | "vehicle"; id: string } | null>(null);
 
   const board = useQuery({
@@ -52,6 +55,7 @@ function AdminBoard() {
     queryFn: () => fetchBoard({}),
     refetchInterval: 20000,
   });
+  const trustedBrands = useQuery({ queryKey: ["admin-trusted-brands"], queryFn: () => trustedBrandsFn() });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["ops-board"] });
   const [note, setNote] = useState("");
 
@@ -75,6 +79,10 @@ function AdminBoard() {
     mutationFn: (id: string) =>
       incidentFn({ data: { id, resolution: note.trim() || "Resolved by operations" } }),
     onSuccess: invalidate,
+  });
+  const reviewBrand = useMutation({
+    mutationFn: (data: { id: string; decision: "approved" | "rejected" }) => reviewTrustedBrandFn({ data }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin-trusted-brands"] }),
   });
 
   if (board.isPending) {
@@ -153,6 +161,11 @@ function AdminBoard() {
         <PartnerInterestRequestsBoard />
         <WalletPayoutsBoard />
         <ApproachFeeSettingsCard />
+        <section className="surface-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">Trusted brand requests ({trustedBrands.data?.length ?? 0})</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Owners must confirm permission from a brand. Approve only requests that can be supported if the brand asks.</p>
+          {trustedBrands.data?.length ? <ul className="mt-3 divide-y divide-border">{trustedBrands.data.map((request: { id: string; brand_name: string; owner_user_id: string; owner?: { full_name?: string | null; email?: string | null } | null }) => <li key={request.id} className="py-3"><p className="text-sm font-semibold text-foreground">{request.brand_name}</p><p className="text-xs text-muted-foreground">Owner: {request.owner?.full_name ?? request.owner?.email ?? request.owner_user_id}</p><div className="mt-2 flex gap-2"><button type="button" onClick={() => reviewBrand.mutate({ id: request.id, decision: "approved" })} className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Approve</button><button type="button" onClick={() => reviewBrand.mutate({ id: request.id, decision: "rejected" })} className="rounded-full border border-destructive/30 px-3 py-1.5 text-xs font-semibold text-destructive">Reject</button></div></li>)}</ul> : <p className="mt-2 text-xs text-muted-foreground">No trusted-brand requests are waiting.</p>}
+        </section>
         <section className="surface-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Review note</h3>
           <p className="mt-1 text-xs text-muted-foreground">

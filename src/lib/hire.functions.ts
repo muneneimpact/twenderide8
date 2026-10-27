@@ -235,6 +235,33 @@ export const getMyHireBrand = createServerFn({ method: "GET" })
     return data;
   });
 
+export const listMyTrustedBrands = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await (supabaseAdmin as any)
+      .from("hire_owner_trusted_brands")
+      .select("id, brand_name, permission_confirmed, status, admin_note, created_at")
+      .eq("owner_user_id", context.userId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+export const requestTrustedBrand = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ brandName: z.string().trim().min(2).max(120), permissionConfirmed: z.literal(true) }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await (supabaseAdmin as any)
+      .from("hire_owner_trusted_brands")
+      .upsert({ owner_user_id: context.userId, brand_name: data.brandName, permission_confirmed: true, status: "pending", updated_at: new Date().toISOString() }, { onConflict: "owner_user_id,brand_name" })
+      .select("id, brand_name, permission_confirmed, status, admin_note, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
 export const saveMyHireBrand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -344,13 +371,20 @@ export const getPublicHireBrand = createServerFn({ method: "GET" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!brand) return null;
-    const [{ data: profile }, { data: fleets }, available] = await Promise.all([
+    const [{ data: profile }, { data: fleets }, { data: trustedBrands }, available] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("full_name, avatar_url, company_name")
         .eq("id", brand.owner_user_id)
         .maybeSingle(),
       supabaseAdmin.from("fleets").select("id").eq("owner_id", brand.owner_user_id),
+      (supabaseAdmin as any)
+        .from("hire_owner_trusted_brands")
+        .select("brand_name")
+        .eq("owner_user_id", brand.owner_user_id)
+        .eq("status", "approved")
+        .eq("permission_confirmed", true)
+        .order("brand_name"),
       loadAvailableHireVehicles(),
     ]);
     const fleetIds = (fleets ?? []).map((fleet) => fleet.id);
@@ -395,6 +429,7 @@ export const getPublicHireBrand = createServerFn({ method: "GET" })
         marketing_posts: brand.marketing_posts,
         profile_type: brand.profile_type,
       },
+      trusted_brands: (trustedBrands ?? []).map((row: { brand_name: string }) => row.brand_name),
       owner: {
         full_name: profile?.full_name ?? null,
         avatar_url: profile?.avatar_url ?? null,
