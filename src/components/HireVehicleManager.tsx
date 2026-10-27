@@ -64,7 +64,7 @@ export function HireVehicleManager({
     mutationFn: ({ vehicleId, enabled }: { vehicleId: string; enabled: boolean }) =>
       updateFn({ data: { vehicleId, hourlyAvailable: enabled } }),
     onSuccess: () => {
-      setNotice("Hourly charter setting saved. The car appears in the separate hourly browse when enabled.");
+      setNotice("Hourly trip setting saved. The car appears in hourly trips when enabled.");
       void queryClient.invalidateQueries({ queryKey: ["my-vehicles"] });
       void queryClient.invalidateQueries({ queryKey: ["hire-vehicles"] });
     },
@@ -307,14 +307,14 @@ export function HireVehicleManager({
                   {vehicle.hire_approval_status.replaceAll("_", " ")}
                 </p>
                 <p className="mt-1 text-[11px] font-medium text-foreground">
-                  Hire option: {vehicle.hire_mode === "self_drive" ? "Self-drive only" : vehicle.hire_mode === "chauffeured" ? "Chauffeured only" : "Self-drive or chauffeured"}
+                  Hire option: {vehicle.hire_mode === "self_drive" ? "Customer drives" : vehicle.hire_mode === "chauffeured" ? "With a driver" : "Customer drives or with a driver"}
                 </p>
                 <p className={`mt-1 text-[11px] font-semibold ${hourlyEnabled ? "text-success" : "text-muted-foreground"}`}>
                   {hourlyEnabled
-                    ? "Hourly chauffeured trips: enabled"
+                    ? "Hourly trips with a driver: enabled"
                     : vehicle.hire_mode === "self_drive"
-                      ? "Hourly trips: set this car to chauffeured or both first"
-                      : "Hourly chauffeured trips: off · edit to enable"}
+                      ? "Hourly trips need a driver: choose With a driver or Both first"
+                      : "Hourly trips with a driver: off · edit to enable"}
                 </p>
                 {listingLive ? (
                   <p className="mt-1 text-[11px] font-semibold text-success">
@@ -432,7 +432,7 @@ export function HireVehicleManager({
                     onChange={(event) => hourlyOptIn.mutate({ vehicleId: vehicle.id, enabled: event.target.checked })}
                   />
                   <span className="text-xs text-foreground">
-                    <span className="block font-semibold">Offer this car for chauffeured trips by the hour</span>
+                  <span className="block font-semibold">Offer this car for hourly trips with a driver</span>
                     <span className="mt-0.5 block text-muted-foreground">
                       {vehicle.hire_mode === "self_drive"
                         ? "Hourly trips require a driver. Change this car’s hire options to Chauffeured only or Both below, save the change, then enable hourly here."
@@ -468,8 +468,8 @@ export function HireVehicleManager({
                     className="input-base"
                   >
                     <option value="self_drive">Self-drive only — customer drives</option>
-                    <option value="chauffeured">Chauffeured only — owner supplies a driver</option>
-                    <option value="both">Both — self-drive or chauffeured</option>
+                    <option value="chauffeured">With a driver — owner supplies a driver</option>
+                    <option value="both">Both — customer drives or uses a driver</option>
                   </select>
                   <span className="mt-1 block text-[10px] text-muted-foreground">This choice applies to this car. Customers can only select a service mode you enable.</span>
                 </label>

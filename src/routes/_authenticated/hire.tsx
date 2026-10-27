@@ -638,7 +638,7 @@ function HirePage() {
   const canSubmit = missing.length === 0 && !submit.isPending && !savedDocuments.isPending;
   if (servicePeriod === "hourly") {
     return (
-      <AppShell title="Chauffeured charter">
+      <AppShell title="Hourly trips with a driver">
         <div className="space-y-4 pb-24">
           <div className="mx-3 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1">
             <button type="button" onClick={() => setServicePeriod("hourly")} className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">By the hour</button>
@@ -687,7 +687,7 @@ function HirePage() {
           {(
             [
               { key: "self_drive", label: "Drive it myself" },
-              { key: "chauffeured", label: "Chauffeured" },
+              { key: "chauffeured", label: "With a driver" },
             ] as const
           ).map((o) => (
             <button
@@ -712,7 +712,7 @@ function HirePage() {
         </div>
         {tab === "chauffeured" ? (
           <p className="mx-4 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
-            Chauffeured hire covers the car and chauffeur for each booked day. Fuel is not included:
+            This option includes the car and a driver for each booked day. Fuel is not included:
             the customer covers fuel for the agreed route/distance, either arranged for that
             distance or purchased as needed while travelling.
           </p>

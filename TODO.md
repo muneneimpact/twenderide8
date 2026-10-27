@@ -28,6 +28,18 @@
 - [x] If `ref` exists, save it as `traffic_ref` in local storage for 30 days, with an expiry timestamp and safe expiry cleanup.
 - [x] Generate owner marketing links using channel-specific `ref` values so the captured parameter can distinguish sources.
 
+## Owner, driver, admin and hire workflow improvements
+
+- [x] Remove Hire cars from the driver navigation and keep the Drive console focused on ride work.
+- [x] Move owner driver assignment and onboarding into the Owner Hub, with plain-English guidance for ID, certificate of good conduct and driving licence.
+- [x] Keep owner documents and vehicle compliance visible as separate operational concepts; vehicle document records remain tied to the selected car.
+- [x] Replace user-facing “chauffeured” labels with “with a driver” where the customer or owner is choosing a service.
+- [x] Consolidate hire fee visibility into the owner balance summary; booking cards show payment status and owner earnings rather than repeating platform-fee language.
+- [x] Keep payment reminders connected to the verified M-Pesa flow so balances change only after successful settlement, and retain full-balance payment for customers.
+- [x] Make unsigned agreements visibly pending and tell hirers to read the agreement carefully before signing.
+- [x] Keep handover odometer, fuel and photo capture in the agreement workflow, with the full photo gallery rendered in the agreement page.
+- [x] Give the admin board the same command-centre framing as the Owner Hub while retaining existing approval, payment, document and incident actions.
+
 ## Validation
 
 - [x] Run the project build and lint/type diagnostics after implementation. The production build and `npx tsc --noEmit` pass. Repository-wide `npm run lint` remains blocked by 7,100+ pre-existing Prettier errors in untouched files.

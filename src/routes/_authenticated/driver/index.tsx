@@ -8,10 +8,6 @@ import { MapPanel } from "@/components/MapPanel";
 import { RideChat } from "@/components/RideChat";
 import { CarBadge } from "@/components/CarBadge";
 import { PushSettings } from "@/components/PushSettings";
-import { VehicleTeamBoard } from "@/components/VehicleTeamBoard";
-import { HireRequestsBoard } from "@/components/HireRequestsBoard";
-import { HireVehicleManager } from "@/components/HireVehicleManager";
-import { HirePortfolioFinance } from "@/components/HirePortfolioFinance";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acceptOffer,
@@ -70,23 +66,18 @@ function DriverConsolePage() {
 
 function HireOwnerPortal() {
   return (
-    <AppShell title="List a vehicle for hire">
+    <AppShell title="Driver onboarding">
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
         <section className="surface-card p-4">
-          <h2 className="font-display text-lg font-semibold text-foreground">
-            Offer your vehicle for hire
-          </h2>
+          <h2 className="font-display text-lg font-semibold text-foreground">Apply to drive</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            You can add and manage a hire car here without becoming a driver for ride requests.
-            Vehicle approval and hire-listing inspection are separate Ops reviews.
+            The Drive area is for accepting and completing ride requests. If you own a car for hire,
+            manage it from the Owner Hub instead.
           </p>
           <Link to="/driver/apply" className="mt-3 inline-flex text-sm font-semibold text-primary">
-            Interested in driving rides? Apply separately →
+            Open driver onboarding →
           </Link>
         </section>
-        <HireVehicleManager hireOnly />
-        <HireRequestsBoard />
-        <HirePortfolioFinance />
       </div>
     </AppShell>
   );
@@ -640,7 +631,6 @@ function DriverHome() {
 
 
 
-        <VehicleTeamBoard />
         <PushSettings />
 
         {/* Recent */}

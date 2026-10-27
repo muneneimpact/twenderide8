@@ -169,7 +169,7 @@ function AgreementPage() {
             </button>
             {Number(b.paid) > 0 ? <ReceiptDownload kind="hire" id={quoteId} label="Receipt (PDF)" className="rounded-full border border-input px-4 py-2 text-xs font-semibold text-foreground disabled:opacity-50" /> : null}
           </div>
-          {!complete ? <p className="text-xs text-muted-foreground">Download unlocks once the hire is completed (car returned) and both the hirer and the owner have signed. A copy is then emailed to both automatically.</p> : null}
+          {!complete ? <p className="text-xs text-warning-foreground">Agreement status: pending signatures. Read every section carefully, including the vehicle condition, payment, fuel and return terms, before signing. Download unlocks after the hire is completed and both the hirer and owner have signed.</p> : null}
           {pdfErr ? <p className="text-xs text-destructive">{pdfErr}</p> : null}
           {complete ? (
             <div className="flex flex-wrap gap-2">
@@ -200,6 +200,7 @@ function AgreementPage() {
         </header>
         <h1 className="mt-3 font-display text-lg font-semibold">Digital Vehicle Hire &amp; Rental Agreement</h1>
         <p className="text-xs text-muted-foreground">Booking {b.reference} · {chauffeured ? "Chauffeured" : "Self-drive"}</p>
+        {!complete ? <p className="mt-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs font-semibold text-warning-foreground">Pending: this agreement still needs to be signed. Please read it carefully before you accept.</p> : null}
 
         {sections.map((s, i) => (
           <Section key={s.title} n={i + 1} title={s.title}>

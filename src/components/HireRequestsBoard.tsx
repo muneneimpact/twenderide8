@@ -87,7 +87,7 @@ export function HireRequestsBoard() {
       {balance ? (
         <div className="mt-3 grid grid-cols-3 gap-2 rounded-2xl border border-border p-3">
           <Balance label="Your balance" value={balance.owner_balance} />
-          <Balance label="Platform fee total" value={balance.platform_fee_total} />
+          <Balance label="Twende service fees" value={balance.platform_fee_total} />
           <Balance label="Gross paid" value={balance.gross_paid_total} />
         </div>
       ) : null}
@@ -193,15 +193,14 @@ export function HireRequestsBoard() {
 
               {fixedPriceBooking ? (
                 <div className="mt-3 rounded-xl bg-secondary/50 p-3">
-                  <p className="text-xs font-semibold text-foreground">Payment and commission</p>
+                  <p className="text-xs font-semibold text-foreground">Payment summary</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Paid KES {paid.toLocaleString("en-KE")} · outstanding KES{" "}
                     {remaining.toLocaleString("en-KE")}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Gross collected KES {Number(perBooking.gross).toLocaleString("en-KE")} ·
-                    platform fee KES {Number(perBooking.fee).toLocaleString("en-KE")} · owner net
-                    KES {Number(perBooking.net).toLocaleString("en-KE")}
+                    your earnings KES {Number(perBooking.net).toLocaleString("en-KE")}
                   </p>
                   {request.payment_status === "partial" && remaining > 0 ? (
                     <div className="mt-3 space-y-2">

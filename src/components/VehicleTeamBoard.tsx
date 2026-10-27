@@ -36,10 +36,11 @@ export function VehicleTeamBoard() {
 
   return (
     <section className="surface-card p-4">
-      <h3 className="text-sm font-semibold text-foreground">My drivers</h3>
+      <h3 className="text-sm font-semibold text-foreground">Drivers for your cars</h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Assign a driver to a vehicle by their phone number. They'll get ride requests in that vehicle, and you'll see
-        every trip they handle. Their licence and ID stay on their own profile, so they don't resubmit them.
+        Add a driver for any car that will be used with a driver. They receive requests for the car
+        you assign, and you can see their approvals and trip history here. Their ID, certificate of
+        good conduct and driving licence stay on their own driver profile for review.
       </p>
       <div className="mt-3 space-y-4">
         {team.data.vehicles.map((v) => {
@@ -86,7 +87,7 @@ export function VehicleTeamBoard() {
               <div className="mt-3 rounded-xl border border-dashed border-border p-3">
                 <p className="text-xs font-semibold text-foreground">Onboard a new driver for this vehicle</p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  They sign in with this phone number, upload their ID, driving licence and PSV licence, and can drive once Twende approves. They only see this vehicle.
+                  They sign in with this phone number, upload their ID, certificate of good conduct and driving licence, and can drive once Twende approves. They only see this vehicle.
                 </p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                   <input value={newName[v.id] ?? ""} onChange={(e) => setNewName({ ...newName, [v.id]: e.target.value })}

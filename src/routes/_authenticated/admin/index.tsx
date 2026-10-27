@@ -102,7 +102,12 @@ function AdminBoard() {
   return (
     <AppShell title="Operations" eyebrow="Twende Ops">
       <div className="hero-gradient px-4 pb-8 pt-5">
-        <div className="mx-auto grid max-w-md grid-cols-2 gap-3">
+        <div className="mx-auto max-w-2xl">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-foreground/70">Twende operations command centre</p>
+          <h2 className="mt-2 font-display text-2xl font-extrabold text-brand-foreground">Keep every trip, car and document moving</h2>
+          <p className="mt-1 max-w-xl text-sm text-brand-foreground/75">Start with the items that need a decision, then use the registers below to inspect people, cars, payments and incidents.</p>
+        </div>
+        <div className="mx-auto mt-4 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             { label: "Requested 24h", value: b.last24h.requested },
             { label: "Completed 24h", value: b.last24h.completed },

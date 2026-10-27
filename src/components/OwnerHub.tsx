@@ -10,6 +10,7 @@ import { HireVehicleManager } from "@/components/HireVehicleManager";
 import { OwnerHireBookings } from "@/components/OwnerHireBookings";
 import { OwnerSignatureSettings } from "@/components/OwnerSignatureSettings";
 import { HireOwnerBrandCard } from "@/components/HireOwnerPageControls";
+import { VehicleTeamBoard } from "@/components/VehicleTeamBoard";
 import { useMe } from "@/hooks/useMe";
 
 type Section = "overview" | "vehicles" | "bookings" | "earnings" | "marketing" | "documents";
@@ -111,6 +112,7 @@ export function OwnerHub() {
             </section>
             <OwnerHireBookings />
             <HirePortfolioFinance />
+            <VehicleTeamBoard />
           </div>
         ) : null}
 
@@ -129,6 +131,7 @@ export function OwnerHub() {
               showAddVehicle={false}
               heading="Photos, prices and hire terms"
             />
+            <VehicleTeamBoard />
           </div>
         ) : null}
 
@@ -160,7 +163,7 @@ export function OwnerHub() {
 
         {section === "documents" ? (
           <DriverComplianceDocuments
-            heading="Owner and vehicle documents"
+            heading="Your owner documents"
             includeDriverDocuments={false}
           />
         ) : null}
