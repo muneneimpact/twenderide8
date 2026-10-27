@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -105,6 +105,17 @@ function DriverWallet() {
             Every entry below is immutable — corrections are posted as new entries.
           </p>
         </div>
+      </div>
+      <div className="mx-auto max-w-md px-4 pt-4">
+        <section className="surface-card p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Driver workspace</p>
+          <p className="mt-1 text-xs text-muted-foreground">Move between your driving tools without losing your place.</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <Link to="/driver" className="rounded-xl bg-primary px-2 py-2.5 text-center text-xs font-semibold text-primary-foreground">Drive</Link>
+            <Link to="/driver/apply" className="rounded-xl border border-border bg-secondary/50 px-2 py-2.5 text-center text-xs font-semibold text-foreground">Onboarding</Link>
+            <Link to="/lost-found" className="rounded-xl border border-border bg-secondary/50 px-2 py-2.5 text-center text-xs font-semibold text-foreground">Lost &amp; found</Link>
+          </div>
+        </section>
       </div>
 
       <div className="mx-auto max-w-md space-y-4 px-4 py-5">
