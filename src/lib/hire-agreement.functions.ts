@@ -168,6 +168,22 @@ export const saveHireInspection = createServerFn({ method: "POST" })
       })
       .eq("id", q.id);
     if (error) throw new Error(`Could not save inspection: ${error.message}`);
+    const { data: renter } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", q.requester_id)
+      .maybeSingle();
+    const renterPhone = q.contact_phone ?? renter?.phone;
+    if (renterPhone) {
+      const { sendTransactionalSms } = await import("./comms.server");
+      await sendTransactionalSms({
+        to: renterPhone,
+        message: `Twende Ride: handover details for booking ${q.reference} were updated with vehicle readings and photos. Review the latest agreement here: https://twenderide8.lovable.app/hire/agreement/${q.id}`,
+        eventType: "hire_handover_updated",
+        idempotencyKey: `hire-handover:${q.id}:${data.photos.front}:${data.odometer ?? "na"}:${data.fuel ?? "na"}`,
+        context: { userId: context.userId },
+      });
+    }
     return { ok: true };
   });
 
