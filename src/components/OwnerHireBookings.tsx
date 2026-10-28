@@ -6,6 +6,7 @@ import {
   listOwnerBookings,
   markHireHandover,
   requestHandoverDeposit,
+  getOwnerCompanyKycDocument,
   ownerConfirmCompanyBooking,
   ownerDeclineHire,
   ownerApplySavedSignature,
@@ -28,27 +29,31 @@ const fmt = (iso: string) =>
   });
 
 function stage(b: OwnerBooking) {
-  if (b.returned_at) return { label: "Returned", tone: "bg-secondary text-muted-foreground" };
-  if (b.handed_over_at) return { label: "On hire", tone: "bg-primary/15 text-primary" };
-  if (b.status === "submitted" && b.pay_later)
+  if (b.lifecycle_state === "closed" || b.returned_at)
+    return { label: "Completed", tone: "bg-secondary text-muted-foreground" };
+  if (b.lifecycle_state === "on_hire" || b.handed_over_at)
+    return { label: "On hire", tone: "bg-primary/15 text-primary" };
+  if (b.lifecycle_state === "submitted" && b.pay_later)
     return { label: "Verify company", tone: "bg-warning/15 text-warning" };
-  if (b.status === "confirmed")
+  if (b.lifecycle_state === "ready_for_handover" || b.status === "confirmed")
     return { label: "Ready to hand over", tone: "bg-success/15 text-success" };
+  if (b.lifecycle_state === "settlement_pending")
+    return { label: "Settling return", tone: "bg-warning/15 text-warning" };
   return { label: "Awaiting payment", tone: "bg-warning/15 text-warning" };
 }
 
 function nextBookingAction(b: OwnerBooking) {
-  if (b.returned_at) return "Completed";
-  if (b.handed_over_at)
+  if (b.lifecycle_state === "closed" || b.returned_at) return "Completed";
+  if (b.lifecycle_state === "on_hire" || b.handed_over_at)
     return b.end_at && new Date(b.end_at).getTime() <= Date.now()
       ? "Record car return"
       : "Awaiting car return";
-  if (b.status === "submitted" && b.pay_later && !b.company_verified) return "Verify company";
-  if (b.status === "confirmed" && b.deposit_policy === "handover" && b.deposit_amount > 0) {
+  if (b.lifecycle_state === "submitted" && b.pay_later && !b.company_verified) return "Verify company";
+  if (b.lifecycle_state === "ready_for_handover" && b.deposit_policy === "handover" && b.deposit_amount > 0) {
     if (!b.deposit_requested) return "Request deposit";
     if (b.paid < b.total) return "Waiting for payment";
   }
-  if (b.status === "confirmed") return "Hand over car";
+  if (b.lifecycle_state === "ready_for_handover" || b.status === "confirmed") return "Hand over car";
   return "Waiting for payment";
 }
 
@@ -61,6 +66,7 @@ export function OwnerHireBookings() {
   const signFn = useServerFn(ownerApplySavedSignature);
   const depositFn = useServerFn(requestHandoverDeposit);
   const verifyFn = useServerFn(ownerConfirmCompanyBooking);
+  const kycFn = useServerFn(getOwnerCompanyKycDocument);
   const depositReq = useMutation({
     mutationFn: (quoteId: string) => depositFn({ data: { quoteId } }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["owner-hire-bookings"] }),
@@ -128,6 +134,12 @@ export function OwnerHireBookings() {
   const verify = useMutation({
     mutationFn: (quoteId: string) => verifyFn({ data: { quoteId } }),
     onSuccess: refresh,
+    onError: (e) => setErr((e as Error).message),
+  });
+  const openKyc = useMutation({
+    mutationFn: (input: { quoteId: string; kind: "certificate" | "kra_pin" | "cr12" | "other" }) =>
+      kycFn({ data: input }),
+    onSuccess: ({ url }) => window.open(url, "_blank", "noopener,noreferrer"),
     onError: (e) => setErr((e as Error).message),
   });
   const remindFn = useServerFn(requestHirePaymentReminder);
@@ -232,15 +244,20 @@ export function OwnerHireBookings() {
                   {b.kyc.length ? (
                     <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                       {b.kyc.map((doc) => (
-                        <a
+                        <button
                           key={doc.kind}
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-semibold text-primary underline"
+                          type="button"
+                          onClick={() =>
+                            openKyc.mutate({
+                              quoteId: b.id,
+                              kind: doc.kind as "certificate" | "kra_pin" | "cr12" | "other",
+                            })
+                          }
+                          disabled={openKyc.isPending}
+                          className="font-semibold text-primary underline disabled:opacity-50"
                         >
                           {doc.label}
-                        </a>
+                        </button>
                       ))}
                     </p>
                   ) : (
@@ -582,6 +599,13 @@ export function OwnerHireBookings() {
                     pickup)
                     {b.return_excess_km_waived ? " · excess-km charge waived" : ""}
                     {b.return_fuel_waived ? " · fuel charge waived" : ""}
+                  </p>
+                ) : null}
+                {b.deposit_status !== "not_requested" && b.deposit_status !== "requested" ? (
+                  <p className="mt-1">
+                    Deposit: {b.deposit_returned > 0 ? `returned KES ${b.deposit_returned.toLocaleString("en-KE")}` : "none returned"}
+                    {b.deposit_retained > 0 ? ` · retained KES ${b.deposit_retained.toLocaleString("en-KE")}` : ""}
+                    {b.deposit_balance_due > 0 ? ` · balance due KES ${b.deposit_balance_due.toLocaleString("en-KE")}` : ""}
                   </p>
                 ) : null}
                 <SignTick b={b} />

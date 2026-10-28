@@ -291,7 +291,6 @@ export const getHireReceipt = createServerFn({ method: "GET" })
           ...(q.business_registration_number || renter?.company_registration_number
             ? [["Registration no.", q.business_registration_number ?? renter?.company_registration_number ?? ""] as [string, string]]
             : []),
-          ...(renter?.company_kra_pin ? [["Company KRA PIN", renter.company_kra_pin] as [string, string]] : []),
           ...(q.contact_name ? [["Contact person", q.contact_name] as [string, string]] : []),
         ]
       : [];

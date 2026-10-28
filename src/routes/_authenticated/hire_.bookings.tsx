@@ -44,6 +44,17 @@ const STATUS_COPY: Record<string, string> = {
   declined: "Not available",
 };
 
+function lifecycleLabel(quote: { lifecycle_state: string | undefined; status: string; pay_later_method: string | null }) {
+  const state = quote.lifecycle_state;
+  if (state === "payment_pending") return "Payment needed";
+  if (state === "ready_for_handover") return "Ready for pickup";
+  if (state === "on_hire") return "On hire";
+  if (state === "settlement_pending") return "Return being settled";
+  if (state === "closed") return "Completed";
+  if (state === "submitted" && quote.pay_later_method) return "Waiting for owner verification";
+  return STATUS_COPY[quote.status] ?? quote.status;
+}
+
 const DAY = 86_400_000;
 
 function HireBookingsPage() {
@@ -132,9 +143,11 @@ function HireBookingsPage() {
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-medium text-foreground">{q.reference}</p>
                     <span className="rounded-full bg-secondary px-2.5 py-1 text-xs text-foreground">
-                      {q.pay_later_method && q.status === "submitted"
-                        ? "Waiting for owner verification"
-                        : (STATUS_COPY[q.status] ?? q.status)}
+                      {lifecycleLabel({
+                        lifecycle_state: (q as { lifecycle_state?: string }).lifecycle_state,
+                        status: q.status,
+                        pay_later_method: q.pay_later_method,
+                      })}
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">

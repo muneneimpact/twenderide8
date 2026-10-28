@@ -196,7 +196,7 @@ export const requestHireEtr = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     const { textStaffWithLink } = await import("./links.server");
     await textStaffWithLink(["finance_admin", "super_admin"], {
-      message: `Twende: ${p.company_name} (KRA ${p.company_kra_pin}) requested an ETR for car hire ${q.reference}, KES ${Number(q.payment_paid_total).toLocaleString()} paid. Attach it here:`,
+      message: `Twende: ${p.company_name} requested an ETR for car hire ${q.reference}, KES ${Number(q.payment_paid_total).toLocaleString()} paid. Open the finance queue to view the protected tax details and attach it here:`,
       path: "/admin/finance#etr",
       eventType: "etr_requested",
       idempotencyKey: `hire-etr-req:${q.id}:${Date.now()}`,

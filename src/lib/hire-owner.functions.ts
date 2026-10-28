@@ -14,6 +14,11 @@ export interface OwnerBooking {
   deposit_policy: "upfront" | "handover" | "none";
   deposit_amount: number;
   deposit_requested: boolean;
+  deposit_status: string;
+  deposit_held: number;
+  deposit_retained: number;
+  deposit_returned: number;
+  deposit_balance_due: number;
   id: string;
   reference: string;
   vehicle: string;
@@ -32,7 +37,7 @@ export interface OwnerBooking {
   company_verified: boolean;
   business_email: string | null;
   business_registration: string | null;
-  kyc: Array<{ kind: string; label: string; url: string }>;
+  kyc: Array<{ kind: string; label: string }>;
   handed_over_at: string | null;
   returned_at: string | null;
   can_decline: boolean;
@@ -96,6 +101,25 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
         ["paid", "partial"].includes(r.payment_status ?? "") ||
         (r.status === "submitted" && Boolean(r.pay_later_method)),
     );
+    const settlementByQuote = new Map<
+      string,
+      { status: string; held: number; retained: number; returned: number; balanceDue: number }
+    >();
+    if (list.length) {
+      const { data: settlements } = await (supabaseAdmin as any)
+        .from("hire_deposit_settlements")
+        .select("hire_quote_id, status, held_amount, retained_amount, returned_amount, balance_due")
+        .in("hire_quote_id", list.map((r) => r.id));
+      for (const settlement of settlements ?? []) {
+        settlementByQuote.set(settlement.hire_quote_id, {
+          status: settlement.status,
+          held: Number(settlement.held_amount ?? 0),
+          retained: Number(settlement.retained_amount ?? 0),
+          returned: Number(settlement.returned_amount ?? 0),
+          balanceDue: Number(settlement.balance_due ?? 0),
+        });
+      }
+    }
     const vIds = [...new Set(list.map((r) => r.vehicle_id).filter((x): x is string => Boolean(x)))];
     const { data: vehicles } = vIds.length
       ? await supabaseAdmin.from("vehicles").select("id, make, model, plate_number").in("id", vIds)
@@ -113,28 +137,21 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
         `${[v.make, v.model].filter(Boolean).join(" ")} ${v.plate_number}`.trim(),
       ]),
     );
-    // Company KYC documents for pay-later bookings, with short-lived private links.
+    // Return company KYC metadata only. File links are issued by a quote-authorized endpoint.
     const kycUserIds = [
       ...new Set(list.filter((r) => r.pay_later_method).map((r) => r.requester_id)),
     ];
-    const kycByUser = new Map<string, Array<{ kind: string; label: string; url: string }>>();
+    const kycByUser = new Map<string, Array<{ kind: string; label: string }>>();
     if (kycUserIds.length) {
       const { data: docs } = await supabaseAdmin
         .from("business_kyc_documents")
         .select("user_id, document_kind, file_path")
         .in("user_id", kycUserIds);
-      const paths = (docs ?? []).map((d) => d.file_path);
-      const signed = paths.length
-        ? ((await supabaseAdmin.storage.from("hire-documents").createSignedUrls(paths, 1800))
-            .data ?? [])
-        : [];
-      const urlOf = (p: string) => signed.find((s) => s.path === p)?.signedUrl ?? "";
       for (const d of docs ?? []) {
         const arr = kycByUser.get(d.user_id) ?? [];
         arr.push({
           kind: d.document_kind,
           label: KYC_LABELS[d.document_kind] ?? "Business document",
-          url: urlOf(d.file_path),
         });
         kycByUser.set(d.user_id, arr);
       }
@@ -192,7 +209,42 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
       deposit_policy: (r.deposit_policy ?? "none") as "upfront" | "handover" | "none",
       deposit_amount: Number(r.deposit_amount ?? 0),
       deposit_requested: Boolean(r.deposit_requested_at),
+      deposit_status: settlementByQuote.get(r.id)?.status ?? "not_requested",
+      deposit_held: settlementByQuote.get(r.id)?.held ?? 0,
+      deposit_retained: settlementByQuote.get(r.id)?.retained ?? 0,
+      deposit_returned: settlementByQuote.get(r.id)?.returned ?? 0,
+      deposit_balance_due: settlementByQuote.get(r.id)?.balanceDue ?? 0,
     }));
+  });
+
+/** Create one short-lived KYC link only after verifying access to this booking. */
+export const getOwnerCompanyKycDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        quoteId: z.string().uuid(),
+        kind: z.enum(["certificate", "kra_pin", "cr12", "other"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const q = await loadBookingFor(context.userId, data.quoteId);
+    if (!q.pay_later_method) throw new Error("This booking has no company KYC review.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: document } = await supabaseAdmin
+      .from("business_kyc_documents")
+      .select("file_path")
+      .eq("user_id", q.requester_id)
+      .eq("document_kind", data.kind)
+      .maybeSingle();
+    if (!document?.file_path || !document.file_path.startsWith(`${q.requester_id}/`))
+      throw new Error("That company document is no longer available.");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("hire-documents")
+      .createSignedUrl(document.file_path, 300);
+    if (error || !signed?.signedUrl) throw new Error("Could not open the company document.");
+    return { url: signed.signedUrl };
   });
 
 /** Owner verifies a company's KYC and confirms the pay-later booking; the dates then block. */
