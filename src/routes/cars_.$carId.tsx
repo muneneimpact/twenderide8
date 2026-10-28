@@ -67,9 +67,15 @@ function CarDetail() {
         ) : (
           <div className="grid aspect-video place-items-center sky-gradient text-sky-foreground">No photos yet</div>
         )}
-        <Link to="/cars" aria-label="Back to cars" className="absolute left-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-background/90 shadow">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
+        {owner ? (
+          <Link to="/$brandSlug" params={{ brandSlug: owner }} aria-label="Back to owner page" className="absolute left-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-background/90 shadow">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+        ) : (
+          <Link to="/cars" aria-label="Back to cars" className="absolute left-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-background/90 shadow">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+        )}
         {photos.length > 1 && (
           <span className="absolute bottom-3 right-3 rounded-full bg-foreground/70 px-2 py-0.5 text-xs font-semibold text-background">
             {idx + 1} / {photos.length}
