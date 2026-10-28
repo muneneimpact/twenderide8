@@ -1,17 +1,10 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  assertHireLifecycleTransition,
+  type HireLifecycleState,
+} from "./hire-lifecycle-rules";
 
-export type HireLifecycleState =
-  | "submitted"
-  | "quoted"
-  | "payment_pending"
-  | "confirmed"
-  | "ready_for_handover"
-  | "on_hire"
-  | "return_pending"
-  | "settlement_pending"
-  | "closed"
-  | "declined"
-  | "cancelled";
+export type { HireLifecycleState } from "./hire-lifecycle-rules";
 
 export async function recordHireEvent(input: {
   quoteId: string;
@@ -48,6 +41,9 @@ export async function transitionHireState(input: {
   metadata?: Record<string, unknown>;
 }) {
   const fromStates = Array.isArray(input.from) ? input.from : [input.from];
+  for (const fromState of fromStates) {
+    assertHireLifecycleTransition(fromState, input.to);
+  }
   const query = (supabaseAdmin as any)
     .from("hire_quotes")
     .update({ ...(input.patch ?? {}), lifecycle_state: input.to } as never)

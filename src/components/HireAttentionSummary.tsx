@@ -17,11 +17,13 @@ export function HireAttentionSummary() {
     refetchInterval: 15_000,
   });
   const bookingCount = (bookings.data ?? []).filter((item) => {
-    if (item.returned_at) return false;
-    if (item.handed_over_at)
+    const lifecycle = item.lifecycle_state;
+    if (["closed", "declined", "cancelled"].includes(lifecycle)) return false;
+    if (["on_hire", "return_pending"].includes(lifecycle))
       return Boolean(item.end_at && new Date(item.end_at).getTime() <= Date.now());
-    if (item.status === "submitted" && item.pay_later && !item.company_verified) return true;
-    if (item.status !== "confirmed") return false;
+    if (lifecycle === "settlement_pending") return true;
+    if (lifecycle === "submitted" && item.pay_later && !item.company_verified) return true;
+    if (!["ready_for_handover", "confirmed"].includes(lifecycle)) return false;
     if (item.deposit_policy === "handover" && item.deposit_amount > 0) {
       if (!item.deposit_requested) return true;
       if (item.paid < item.total) return false;
