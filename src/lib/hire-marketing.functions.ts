@@ -215,3 +215,73 @@ Focus: ${data.focus}`;
       throw new Error("The AI returned copy in an unexpected format. Please try again.");
     }
   });
+
+const profileCopySchema = z.object({
+  brandName: z.string().min(2).max(80),
+  ownerBio: z.string().min(1).max(1200),
+  businessInfo: z.string().min(1).max(1000),
+  marketingContent: z.string().min(1).max(1500),
+});
+export type HireOwnerProfileCopy = z.infer<typeof profileCopySchema>;
+
+/** Generate storefront profile fields independently from the monthly post generator. */
+export const generateHireOwnerProfileCopy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    profileType: z.enum(["person", "company"]),
+    currentBrandName: z.string().trim().max(80).optional(),
+    currentOwnerBio: z.string().trim().max(1200).optional(),
+    currentBusinessInfo: z.string().trim().max(1000).optional(),
+    currentMarketingContent: z.string().trim().max(1500).optional(),
+    vehicles: z.array(vehicleInput).max(50),
+  }).parse(input))
+  .handler(async ({ data }) => {
+    const apiKey = process.env["LOVABLE_API_KEY"];
+    if (!apiKey) throw new Error("AI profile generation is not configured yet.");
+    const fleet = data.vehicles.map((vehicle) => ({
+      name: [vehicle.make, vehicle.model].filter(Boolean).join(" ") || "hire car",
+      seats: vehicle.seats ?? null,
+      dailyRate: vehicle.dailyRate ?? null,
+      hireMode: vehicle.hireMode ?? null,
+      features: vehicle.features ?? null,
+    }));
+    const prompt = `Create complete, truthful profile copy for a Kenyan car-hire storefront. Return ONLY valid JSON with brandName, ownerBio, businessInfo, marketingContent. Fill all fields with useful copy, but never invent awards, guarantees, routes, contacts, opening hours, amenities, vehicle availability, or exact prices not provided. Use natural Kenyan automotive terminology and KES when a supplied rate exists. Profile type: ${data.profileType === "company" ? "company" : "individual owner"}. Current brand: ${data.currentBrandName || "blank"}. Current bio: ${data.currentOwnerBio || "blank"}. Current business information: ${data.currentBusinessInfo || "blank"}. Current marketing content: ${data.currentMarketingContent || "blank"}. Fleet: ${JSON.stringify(fleet)}`;
+    const gateway = createLovableAiGatewayRunIdFetch();
+    const response = await gateway.fetch(LOVABLE_AI_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "X-Lovable-AIG-SDK": "fetch" },
+      body: JSON.stringify({
+        model: LOVABLE_AI_MODEL,
+        messages: [
+          { role: "system", content: "Write truthful, polished car-hire profile copy for Kenya. Return JSON only." },
+          { role: "user", content: prompt },
+        ],
+        reasoning_effort: "low",
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "hire_owner_profile_copy",
+            strict: true,
+            schema: {
+              type: "object", additionalProperties: false,
+              properties: {
+                brandName: { type: "string", minLength: 2, maxLength: 80 },
+                ownerBio: { type: "string", minLength: 1, maxLength: 1200 },
+                businessInfo: { type: "string", minLength: 1, maxLength: 1000 },
+                marketingContent: { type: "string", minLength: 1, maxLength: 1500 },
+              },
+              required: ["brandName", "ownerBio", "businessInfo", "marketingContent"],
+            },
+          },
+        },
+      }),
+    });
+    if (!response.ok) {
+      const reason = await gatewayErrorReason(response);
+      throw new Error(reason ? `AI profile generation failed: ${reason}` : `AI profile generation failed (${response.status}).`);
+    }
+    const json = await response.json();
+    const content = String(json?.choices?.[0]?.message?.content || "").replace(/```json\n?/g, "").replace(/```/g, "").trim();
+    try { return profileCopySchema.parse(JSON.parse(content)); }
+    catch { throw new Error("The AI returned profile copy in an unexpected format. Please try again."); }
+  });

@@ -1,6 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowRight, CalendarCheck, CarFront, MapPin, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ArrowDown, ArrowRight, CalendarCheck, CarFront, MapPin, Sparkles, Users } from "lucide-react";
 import { getPublicHireBrand } from "@/lib/hire.functions";
 import { nextAvailableLabel } from "@/lib/next-available";
 import { rememberHireVehicle } from "@/lib/hire-selection";
@@ -72,6 +72,13 @@ function HireBrandPage() {
 
   return (
     <main className="min-h-screen bg-secondary/20 pb-12">
+      <div className="sticky top-0 z-40 border-b border-border/80 bg-background/95 shadow-sm backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
+          {brand.logo_data_url ? <img src={brand.logo_data_url} alt={`${brand.brand_name} logo`} className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10" /> : <span className="grid h-9 w-9 shrink-0 place-items-center text-sm font-extrabold text-primary sm:h-10 sm:w-10" aria-hidden="true">{brand.brand_name.slice(0, 1).toUpperCase()}</span>}
+          <a href="#owner-fleet" className="min-w-0 truncate font-display text-sm font-extrabold text-foreground sm:text-base">{brand.brand_name}</a>
+          <a href="#owner-fleet" className="ml-auto shrink-0 rounded-full bg-primary px-3 py-1.5 text-[11px] font-bold text-primary-foreground">View cars</a>
+        </div>
+      </div>
       <header className="relative overflow-hidden bg-primary text-primary-foreground" style={{ background: brand.accent_color ? `linear-gradient(135deg, ${brand.accent_color}, color-mix(in srgb, ${brand.accent_color} 58%, #10251b))` : undefined }}>
         {brand.cover_image_data_url ? <div className="absolute inset-0 bg-cover bg-center opacity-20" style={{ backgroundImage: `url(${brand.cover_image_data_url})` }} aria-hidden="true" /> : null}
         <div className="absolute inset-0 opacity-25" aria-hidden="true">
@@ -86,11 +93,11 @@ function HireBrandPage() {
               <img
                 src={brand.logo_data_url}
                 alt={`${brand.brand_name} logo`}
-                className="h-16 w-16 shrink-0 rounded-xl bg-background object-contain p-1.5 shadow-lg sm:h-28 sm:w-28 sm:rounded-2xl sm:p-2"
+                className="h-16 w-16 shrink-0 object-contain sm:h-28 sm:w-28"
               />
             ) : (
               <div
-                className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-primary-foreground/15 text-2xl font-extrabold sm:h-28 sm:w-28 sm:rounded-2xl sm:text-4xl"
+                className="hidden"
                 aria-label={`${brand.brand_name} logo placeholder`}
               >
                 {brand.brand_name.slice(0, 1).toUpperCase()}
@@ -115,23 +122,10 @@ function HireBrandPage() {
             </div>
             </div>
             <div className="hidden rounded-3xl border border-primary-foreground/20 bg-primary-foreground/10 p-5 backdrop-blur-sm lg:block">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary-foreground/15"><ShieldCheck className="h-5 w-5" /></div>
-              <p className="mt-4 font-display text-lg font-bold">Book with confidence</p>
-              <p className="mt-2 text-xs leading-relaxed text-primary-foreground/80">Explore the collection, check dates and complete your booking and payment through Twende.</p>
-              <div className="mt-4 border-t border-primary-foreground/15 pt-3 text-xs font-semibold">Your next trip starts here</div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary-foreground/70">Your next trip</p>
+              <p className="mt-3 font-display text-2xl font-extrabold">Choose the right car.</p>
+              <p className="mt-2 text-xs leading-relaxed text-primary-foreground/80">Browse the collection, find a vehicle that fits your plans, and start with the dates that work for you.</p>
             </div>
-          </div>
-          <div className="mt-7 hidden gap-2 sm:grid sm:grid-cols-3">
-            {[
-              { icon: CarFront, title: "Our cars", text: "Browse the full collection." },
-              { icon: CalendarCheck, title: "Know your dates", text: "Check availability before requesting." },
-              { icon: ShieldCheck, title: "Book in Twende", text: "Keep booking and payment on-platform." },
-            ].map((item) => (
-              <div key={item.title} className="flex items-center gap-3 rounded-2xl border border-primary-foreground/15 bg-primary-foreground/10 px-3 py-3">
-                <item.icon className="h-4 w-4 shrink-0" />
-                <div><p className="text-xs font-bold">{item.title}</p><p className="mt-0.5 text-[10px] text-primary-foreground/75">{item.text}</p></div>
-              </div>
-            ))}
           </div>
         </div>
       </header>

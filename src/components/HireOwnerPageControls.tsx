@@ -15,6 +15,7 @@ import {
   saveMyHireBrand,
 } from "@/lib/hire.functions";
 import {
+  generateHireOwnerProfileCopy,
   generateHireOwnerMarketingCopy,
   getHireMarketingQuota,
   type HireMarketingPost,
@@ -112,6 +113,7 @@ export function HireOwnerBrandCard() {
   const getFn = useServerFn(getMyHireBrand);
   const saveFn = useServerFn(saveMyHireBrand);
   const vehiclesFn = useServerFn(listMyVehicles);
+  const generateProfileFn = useServerFn(generateHireOwnerProfileCopy);
   const generateFn = useServerFn(generateHireOwnerMarketingCopy);
   const quotaFn = useServerFn(getHireMarketingQuota);
   const brand = useQuery({ queryKey: ["my-hire-brand"], queryFn: () => getFn() });
@@ -209,6 +211,32 @@ export function HireOwnerBrandCard() {
       setPosts(copy.posts);
       void queryClient.invalidateQueries({ queryKey: ["hire-marketing-quota"] });
       setMessage("Your monthly marketing post is ready. Review it, then save your brand page.");
+    },
+    onError: (error) => setMessage((error as Error).message),
+  });
+
+  const generateProfile = useMutation({
+    mutationFn: () => generateProfileFn({ data: {
+      profileType: form.profileType,
+      currentBrandName: form.brandName,
+      currentOwnerBio: form.ownerBio,
+      currentBusinessInfo: form.businessInfo,
+      currentMarketingContent: form.marketingContent,
+      vehicles: (vehicles.data ?? []).map((vehicle) => ({
+        make: vehicle.make, model: vehicle.model, seats: vehicle.seats,
+        dailyRate: vehicle.hire_daily_rate == null ? null : Number(vehicle.hire_daily_rate),
+        hireMode: (vehicle.hire_mode ?? "both") as "self_drive" | "chauffeured" | "both",
+        features: vehicle.hire_features,
+      })),
+    } }),
+    onSuccess: (copy) => {
+      setForm((current) => ({ ...current,
+        brandName: current.brandName.trim() || copy.brandName,
+        ownerBio: current.ownerBio.trim() || copy.ownerBio,
+        businessInfo: current.businessInfo.trim() || copy.businessInfo,
+        marketingContent: current.marketingContent.trim() || copy.marketingContent,
+      }));
+      setMessage("Your profile fields are ready. Review them, then save your brand page.");
     },
     onError: (error) => setMessage((error as Error).message),
   });
@@ -383,6 +411,13 @@ export function HireOwnerBrandCard() {
               Company pages use your account’s company name, or your brand name if no company name is on file.
             </p>
           </fieldset>
+
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><p className="text-xs font-bold text-foreground">Fill the profile with AI</p><p className="mt-1 max-w-xl text-[10px] leading-relaxed text-muted-foreground">Creates general car-hire profile copy from your fleet. This is separate from the monthly social-post generator and only fills blank fields.</p></div>
+              <button type="button" onClick={() => generateProfile.mutate()} disabled={generateProfile.isPending || vehicles.isPending} className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> {generateProfile.isPending ? "Filling…" : "Fill blank fields"}</button>
+            </div>
+          </div>
 
           <label className="block">
             <span className="text-xs font-semibold text-foreground">Unique brand name</span>

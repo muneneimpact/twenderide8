@@ -2078,6 +2078,17 @@ export const requestHirePayout = createServerFn({ method: "POST" })
     } catch (auditError) {
       console.error("hire payout request audit failed", auditError);
     }
+    try {
+      const { textStaffWithLink } = await import("./links.server");
+      await textStaffWithLink(["ops_admin", "finance_admin", "super_admin"], {
+        message: `Twende: new hire payout request for KES ${Math.round(Number(payload.amount ?? data.amount)).toLocaleString("en-KE")}. Review urgently:`,
+        path: "/admin/finance",
+        eventType: "hire_payout_request_staff_alert",
+        idempotencyKey: `hire-payout-staff:${payload.request_id}`,
+      });
+    } catch (staffAlertError) {
+      console.error("hire payout staff SMS failed", staffAlertError);
+    }
     await smsPayoutSummary(context.userId, `payout-req:${payload.request_id}`, "Payout request received.", Number(payload.amount ?? data.amount));
     return {
       requestId: payload.request_id,
