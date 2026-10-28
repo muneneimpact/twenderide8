@@ -51,9 +51,18 @@ export const submitHourlyCharterRequest = createServerFn({ method: "POST" })
       stops: [{ label: data.itinerary }], notes: data.notes ?? null, estimated_total: 0,
       quoted_total: null, payment_policy: "legacy", payment_status: "unpaid", payment_paid_total: 0,
       status: "submitted", contact_name: profile?.full_name ?? null, contact_phone: profile?.phone ?? null,
-      hirer_type: "individual", deposit_policy: "none", deposit_amount: 0,
+      lifecycle_state: "submitted", hirer_type: "individual", deposit_policy: "none", deposit_amount: 0,
     } as never).select("id, reference").single();
     if (error || !row) throw new Error(error?.message ?? "Could not submit hourly charter request.");
+    const { recordHireEvent } = await import("./hire-lifecycle.server");
+    await recordHireEvent({
+      quoteId: row.id,
+      toState: "submitted",
+      eventType: "hourly_charter_submitted",
+      actorId: context.userId,
+      actorRole: "hirer",
+      metadata: { vehicleId: data.vehicleId, durationHours: data.durationHours },
+    });
     try {
       const { notify } = await import("@/lib/notifications.server");
       const { data: owner } = await supabaseAdmin.from("vehicles").select("owner_driver_id").eq("id", data.vehicleId).maybeSingle();

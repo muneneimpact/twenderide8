@@ -127,6 +127,13 @@
       "when": 1793073769288,
       "tag": "0017_owner_trusted_brands_and_promotions",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793075000000,
+      "tag": "0019_hire_lifecycle_deposit_settlement",
+      "breakpoints": true
     }
   ]
 }

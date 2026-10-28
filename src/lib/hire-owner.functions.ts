@@ -10,6 +10,7 @@ import { canOwnerDecline } from "./hire-rules";
 import { calculateFuelShortfall, fuelLevelPercent } from "./hire-rules";
 
 export interface OwnerBooking {
+  lifecycle_state: string;
   deposit_policy: "upfront" | "handover" | "none";
   deposit_amount: number;
   deposit_requested: boolean;
@@ -150,6 +151,7 @@ export const listOwnerBookings = createServerFn({ method: "POST" })
       end_at: r.end_at,
       days: r.days,
       status: r.status,
+      lifecycle_state: (r as typeof r & { lifecycle_state?: string }).lifecycle_state ?? r.status,
       payment_status: r.payment_status ?? "pending",
       total: Number(r.quoted_total ?? r.estimated_total),
       paid: Number(r.payment_paid_total ?? 0),
@@ -209,21 +211,26 @@ export const ownerConfirmCompanyBooking = createServerFn({ method: "POST" })
       .limit(1);
     if (!kyc?.length) throw new Error("This company has not uploaded any business documents yet.");
     const now = new Date().toISOString();
-    const { error } = await supabaseAdmin
-      .from("hire_quotes")
-      .update({
-        status: "confirmed",
-        company_verified_at: now,
-        company_verified_by: context.userId,
-      } as never)
-      .eq("id", q.id)
-      .eq("status", "submitted");
-    if (error) {
-      if (error.message.includes("already booked"))
-        throw new Error(
-          "Those dates were just taken by another booking. Decline this one instead.",
-        );
-      throw new Error(error.message);
+    try {
+      const { transitionHireState } = await import("./hire-lifecycle.server");
+      await transitionHireState({
+        quoteId: q.id,
+        from: "submitted",
+        to: "ready_for_handover",
+        eventType: "company_booking_confirmed",
+        actorId: context.userId,
+        actorRole: "owner",
+        patch: {
+          status: "confirmed",
+          company_verified_at: now,
+          company_verified_by: context.userId,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not confirm this booking.";
+      if (message.includes("already booked"))
+        throw new Error("Those dates were just taken by another booking. Decline this one instead.");
+      throw new Error(message);
     }
     const { notify, audit } = await import("./notifications.server");
     await audit(context.userId, "hire_company_verified", "hire_quote", q.id, {});
@@ -262,17 +269,19 @@ export const markHireHandover = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const q = await loadBookingFor(context.userId, data.quoteId);
-    if (q.status !== "confirmed") throw new Error("Only confirmed bookings can be handed over.");
-    if (data.step === "returned" && !q.handed_over_at) throw new Error("Mark the handover first.");
-    if (data.step === "returned" && q.returned_at)
-      throw new Error("This car return was already recorded.");
+    const lifecycle = (q as typeof q & { lifecycle_state?: string }).lifecycle_state ?? (q.returned_at ? "closed" : q.handed_over_at ? "on_hire" : q.status === "confirmed" ? "ready_for_handover" : q.status);
+    if (data.step === "handed_over" && lifecycle !== "ready_for_handover")
+      throw new Error("This booking is not ready for handover. Refresh and try again.");
+    if (data.step === "returned" && lifecycle !== "on_hire")
+      throw new Error(q.returned_at ? "This car return was already recorded." : "Mark the handover first.");
     if (
       data.step === "handed_over" &&
       q.deposit_policy === "handover" &&
       Number(q.deposit_amount) > 0
     ) {
-      const due = Number(q.quoted_total ?? q.estimated_total);
-      if (!q.deposit_requested_at || Number(q.payment_paid_total ?? 0) < due)
+      const deposit = Number(q.deposit_amount);
+      const depositPaid = q.deposit_requested_at && Number(q.payment_paid_total ?? 0) >= Number(q.quoted_total ?? q.estimated_total);
+      if (!depositPaid)
         throw new Error("The hirer must pay the deposit in the app before you hand over the car.");
     }
     if (data.step === "returned" && !data.settlement)
@@ -284,6 +293,9 @@ export const markHireHandover = createServerFn({ method: "POST" })
     if (data.step === "returned" && data.settlement) {
       const { settleHireReturn } = await import("./hire-rules");
       const s = data.settlement;
+      const requestedDeposit = q.deposit_policy === "handover" ? Number(q.deposit_amount ?? 0) : 0;
+      if (s.deposit > requestedDeposit)
+        throw new Error(`Returned deposit cannot exceed the requested deposit of KES ${Math.round(requestedDeposit).toLocaleString("en-KE")}.`);
       const inspection = (q.hirer_inspection ?? {}) as {
         pickup?: { odometer?: number; fuel?: string };
       };
@@ -313,6 +325,13 @@ export const markHireHandover = createServerFn({ method: "POST" })
         waiveExcessKm: s.waiveExcessKm,
         waiveFuel: s.waiveFuel,
       });
+      const { data: existingSettlement } = await (supabaseAdmin as any)
+        .from("hire_deposit_settlements")
+        .select("status, held_amount")
+        .eq("hire_quote_id", q.id)
+        .maybeSingle();
+      if (existingSettlement?.status === "returned" || existingSettlement?.status === "retained")
+        throw new Error("This deposit was already settled.");
       patch = {
         returned_at: new Date().toISOString(),
         return_odometer: s.odometer,
@@ -345,10 +364,64 @@ export const markHireHandover = createServerFn({ method: "POST" })
         `Coming back to you: ${kes(r.returned)}.` +
         (r.balanceDue > 0 ? ` Still owed: ${kes(r.balanceDue)}.` : "");
     }
-    await supabaseAdmin
-      .from("hire_quotes")
-      .update(patch as never)
-      .eq("id", q.id);
+    const { transitionHireState } = await import("./hire-lifecycle.server");
+    const nextState = data.step === "handed_over" ? "on_hire" : "settlement_pending";
+    try {
+      await transitionHireState({
+        quoteId: q.id,
+        from: lifecycle as never,
+        to: nextState,
+        eventType: data.step === "handed_over" ? "vehicle_handed_over" : "vehicle_returned",
+        actorId: context.userId,
+        actorRole: "owner",
+        patch,
+        metadata: data.step === "returned" && data.settlement ? { settlement: data.settlement } : {},
+      });
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : "Could not update this booking.");
+    }
+    if (data.step === "returned" && data.settlement) {
+      const s = data.settlement;
+      const { settleHireReturn } = await import("./hire-rules");
+      const pickup = (q.hirer_inspection ?? {}) as { pickup?: { odometer?: number; fuel?: string } };
+      const pickupOdometer = q.inspection_odometer ?? pickup.pickup?.odometer;
+      const pickupFuel = q.inspection_fuel ?? pickup.pickup?.fuel;
+      const result = settleHireReturn({
+        deposit: s.deposit,
+        days: Number(q.days ?? 1),
+        kmDriven: s.odometer - Number(pickupOdometer),
+        fuelCharge: calculateFuelShortfall(pickupFuel, s.fuelLevel) === 0 ? 0 : s.fuelCharge,
+        penalties: s.penalties,
+        waiveExcessKm: s.waiveExcessKm,
+        waiveFuel: s.waiveFuel,
+      });
+      const { error: settlementError } = await (supabaseAdmin as any)
+        .from("hire_deposit_settlements")
+        .upsert({
+          hire_quote_id: q.id,
+          requested_amount: Number(q.deposit_amount ?? 0),
+          held_amount: s.deposit,
+          retained_amount: result.kept,
+          returned_amount: result.returned,
+          balance_due: result.balanceDue,
+          status: result.balanceDue > 0 ? "balance_due" : result.kept > 0 ? "retained" : "returned",
+          held_at: q.deposit_requested_at ?? new Date().toISOString(),
+          settled_at: new Date().toISOString(),
+          settled_by: context.userId,
+          settlement_notes: s.notes || null,
+          updated_at: new Date().toISOString(),
+        } as never, { onConflict: "hire_quote_id" });
+      if (settlementError) throw new Error(`Return was recorded but deposit settlement failed: ${settlementError.message}`);
+      await transitionHireState({
+        quoteId: q.id,
+        from: "settlement_pending",
+        to: "closed",
+        eventType: "hire_closed_after_settlement",
+        actorId: context.userId,
+        actorRole: "owner",
+        metadata: { settlementStatus: result.balanceDue > 0 ? "balance_due" : result.kept > 0 ? "retained" : "returned" },
+      });
+    }
     const { notify, audit } = await import("./notifications.server");
     if (data.step === "returned")
       await audit(context.userId, "hire_return_settled", "hire_quote", q.id, patch);
@@ -373,22 +446,42 @@ export const ownerDeclineHire = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const q = await loadBookingFor(context.userId, data.quoteId);
     if (q.handed_over_at) throw new Error("The car was already handed over.");
+    const lifecycle = (q as typeof q & { lifecycle_state?: string }).lifecycle_state ?? q.status;
+    if (!["submitted", "quoted", "payment_pending", "confirmed", "ready_for_handover"].includes(lifecycle))
+      throw new Error("This booking can no longer be declined.");
     if (!canOwnerDecline({ startAt: new Date(q.start_at), bookedAt: new Date(q.created_at) }))
       throw new Error(
         "Declining closes 12 hours before pickup (or 3 hours after booking for short-notice hires). Contact support.",
       );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const paid = Number(q.payment_paid_total ?? 0);
-    await supabaseAdmin
+    const { data: updated, error } = await (supabaseAdmin as any)
       .from("hire_quotes")
       .update({
         status: "declined",
+        lifecycle_state: "declined",
         owner_declined_at: new Date().toISOString(),
         owner_decline_reason: data.reason,
         payment_status: paid > 0 ? "refund_pending" : q.payment_status,
         payment_hold_expires_at: null,
       })
-      .eq("id", q.id);
+      .eq("id", q.id)
+      .eq("lifecycle_state", lifecycle)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!updated) throw new Error("This booking changed state. Refresh and try again.");
+    const { recordHireEvent } = await import("./hire-lifecycle.server");
+    await recordHireEvent({
+      quoteId: q.id,
+      fromState: lifecycle as never,
+      toState: "declined",
+      eventType: "owner_declined",
+      actorId: context.userId,
+      actorRole: "owner",
+      reason: data.reason,
+      metadata: { paid },
+    });
     const { notify, audit } = await import("./notifications.server");
     await audit(context.userId, "hire_owner_declined", "hire_quote", q.id, {
       reason: data.reason,
@@ -513,7 +606,8 @@ export const requestHandoverDeposit = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ quoteId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const q = await loadBookingFor(context.userId, data.quoteId);
-    if (q.status !== "confirmed" || q.handed_over_at)
+    const lifecycle = (q as typeof q & { lifecycle_state?: string }).lifecycle_state ?? (q.handed_over_at ? "on_hire" : q.status === "confirmed" ? "ready_for_handover" : q.status);
+    if (lifecycle !== "ready_for_handover")
       throw new Error("This booking is not waiting for pickup.");
     if (q.deposit_policy !== "handover" || Number(q.deposit_amount) <= 0)
       throw new Error("This booking has no pickup deposit.");
@@ -526,12 +620,36 @@ export const requestHandoverDeposit = createServerFn({ method: "POST" })
       payment_status: "partial",
     };
     if (q.quoted_total != null) patch["quoted_total"] = Number(q.quoted_total) + amount;
-    const { error } = await supabaseAdmin
+    const { data: updated, error } = await (supabaseAdmin as any)
       .from("hire_quotes")
-      .update(patch as never)
+      .update({ ...patch, lifecycle_state: "ready_for_handover" } as never)
       .eq("id", q.id)
-      .is("deposit_requested_at", null);
+      .eq("lifecycle_state", "ready_for_handover")
+      .is("deposit_requested_at", null)
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(error.message);
+    if (!updated) return { ok: true, already: true };
+    const { error: settlementError } = await (supabaseAdmin as any)
+      .from("hire_deposit_settlements")
+      .upsert({
+        hire_quote_id: q.id,
+        requested_amount: amount,
+        status: "requested",
+        requested_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as never, { onConflict: "hire_quote_id" });
+    if (settlementError) throw new Error(`Deposit request saved but settlement tracking failed: ${settlementError.message}`);
+    const { recordHireEvent } = await import("./hire-lifecycle.server");
+    await recordHireEvent({
+      quoteId: q.id,
+      fromState: lifecycle,
+      toState: "ready_for_handover",
+      eventType: "handover_deposit_requested",
+      actorId: context.userId,
+      actorRole: "owner",
+      metadata: { amount },
+    });
     const { notify } = await import("./notifications.server");
     await notify({
       userId: q.requester_id,

@@ -360,6 +360,26 @@ export async function settleHirePayment(paymentIntentId: string, receipt: string
     const paidInFull =
       (result.payment_status ?? quote.payment_status) === "paid" || paidTotal >= fullTotal;
     if (paidInFull) {
+      const { data: advanced, error: lifecycleError } = await supabaseAdmin
+        .from("hire_quotes")
+        .update({ lifecycle_state: "ready_for_handover" } as never)
+        .eq("id", quote.id)
+        .in("lifecycle_state", ["payment_pending", "submitted", "confirmed"])
+        .select("id")
+        .maybeSingle();
+      if (lifecycleError) throw new Error(`Payment settled but lifecycle update failed: ${lifecycleError.message}`);
+      if (advanced) {
+        const { recordHireEvent } = await import("./hire-lifecycle.server");
+        await recordHireEvent({
+          quoteId: quote.id,
+          toState: "ready_for_handover",
+          eventType: "payment_threshold_cleared",
+          actorRole: "system",
+          metadata: { paymentIntentId, paidTotal },
+        });
+      }
+    }
+    if (paidInFull) {
       const message = `Twende Meru: hire ${quote.reference} is PAID IN FULL - KES ${paidTotal.toLocaleString("en-KE")}.${receiptText} Download your full receipt with every payment in the app > Hire > Your requests.`;
       await notify({
         userId: quote.requester_id,
@@ -448,13 +468,25 @@ export async function markHirePaymentFailure(
   const paid = Number(quote.payment_paid_total ?? 0);
   const minimum = firstPaymentMinimum(quote);
   const hasThreshold = paid >= minimum;
-  await supabaseAdmin
+  const { error: updateError } = await supabaseAdmin
     .from("hire_quotes")
     .update({
       payment_status: hasThreshold ? (paid >= finalTotal(quote) ? "paid" : "partial") : status,
       payment_hold_expires_at: null,
-    })
+      ...(hasThreshold ? {} : { lifecycle_state: "payment_pending" }),
+    } as never)
     .eq("id", quote.id);
+  if (updateError) throw new Error(`Could not restore hire payment state: ${updateError.message}`);
+  if (!hasThreshold) {
+    const { recordHireEvent } = await import("./hire-lifecycle.server");
+    await recordHireEvent({
+      quoteId: quote.id,
+      toState: "payment_pending",
+      eventType: "payment_failed",
+      actorRole: "system",
+      metadata: { paymentIntentId, status },
+    });
+  }
 }
 
 /** Sends the approved reminder channels selected by a vehicle owner/authorized driver. */

@@ -1115,6 +1115,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         payment_paid_total: 0,
         payment_minimum_amount: data.vehicleId ? minimum : null,
         payment_hold_expires_at: corporate ? null : holdUntil,
+        lifecycle_state: corporate ? "submitted" : data.vehicleId ? "payment_pending" : "submitted",
         commission_percent_snapshot: commissionPercent,
         ...(corporate
           ? {
@@ -1146,6 +1147,15 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       }
       throw new Error(error.message);
     }
+    const { recordHireEvent } = await import("./hire-lifecycle.server");
+    await recordHireEvent({
+      quoteId: row.id,
+      toState: corporate ? "submitted" : data.vehicleId ? "payment_pending" : "submitted",
+      eventType: "hire_submitted",
+      actorId: context.userId,
+      actorRole: "hirer",
+      metadata: { vehicleId: data.vehicleId ?? null, corporate: Boolean(corporate) },
+    });
 
     // Persist company KYC documents (and remember them for future hires when asked).
     if (corporate && data.kycDocuments?.length) {
