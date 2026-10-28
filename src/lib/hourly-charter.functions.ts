@@ -24,10 +24,12 @@ export const submitHourlyCharterRequest = createServerFn({ method: "POST" })
       throw new Error("Choose a pickup time at least 10 minutes from now.");
     const end = new Date(start.getTime() + data.durationHours * 60 * 60_000);
     const { data: vehicle } = await supabaseAdmin.from("vehicles")
-      .select("id, vehicle_class, hire_mode, hire_hourly_available, hire_available, hire_approval_status, status")
+      .select("id, vehicle_class, seats, hire_mode, hire_hourly_available, hire_available, hire_approval_status, status")
       .eq("id", data.vehicleId).maybeSingle();
     if (!vehicle || !vehicle.hire_hourly_available || !vehicle.hire_available || vehicle.status !== "approved" || vehicle.hire_approval_status !== "approved")
       throw new Error("That car is not accepting hourly charter requests right now.");
+    if (vehicle.seats != null && data.passengers > Number(vehicle.seats))
+      throw new Error(`This car has ${vehicle.seats} seats. Choose no more than that number of passengers.`);
     if (vehicle.hire_mode === "self_drive") throw new Error("Hourly charter requires a chauffeured car.");
     const { data: blackouts } = await supabaseAdmin.from("hire_vehicle_blackouts").select("id")
       .eq("vehicle_id", data.vehicleId).lte("start_date", nairobiDateKey(end)).gte("end_date", nairobiDateKey(start)).limit(1);

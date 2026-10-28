@@ -19,6 +19,7 @@ export function validateWalletHirePayment(input: {
   amount: number;
   policy: string;
   minimum: number;
+  initialPaymentChoice?: string | null;
 }) {
   const total = Number(input.total);
   const paid = Number(input.paid);
@@ -38,8 +39,15 @@ export function validateWalletHirePayment(input: {
         : `Pay at least KES ${Math.ceil(minimum - paid).toLocaleString("en-KE")} before the owner can see the booking.`,
     );
   }
-  if (input.policy === "full" && amount !== remaining) {
-    throw new Error("This vehicle requires the full remaining hire amount in one payment.");
+  if (
+    (input.policy === "full" || input.initialPaymentChoice === "full") &&
+    amount !== remaining
+  ) {
+    throw new Error(
+      input.policy === "full"
+        ? "This vehicle requires the full remaining hire amount in one payment."
+        : "You chose full payment for this hire. Pay the full remaining balance.",
+    );
   }
   return { amount, remaining };
 }

@@ -65,6 +65,59 @@ interface Place {
 }
 
 type Vehicle = Awaited<ReturnType<typeof listHireVehicles>>[number];
+type HireBookingStep =
+  | "browse"
+  | "dates"
+  | "service"
+  | "drive"
+  | "details"
+  | "pickup"
+  | "review"
+  | "hourly"
+  | "hourlyDone";
+type ProgressStep = { key: string; label: string };
+
+function BookingProgress({ steps, currentKey }: { steps: ProgressStep[]; currentKey: string }) {
+  const currentIndex = Math.max(
+    0,
+    steps.findIndex((step) => step.key === currentKey),
+  );
+  const currentStep = steps[currentIndex] ?? steps[0];
+  const progress = steps.length ? ((currentIndex + 1) / steps.length) * 100 : 0;
+  return (
+    <section
+      className="mx-3 rounded-2xl border border-border bg-card p-3"
+      aria-label="Booking progress"
+    >
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <p className="font-semibold text-foreground">
+          Step {currentIndex + 1} of {steps.length} · {currentStep?.label}
+        </p>
+        <p className="text-muted-foreground">Your progress</p>
+      </div>
+      <div
+        className="mt-2 h-2 overflow-hidden rounded-full bg-secondary"
+        role="progressbar"
+        aria-valuemin={1}
+        aria-valuemax={steps.length}
+        aria-valuenow={currentIndex + 1}
+        aria-label={`Step ${currentIndex + 1} of ${steps.length}`}
+      >
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <ol className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+        {steps.map((step, index) => (
+          <li key={step.key} className={index <= currentIndex ? "font-semibold text-primary" : ""}>
+            {index + 1}. {step.label}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
 
 function overlapsRange(vehicle: Vehicle, start: Date, end: Date) {
   return vehicle.bookings.some(
@@ -168,6 +221,14 @@ function listedDayTotal(vehicle: Vehicle, driveMode: "self_drive" | "chauffeured
   });
 }
 
+function lowestListedDayTotal(vehicle: Vehicle) {
+  const rates = [
+    ...(vehicle.hire_mode !== "chauffeured" ? [listedDayTotal(vehicle, "self_drive")] : []),
+    ...(vehicle.hire_mode !== "self_drive" ? [listedDayTotal(vehicle, "chauffeured")] : []),
+  ];
+  return Math.min(...rates);
+}
+
 function insuranceLabel(value: string | null) {
   switch (value) {
     case "comprehensive":
@@ -222,12 +283,15 @@ function HirePage() {
   });
 
   const [tab, setTab] = useState<"self_drive" | "chauffeured">("self_drive");
+  const [driveChoice, setDriveChoice] = useState<"self_drive" | "chauffeured" | null>(null);
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const prefilledVehicle = useRef<string | null>(null);
+  const submitLockRef = useRef(false);
   const [photoIndex, setPhotoIndex] = useState(0);
-  const [bookingStep, setBookingStep] = useState<"browse" | "details">("browse");
+  const [bookingStep, setBookingStep] = useState<HireBookingStep>("browse");
   const [servicePeriod, setServicePeriod] = useState<"daily" | "hourly">("daily");
+  const [hourlyFromChosen, setHourlyFromChosen] = useState(false);
 
   // Filters
   const [fSeats, setFSeats] = useState("");
@@ -239,6 +303,13 @@ function HirePage() {
   const [hirerType, setHirerType] = useState<"individual" | "company">("individual");
   const [companyPayNow, setCompanyPayNow] = useState(true);
   const [payCard, setPayCard] = useState<{ quoteId: string; amount?: number | null } | null>(null);
+  const [paymentAttemptKey, setPaymentAttemptKey] = useState(0);
+  const [submittedQuote, setSubmittedQuote] = useState<{
+    id: string;
+    reference: string;
+    amount: number | null;
+  } | null>(null);
+  const [initialPaymentChoice, setInitialPaymentChoice] = useState<"full" | "one_day">("one_day");
   const navigate = useNavigate();
   const usePayLater = hirerType === "company" && !companyPayNow;
   const [renterName, setRenterName] = useState("");
@@ -299,7 +370,8 @@ function HirePage() {
         .maybeSingle();
       if (live && profile) {
         if (profile.id_number) setRenterIdNumber((current) => current || profile.id_number || "");
-        if (profile.company_name) setOrganisation((current) => current || profile.company_name || "");
+        if (profile.company_name)
+          setOrganisation((current) => current || profile.company_name || "");
         if (profile.full_name) setRenterName((current) => current || profile.full_name || "");
         if (profile.phone) setPaymentPhone((current) => current || profile.phone || "");
       }
@@ -347,11 +419,18 @@ function HirePage() {
     prefilledVehicle.current = requestedVehicleId;
     clearRememberedHireVehicle();
     if (!requestedVehicle) {
-      setMessage("The selected car is no longer available on this owner page. Choose another car to continue.");
+      setMessage(
+        "The selected car is no longer available on this owner page. Choose another car to continue.",
+      );
       return;
     }
     setVehicleId(requestedVehicleId);
     setTab(requestedVehicle.hire_mode === "chauffeured" ? "chauffeured" : "self_drive");
+    setDriveChoice(
+      requestedVehicle.hire_mode === "self_drive" || requestedVehicle.hire_mode === "chauffeured"
+        ? requestedVehicle.hire_mode
+        : null,
+    );
     setOpenId(requestedVehicleId);
     setBookingStep("browse");
     setMessage(null);
@@ -361,11 +440,10 @@ function HirePage() {
     [all],
   );
   const filtered = all.filter((v) => {
-    if (!(v.hire_mode === "both" || v.hire_mode === tab || !v.hire_mode)) return false;
     if (fSeats && (v.seats ?? 0) < Number(fSeats)) return false;
     if (fMake && v.make !== fMake) return false;
     if (fModel && !(v.model ?? "").toLowerCase().includes(fModel.toLowerCase())) return false;
-    if (fMaxPrice && listedDayTotal(v, tab) > Number(fMaxPrice)) return false;
+    if (fMaxPrice && lowestListedDayTotal(v) > Number(fMaxPrice)) return false;
     return true;
   });
 
@@ -377,7 +455,7 @@ function HirePage() {
     const dur = scheduleValid ? durationDays : 0;
     const nextA = nextAvailableStart(a, dur).getTime();
     const nextB = nextAvailableStart(b, dur).getTime();
-    return nextA - nextB || listedDayTotal(a, tab) - listedDayTotal(b, tab);
+    return nextA - nextB || lowestListedDayTotal(a) - lowestListedDayTotal(b);
   });
 
   const chosen = all.find((v) => v.id === vehicleId) ?? null;
@@ -387,16 +465,31 @@ function HirePage() {
     if (chosen && chosen.hire_pay_later_allowed === false && !companyPayNow) setCompanyPayNow(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen?.id, chosen?.hire_pay_later_allowed]);
+  const chosenVehicleId = chosen?.id;
+  const chosenPaymentPolicy = chosen?.hire_payment_policy;
+  useEffect(() => {
+    if (chosenVehicleId) {
+      setInitialPaymentChoice(chosenPaymentPolicy === "full" ? "full" : "one_day");
+    }
+  }, [chosenPaymentPolicy, chosenVehicleId]);
   const opened = all.find((v) => v.id === openId) ?? null;
+  const supportsHourly = Boolean(
+    chosen?.hire_hourly_available && chosen.hire_mode !== "self_drive",
+  );
+  const supportsBothDriveModes = Boolean(
+    chosen && chosen.hire_mode !== "self_drive" && chosen.hire_mode !== "chauffeured",
+  );
   const clash = Boolean(
     chosen && scheduleValid && start && endDate && overlapsRange(chosen, start, endDate),
   );
-  const openClash = Boolean(
-    opened && scheduleValid && start && endDate && overlapsRange(opened, start, endDate),
-  );
+  const hourlyDuration =
+    start && endDate ? Math.ceil((endDate.getTime() - start.getTime()) / 3_600_000) : 0;
+  const hourlyRangeFits = hourlyDuration > 0 && hourlyDuration <= 24;
+  const hourlyDurationHours = Math.max(1, Math.min(24, hourlyDuration));
+  const pricingModeReady = !supportsBothDriveModes || driveChoice !== null;
   const detailsReady = scheduleValid && bookingStep === "details" && Boolean(chosen);
-  const estimatedTotal =
-    scheduleValid && chosen
+  const estimatedHireCost =
+    scheduleValid && chosen && pricingModeReady
       ? estimateHireTotal({
           vehicleClass: chosen.vehicle_class,
           driveMode: tab,
@@ -406,21 +499,69 @@ function HirePage() {
           chauffeurDailyRate: Number(chosen.chauffeur_daily_rate),
         })
       : null;
-  const openedTotal =
-    scheduleValid && opened
-      ? estimateHireTotal({
-          vehicleClass: opened.vehicle_class,
-          driveMode: tab,
-          days,
-          stops: 0,
-          dailyRate: Number(opened.day_rate),
-          chauffeurDailyRate: Number(opened.chauffeur_daily_rate),
-        })
-      : null;
+  const upfrontDeposit =
+    chosen?.hire_deposit_policy === "upfront" ? Number(chosen.hire_deposit_amount ?? 0) : 0;
+  const estimatedTotal = estimatedHireCost === null ? null : estimatedHireCost + upfrontDeposit;
+  const oneDayPayment =
+    estimatedHireCost === null || !days
+      ? null
+      : Math.ceil(estimatedHireCost / days) + upfrontDeposit;
+  const selectedPaymentAmount =
+    initialPaymentChoice === "full"
+      ? (estimatedTotal ?? 0)
+      : (oneDayPayment ?? estimatedTotal ?? 0);
+  const progressSteps = useMemo<ProgressStep[]>(() => {
+    const steps: ProgressStep[] = [
+      { key: "car", label: "Choose a car" },
+      { key: "dates", label: "Dates" },
+    ];
+    if (chosen && hourlyFromChosen && servicePeriod === "hourly") {
+      if (supportsHourly) steps.push({ key: "service", label: "Hire type" });
+      steps.push({ key: "trip", label: "Trip details" }, { key: "request", label: "Request sent" });
+      return steps;
+    }
+    if (chosen && supportsHourly) steps.push({ key: "service", label: "Hire type" });
+    if (chosen && supportsBothDriveModes) steps.push({ key: "drive", label: "Drive option" });
+    steps.push(
+      { key: "details", label: "Your details" },
+      { key: "pickup", label: "Pickup & trip" },
+      { key: "confirm", label: "Confirm" },
+    );
+    return steps;
+  }, [chosen, hourlyFromChosen, servicePeriod, supportsBothDriveModes, supportsHourly]);
+  const progressCurrentKey =
+    bookingStep === "browse"
+      ? "car"
+      : bookingStep === "hourly"
+        ? "trip"
+        : bookingStep === "hourlyDone"
+          ? "request"
+          : bookingStep === "review"
+            ? "confirm"
+            : bookingStep;
 
   function updatePickupTime(value: string) {
     setStartAt(value);
     if (returnAt && new Date(returnAt).getTime() <= new Date(value).getTime()) setReturnAt("");
+  }
+
+  function continueToDailyOptions() {
+    if (!chosen) return;
+    if (chosen.hire_mode === "self_drive" || chosen.hire_mode === "chauffeured") {
+      setTab(chosen.hire_mode);
+      setDriveChoice(chosen.hire_mode);
+      setBookingStep("details");
+      return;
+    }
+    setDriveChoice(null);
+    setBookingStep("drive");
+  }
+
+  function backToCarDetails() {
+    setServicePeriod("daily");
+    setHourlyFromChosen(false);
+    setBookingStep("browse");
+    setOpenId(chosen?.id ?? null);
   }
 
   function capturePickupLocation() {
@@ -516,14 +657,11 @@ function HirePage() {
       return;
     }
     try {
-      await saveDocFn({ data: { kind, filePath: path, remember: rememberDocs } });
+      await saveDocFn({ data: { kind, filePath: path, remember: false } });
       if (kind === "id") setIdPath(path);
       else setLicensePath(path);
-      void queryClient.invalidateQueries({ queryKey: ["my-hire-documents"] });
       setMessage(
-        rememberDocs
-          ? `${kind === "id" ? "ID" : "Driving licence"} saved to your account for future hires.`
-          : `${kind === "id" ? "ID" : "Driving licence"} attached to this booking only.`,
+        `${kind === "id" ? "ID" : "Driving licence"} attached to this booking. Your save preference will be applied when you confirm.`,
       );
     } catch (error) {
       await supabase.storage.from("hire-documents").remove([path]);
@@ -534,8 +672,14 @@ function HirePage() {
   }
 
   const submit = useMutation({
-    mutationFn: () =>
-      submitFn({
+    mutationFn: async () => {
+      if (rememberDocs) {
+        if (idPath) await saveDocFn({ data: { kind: "id", filePath: idPath, remember: true } });
+        if (licensePath)
+          await saveDocFn({ data: { kind: "license", filePath: licensePath, remember: true } });
+        void queryClient.invalidateQueries({ queryKey: ["my-hire-documents"] });
+      }
+      return submitFn({
         data: {
           kind: hirerType === "company" ? "corporate" : "car_hire",
           vehicleId,
@@ -557,6 +701,7 @@ function HirePage() {
           idDocumentPath: idPath ?? undefined,
           licenseDocumentPath: licensePath ?? undefined,
           rulesAccepted,
+          initialPayment: initialPaymentChoice,
           corporate: usePayLater && corporateTerms ? corporateTerms : undefined,
           kycDocuments: usePayLater
             ? (Object.entries(kycPaths) as Array<[KycKind, string]>)
@@ -564,15 +709,21 @@ function HirePage() {
                 .map(([kind, path]) => ({ kind, path, remember: rememberDocs }))
             : undefined,
         },
-      }),
+      });
+    },
     onSuccess: (row) => {
+      submitLockRef.current = true;
+      const paymentAmount = row.payment ? Number(row.payment.amount) : null;
+      setSubmittedQuote({ id: row.id, reference: row.reference, amount: paymentAmount });
       // Remember ID and company so repeat bookings are pre-filled.
       if (accountId && rememberDocs) {
         void supabase
           .from("profiles")
           .update({
             id_number: renterIdNumber.trim() || null,
-            ...(hirerType === "company" && organisation.trim() ? { company_name: organisation.trim() } : {}),
+            ...(hirerType === "company" && organisation.trim()
+              ? { company_name: organisation.trim() }
+              : {}),
           })
           .eq("id", accountId);
       }
@@ -582,7 +733,11 @@ function HirePage() {
           `Booking ${row.reference} sent. The owner will verify your company documents, then your dates are reserved. Pay by ${corporateTerms.payLaterMethod.replace("_", " ")} on ${corporateTerms.payLaterDueDate}.`,
         );
         // Take the company straight to the agreement to sign and save it.
-        void navigate({ to: "/hire/agreement/$quoteId", params: { quoteId: row.id }, hash: "sign" });
+        void navigate({
+          to: "/hire/agreement/$quoteId",
+          params: { quoteId: row.id },
+          hash: "sign",
+        });
       } else {
         setMessage(
           row.payment
@@ -592,20 +747,28 @@ function HirePage() {
             : `Request ${row.reference} sent. Estimate KES ${Number(row.estimated_total).toLocaleString("en-KE")} — a provider will respond.`,
         );
       }
-      if (row.payment?.accepted) setPayCard({ quoteId: row.id, amount: Number(row.payment.amount) });
-      setStops([]);
-      setNotes("");
+      if (row.payment) {
+        setPayCard({ quoteId: row.id, amount: paymentAmount });
+        setPaymentAttemptKey((key) => key + 1);
+      }
       queryClient.invalidateQueries({ queryKey: ["hire-quotes"] });
       queryClient.invalidateQueries({ queryKey: ["hire-vehicles"] });
     },
-    onError: (error) => setMessage((error as Error).message),
+    onError: (error) => {
+      submitLockRef.current = false;
+      setMessage((error as Error).message);
+    },
   });
 
   const pay = useMutation({
     mutationFn: (vars: { quoteId: string; amount?: number }) =>
       payFn({ data: { ...vars, phone: paymentPhone.trim() || undefined } }),
     onSuccess: (result, vars) => {
-      if (result.accepted) setPayCard({ quoteId: vars.quoteId, amount: vars.amount ?? null });
+      if (result.accepted) {
+        const amount = Number(result.amount ?? vars.amount) || null;
+        setPayCard({ quoteId: vars.quoteId, amount });
+        setPaymentAttemptKey((key) => key + 1);
+      }
       setMessage(
         result.accepted
           ? "M-Pesa prompt sent. Approve it on your phone; the booking updates after payment clears."
@@ -626,6 +789,9 @@ function HirePage() {
   if (!renterName.trim()) missing.push("enter your name");
   if (chosen && !usePayLater && !paymentPhone.trim())
     missing.push("enter your M-Pesa phone number");
+  if (chosen && supportsBothDriveModes && !driveChoice) missing.push("choose who will drive");
+  if (chosen?.seats != null && passengers > chosen.seats)
+    missing.push(`limit passengers to ${chosen.seats} seats`);
   if (hirerType === "company" && !organisation.trim()) missing.push("enter the company name");
   if (usePayLater && !corporateTerms)
     missing.push("verify the business email, pick a payment date and sign the agreement");
@@ -635,17 +801,69 @@ function HirePage() {
     missing.push("upload your driving licence");
   if (chosen && !rulesAccepted) missing.push("accept the owner's rules");
   if (clash) missing.push("choose available pickup and return times");
-  const canSubmit = missing.length === 0 && !submit.isPending && !savedDocuments.isPending;
+  const contactMissing: string[] = [];
+  if (!renterName.trim()) contactMissing.push("enter your name");
+  if (hirerType === "company" && !organisation.trim())
+    contactMissing.push("enter the company name");
+  const canContinueContact = contactMissing.length === 0;
+  const canSubmit =
+    missing.length === 0 && !submit.isPending && !savedDocuments.isPending && !submittedQuote;
   if (servicePeriod === "hourly") {
     return (
       <AppShell title="Hourly trips with a driver">
         <div className="space-y-4 pb-24">
-          <div className="mx-3 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1">
-            <button type="button" onClick={() => setServicePeriod("hourly")} className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">By the hour</button>
-            <button type="button" onClick={() => setServicePeriod("daily")} className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground">By the day · car hire</button>
+          {hourlyFromChosen ? (
+            <BookingProgress steps={progressSteps} currentKey={progressCurrentKey} />
+          ) : (
+            <div className="mx-3 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1">
+              <button
+                type="button"
+                className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                By the hour
+              </button>
+              <button
+                type="button"
+                onClick={() => setServicePeriod("daily")}
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground"
+              >
+                By the day · car hire
+              </button>
+            </div>
+          )}
+          <div className="mx-3">
+            <Link
+              to="/hire/bookings"
+              className="block rounded-full border border-input px-3 py-2 text-center text-xs font-semibold text-foreground"
+            >
+              Your requests and offers
+            </Link>
           </div>
-          <div className="mx-3"><Link to="/hire/bookings" className="block rounded-full border border-input px-3 py-2 text-center text-xs font-semibold text-foreground">Your requests and offers</Link></div>
-          <HourlyCharterBrowse ownerSlug={ownerSlug} />
+          <HourlyCharterBrowse
+            ownerSlug={ownerSlug}
+            {...(hourlyFromChosen && chosen
+              ? {
+                  preselectedVehicleId: chosen.id,
+                  initialStartAt: startAt,
+                  initialHours: hourlyDurationHours,
+                  onBack: () => {
+                    setServicePeriod("daily");
+                    setHourlyFromChosen(false);
+                    setBookingStep("service");
+                  },
+                  onSelectAnotherCar: () => {
+                    setServicePeriod("daily");
+                    setHourlyFromChosen(false);
+                    setVehicleId(null);
+                    setDriveChoice(null);
+                    setOpenId(null);
+                    setBookingStep("browse");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  },
+                  onSubmitted: () => setBookingStep("hourlyDone"),
+                }
+              : {})}
+          />
         </div>
       </AppShell>
     );
@@ -659,63 +877,53 @@ function HirePage() {
           send money directly to a driver or owner; report any pressure to pay outside the system to
           help prevent extortion and fraud.
         </p>
-        <div className="mx-4 grid grid-cols-2 gap-2">
-          <Link
-            to="/hire/bookings"
-            className="rounded-2xl border border-border bg-card p-3 text-left"
-          >
-            <p className="text-sm font-bold text-foreground">Your bookings</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Requests, payments, agreements & receipts
-            </p>
-          </Link>
-          <Link
-            to="/hire/company"
-            className="rounded-2xl border border-primary/30 bg-primary/5 p-3 text-left"
-          >
-            <p className="text-sm font-bold text-primary">Hiring as a company?</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Register company details & KYC once
-            </p>
-          </Link>
-        </div>
-        <div className="mx-3 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1">
-          <button type="button" onClick={() => setServicePeriod("hourly")} className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground">By the hour · charter</button>
-          <button type="button" onClick={() => setServicePeriod("daily")} className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">By the day · car hire</button>
-        </div>
-        <div className="flex gap-2">
-          {(
-            [
-              { key: "self_drive", label: "Drive it myself" },
-              { key: "chauffeured", label: "With a driver" },
-            ] as const
-          ).map((o) => (
-            <button
-              key={o.key}
-              onClick={() => {
-                // Switching mode only re-prices: keep the car, dates and details.
-                setTab(o.key);
-                if (chosen && chosen.hire_mode && chosen.hire_mode !== "both" && chosen.hire_mode !== o.key) {
-                  setVehicleId(null);
-                  setBookingStep("browse");
-                }
-              }}
-              className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold ${
-                tab === o.key
-                  ? "bg-primary text-primary-foreground"
-                  : "border border-border bg-secondary text-secondary-foreground"
-              }`}
+        <BookingProgress steps={progressSteps} currentKey={progressCurrentKey} />
+        {bookingStep === "browse" ? (
+          <div className="mx-4 grid grid-cols-2 gap-2">
+            <Link
+              to="/hire/bookings"
+              className="rounded-2xl border border-border bg-card p-3 text-left"
             >
-              {o.label}
-            </button>
-          ))}
-        </div>
-        {tab === "chauffeured" ? (
-          <p className="mx-4 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
-            This option includes the car and a driver for each booked day. Fuel is not included:
-            the customer covers fuel for the agreed route/distance, either arranged for that
-            distance or purchased as needed while travelling.
-          </p>
+              <p className="text-sm font-bold text-foreground">Your bookings</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Requests, payments, agreements & receipts
+              </p>
+            </Link>
+            <Link
+              to="/hire/company"
+              className="rounded-2xl border border-primary/30 bg-primary/5 p-3 text-left"
+            >
+              <p className="text-sm font-bold text-primary">Hiring as a company?</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Register company details & KYC once
+              </p>
+            </Link>
+          </div>
+        ) : null}
+        {bookingStep === "browse" ? (
+          <>
+            <div className="mx-3 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1">
+              <button
+                type="button"
+                onClick={() => setServicePeriod("hourly")}
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground"
+              >
+                Browse hourly cars
+              </button>
+              <button
+                type="button"
+                onClick={() => setServicePeriod("daily")}
+                className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Browse daily hire cars
+              </button>
+            </div>
+            <p className="mx-4 text-xs text-muted-foreground">
+              For cars that offer both daily hire and hourly trips, choose the service after
+              selecting your dates. If a car offers both drive options, you will choose who drives
+              on the next step.
+            </p>
+          </>
         ) : null}
 
         {bookingStep === "browse" ? (
@@ -724,9 +932,8 @@ function HirePage() {
               Available cars for hire{vehicles.isSuccess ? ` · ${listed.length}` : ""}
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Browse the collection first. Tap any car to view its photo gallery, features and
-              unavailable dates, then choose pickup and return times. You will see the total before
-              entering your details.
+              Browse the cars first. Open one to review its photos, features and terms; select it to
+              open the calendar. You will see the total before entering your details.
             </p>
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -767,15 +974,17 @@ function HirePage() {
             {vehicles.isPending || (Boolean(ownerSlug) && ownerBrand.isPending) ? (
               <p className="mt-3 text-xs text-muted-foreground">Loading cars…</p>
             ) : null}
-            {!vehicles.isPending && !(Boolean(ownerSlug) && ownerBrand.isPending) && listed.length === 0 ? (
+            {!vehicles.isPending &&
+            !(Boolean(ownerSlug) && ownerBrand.isPending) &&
+            listed.length === 0 ? (
               <p className="mt-3 text-xs text-muted-foreground">
                 {ownerSlug && !ownerBrand.data
                   ? "This owner page is no longer available. Browse all hire cars instead."
                   : ownerSlug && !ownerBrand.data?.vehicles.length
                     ? "This owner has no cars available for hire right now."
                     : fSeats || fMake || fModel || fMaxPrice
-                  ? "No cars match these filters. Clear a filter to see more listings."
-                  : "No hire cars are currently published. Operations-approved and published cars appear here automatically; this list refreshes every 30 seconds."}
+                      ? "No cars match these filters. Clear a filter to see more listings."
+                      : "No hire cars are currently published. Operations-approved and published cars appear here automatically; this list refreshes every 30 seconds."}
               </p>
             ) : null}
 
@@ -795,6 +1004,10 @@ function HirePage() {
                     : "Available for your dates"
                   : availabilityDateLabel(availabilityFrom);
                 const features = parseFeatures(v.hire_features);
+                const supportsSelfDrive = v.hire_mode !== "chauffeured";
+                const supportsDriver = v.hire_mode !== "self_drive";
+                const selfDriveRate = listedDayTotal(v, "self_drive");
+                const driverRate = listedDayTotal(v, "chauffeured");
                 return (
                   <article
                     key={v.id}
@@ -842,15 +1055,18 @@ function HirePage() {
                           {v.photo_links.length > 1 ? ` · ${v.photo_links.length} photos` : ""}
                         </p>
                         <p className="mt-1 font-display text-xs font-bold text-foreground sm:text-sm">
-                          KES {listedDayTotal(v, tab).toLocaleString("en-KE")} / day
-                          {tab === "chauffeured" ? " with chauffeur" : ""}
+                          From KES {lowestListedDayTotal(v).toLocaleString("en-KE")} / day
                         </p>
-                        {tab === "chauffeured" ? (
+                        {supportsSelfDrive && supportsDriver ? (
                           <p className="text-[10px] text-muted-foreground">
-                            Car KES {Number(v.day_rate).toLocaleString("en-KE")} + chauffeur KES{" "}
-                            {Number(v.chauffeur_daily_rate).toLocaleString("en-KE")}
+                            Drive yourself KES {selfDriveRate.toLocaleString("en-KE")} · With a
+                            driver KES {driverRate.toLocaleString("en-KE")}
                           </p>
-                        ) : null}
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground">
+                            {supportsDriver ? "With a driver" : "Drive it myself"}
+                          </p>
+                        )}
                         <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground">
                           {insuranceLabel(v.hire_insurance_type)}
                           {v.hire_minimum_age ? ` · Minimum age ${v.hire_minimum_age}+` : ""}
@@ -861,13 +1077,235 @@ function HirePage() {
                           </p>
                         ) : null}
                         <p className="mt-1 text-[11px] font-medium text-primary">
-                          View details and choose times
+                          View full car details
                         </p>
                       </div>
                     </button>
                   </article>
                 );
               })}
+            </div>
+          </section>
+        ) : null}
+
+        {bookingStep === "dates" && chosen ? (
+          <section className="surface-card space-y-3 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-primary">Selected car</p>
+                <h2 className="font-display text-lg font-bold text-foreground">
+                  {[chosen.make, chosen.model].filter(Boolean).join(" ") || "Vehicle"}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Choose pickup and return dates. Daily hire is charged per 24-hour block, rounded
+                  up, with a one-day minimum.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={backToCarDetails}
+                className="rounded-full border border-input px-3 py-2 text-xs font-semibold text-foreground"
+              >
+                Change car
+              </button>
+            </div>
+            <ScheduleFields
+              startAt={startAt}
+              returnAt={returnAt}
+              onPickup={updatePickupTime}
+              onReturn={setReturnAt}
+              bookings={chosen.bookings}
+              availabilityKnown
+            />
+            {clash ? (
+              <p className="rounded-xl bg-destructive/10 p-2 text-xs text-destructive">
+                This car is not available for those dates. Choose another time or change cars.
+              </p>
+            ) : null}
+            {estimatedTotal !== null ? (
+              <p className="font-display text-base font-bold text-foreground">
+                Estimated total: KES {estimatedTotal.toLocaleString("en-KE")}
+                {upfrontDeposit > 0 ? " · refundable upfront deposit included" : ""}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {scheduleValid && supportsBothDriveModes
+                  ? "Choose who will drive on the next step to see your exact total."
+                  : "Choose both pickup and return times to see your estimate."}
+              </p>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+              <button
+                type="button"
+                onClick={backToCarDetails}
+                className="rounded-full border border-input px-4 py-2.5 text-sm font-semibold text-foreground"
+              >
+                Back to car details
+              </button>
+              <button
+                type="button"
+                disabled={!scheduleValid || clash}
+                onClick={() =>
+                  supportsHourly ? setBookingStep("service") : continueToDailyOptions()
+                }
+                className="rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {supportsHourly
+                  ? "Continue to hire type"
+                  : supportsBothDriveModes
+                    ? "Choose who will drive"
+                    : "Continue to your details"}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {bookingStep === "service" && chosen && supportsHourly ? (
+          <section className="surface-card space-y-3 p-4">
+            <div>
+              <p className="text-xs font-semibold text-primary">How do you need this car?</p>
+              <h2 className="font-display text-lg font-bold text-foreground">
+                Choose a hire option
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Your pickup and return time are saved. Choose the service that best fits your trip.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setServicePeriod("daily");
+                setHourlyFromChosen(false);
+                continueToDailyOptions();
+              }}
+              className="w-full rounded-2xl border-2 border-border bg-card p-4 text-left transition-colors hover:border-primary"
+            >
+              <span className="block text-sm font-bold text-foreground">Hire by the day</span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Rent for one or more days.{" "}
+                {supportsBothDriveModes
+                  ? "Choose who will drive next."
+                  : "This car's available drive option will be used."}
+              </span>
+              <span className="mt-2 block text-sm font-semibold text-primary">
+                {supportsBothDriveModes
+                  ? `From KES ${Math.min(listedDayTotal(chosen, "self_drive"), listedDayTotal(chosen, "chauffeured")).toLocaleString("en-KE")} per day`
+                  : `KES ${listedDayTotal(chosen, tab).toLocaleString("en-KE")} per day`}
+              </span>
+            </button>
+            <button
+              type="button"
+              disabled={!hourlyRangeFits}
+              onClick={() => {
+                setServicePeriod("hourly");
+                setHourlyFromChosen(true);
+                setBookingStep("hourly");
+              }}
+              className="w-full rounded-2xl border-2 border-border bg-card p-4 text-left transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="block text-sm font-bold text-foreground">
+                Car and driver by the hour
+              </span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Best for appointments, waiting or several stops. The owner will send a price offer;
+                you pay in Twende after accepting.
+              </span>
+              <span className="mt-2 block text-sm font-semibold text-primary">
+                Request an hourly offer
+              </span>
+            </button>
+            {!hourlyRangeFits ? (
+              <p className="text-xs text-muted-foreground">
+                For an hourly request, choose pickup and return times within 24 hours on the
+                previous step.
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setBookingStep("dates")}
+              className="rounded-full border border-input px-4 py-2.5 text-sm font-semibold text-foreground"
+            >
+              Back to dates
+            </button>
+          </section>
+        ) : null}
+
+        {bookingStep === "drive" && chosen ? (
+          <section className="surface-card space-y-3 p-4">
+            <div>
+              <p className="text-xs font-semibold text-primary">Hire by the day</p>
+              <h2 className="font-display text-lg font-bold text-foreground">Who will drive?</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Choose the option you need. The price updates to match your choice.
+              </p>
+            </div>
+            {(
+              [
+                {
+                  key: "self_drive",
+                  title: "Drive it myself",
+                  rate: listedDayTotal(chosen, "self_drive"),
+                },
+                {
+                  key: "chauffeured",
+                  title: "With a driver",
+                  rate: listedDayTotal(chosen, "chauffeured"),
+                },
+              ] as const
+            ).map((option) => {
+              const tripTotal =
+                estimateHireTotal({
+                  vehicleClass: chosen.vehicle_class,
+                  driveMode: option.key,
+                  days,
+                  stops: stops.length,
+                  dailyRate: Number(chosen.day_rate),
+                  chauffeurDailyRate: Number(chosen.chauffeur_daily_rate),
+                }) + upfrontDeposit;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => {
+                    setTab(option.key);
+                    setDriveChoice(option.key);
+                  }}
+                  className={`w-full rounded-2xl border-2 p-4 text-left ${driveChoice === option.key ? "border-primary bg-primary/5" : "border-border bg-card"}`}
+                >
+                  <span className="block text-sm font-bold text-foreground">{option.title}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    KES {option.rate.toLocaleString("en-KE")} per day
+                    {option.key === "chauffeured"
+                      ? " · fuel not included"
+                      : " · valid driving licence required"}
+                  </span>
+                  <span className="mt-1 block text-xs font-semibold text-foreground">
+                    Estimated total for {days} day(s): KES {tripTotal.toLocaleString("en-KE")}
+                  </span>
+                </button>
+              );
+            })}
+            {tab === "chauffeured" ? (
+              <p className="rounded-xl bg-secondary/60 p-3 text-xs text-muted-foreground">
+                The car comes with a driver. Fuel for the agreed route is paid separately.
+              </p>
+            ) : null}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+              <button
+                type="button"
+                onClick={() => setBookingStep(supportsHourly ? "service" : "dates")}
+                className="rounded-full border border-input px-4 py-2.5 text-sm font-semibold text-foreground"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => setBookingStep("details")}
+                disabled={!driveChoice}
+                className="rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                Continue to your details
+              </button>
             </div>
           </section>
         ) : null}
@@ -891,8 +1329,8 @@ function HirePage() {
                 ) : null}
                 {chosen && estimatedTotal !== null ? (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {chosen.hire_payment_policy === "daily_flexible"
-                      ? `Pay at least KES ${Math.ceil(estimatedTotal / Math.max(1, days)).toLocaleString("en-KE")} for day one; later days can be paid daily or later via the system.`
+                    {chosen.hire_payment_policy !== "full"
+                      ? `This car allows daily payments. On the review step, choose KES ${(oneDayPayment ?? 0).toLocaleString("en-KE")} for day one or pay the full total now.`
                       : `Pay KES ${estimatedTotal.toLocaleString("en-KE")} in full before the owner sees the booking.`}
                   </p>
                 ) : null}
@@ -902,7 +1340,7 @@ function HirePage() {
                       const amt = Number(chosen.hire_deposit_amount ?? 0);
                       const kes = `KES ${amt.toLocaleString("en-KE")}`;
                       if (chosen.hire_deposit_policy === "upfront" && amt > 0)
-                        return `Plus a refundable deposit of ${kes}, paid with this booking.`;
+                        return `Refundable upfront deposit of ${kes} is included in the total.`;
                       if (chosen.hire_deposit_policy === "handover" && amt > 0)
                         return `Refundable deposit of ${kes} is paid in the app at pickup, before you get the keys.`;
                       return "No deposit for this car.";
@@ -912,13 +1350,10 @@ function HirePage() {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setBookingStep("browse");
-                  setOpenId(chosen.id);
-                }}
+                onClick={() => setBookingStep("dates")}
                 className="rounded-full border border-input px-3 py-2 text-xs font-semibold text-foreground"
               >
-                Change car or times
+                Change dates
               </button>
             </div>
             {clash ? (
@@ -932,9 +1367,11 @@ function HirePage() {
 
         {detailsReady ? (
           <section className="surface-card p-4">
-            <h2 className="font-display text-lg font-bold text-foreground">
-              Your details and needs
-            </h2>
+            <h2 className="font-display text-lg font-bold text-foreground">Your details</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              We have filled in saved account details where available. Add only what is needed for
+              this booking, then review everything before paying.
+            </p>
             {chosen ? (
               <p className="mt-1 text-xs text-muted-foreground">
                 Selected: {[chosen.make, chosen.model].filter(Boolean).join(" ")} ·{" "}
@@ -1013,6 +1450,42 @@ function HirePage() {
                 </Field>
               ) : null}
 
+              <p className="text-xs text-muted-foreground">
+                Next, you will add pickup details and any required documents.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setBookingStep("pickup");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                disabled={!canContinueContact}
+                className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                Continue to pickup details
+              </button>
+              {contactMissing.length ? (
+                <p className="text-[11px] text-muted-foreground">
+                  To continue: {contactMissing.join(", ")}.
+                </p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {bookingStep === "pickup" && chosen ? (
+          <section className="surface-card p-4">
+            <h2 className="font-display text-lg font-bold text-foreground">
+              Pickup and trip details
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Set where the car should meet you, add your documents, and check the owner's rules.
+            </p>
+            <p className="mt-2 rounded-xl bg-secondary/60 p-3 text-xs text-foreground">
+              {[chosen.make, chosen.model].filter(Boolean).join(" ")} · {days} day(s) ·{" "}
+              {start?.toLocaleString("en-KE")} to {endDate?.toLocaleString("en-KE")}
+            </p>
+            <div className="mt-3 space-y-3">
               <Field label="Number of people">
                 <input
                   type="number"
@@ -1031,9 +1504,8 @@ function HirePage() {
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <p className="col-span-full text-[11px] text-muted-foreground">
-                  Upload your ID and driving licence once. They are saved securely to your account
-                  and reused for future bookings; upload a replacement only when the document
-                  changes.
+                  Your ID and driving licence are attached to this booking. Use the option below to
+                  save them securely to your account for future hires.
                 </p>
                 {savedDocuments.isPending ? (
                   <p className="col-span-full text-[11px] text-muted-foreground">
@@ -1046,8 +1518,16 @@ function HirePage() {
                   </p>
                 ) : null}
                 <label className="col-span-full flex items-start gap-2 rounded-xl bg-secondary/60 p-2.5 text-xs text-foreground">
-                  <input type="checkbox" className="mt-0.5" checked={rememberDocs} onChange={(e) => setRememberDocs(e.target.checked)} />
-                  <span>Save my ID number, ID and driving licence to my account so future hires are filled in for me.</span>
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={rememberDocs}
+                    onChange={(e) => setRememberDocs(e.target.checked)}
+                  />
+                  <span>
+                    Save my ID number, ID and driving licence to my account so future hires are
+                    filled in for me.
+                  </span>
                 </label>
                 <UploadBox
                   label="Your ID (photo)"
@@ -1099,6 +1579,10 @@ function HirePage() {
                       value={null}
                       onPick={(p) => {
                         setPickup({ label: p.label, lat: p.lat, lng: p.lng });
+                        setLocationError(null);
+                      }}
+                      onManualPick={(label) => {
+                        setPickup({ label, lat: null, lng: null });
                         setLocationError(null);
                       }}
                     />
@@ -1231,17 +1715,27 @@ function HirePage() {
                 />
               ) : null}
 
-              <button
-                onClick={() => submit.mutate()}
-                disabled={!canSubmit}
-                className="w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-              >
-                {submit.isPending
-                  ? "Sending…"
-                  : usePayLater
-                    ? "Sign and book (pay later)"
-                    : "Continue and pay by M-Pesa"}
-              </button>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                <button
+                  type="button"
+                  onClick={() => setBookingStep("details")}
+                  className="rounded-full border border-input px-4 py-2.5 text-sm font-semibold text-foreground"
+                >
+                  Back to your details
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMessage(null);
+                    setBookingStep("review");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  disabled={!canSubmit}
+                  className="rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                >
+                  Review booking
+                </button>
+              </div>
               {missing.length && !submit.isPending ? (
                 <p className="text-[11px] text-muted-foreground">
                   To continue: {missing.join(", ")}.
@@ -1249,6 +1743,172 @@ function HirePage() {
               ) : null}
               {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
             </div>
+          </section>
+        ) : null}
+
+        {bookingStep === "review" && chosen ? (
+          <section className="surface-card space-y-3 p-4">
+            <div>
+              <p className="text-xs font-semibold text-primary">Final check</p>
+              <h2 className="font-display text-lg font-bold text-foreground">
+                Review your booking
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {usePayLater
+                  ? "Check these details before sending your company booking request."
+                  : "Check these details before we send the M-Pesa payment prompt."}
+              </p>
+            </div>
+            <dl className="grid grid-cols-2 gap-2 text-xs">
+              <Detail
+                k="Car"
+                v={`${[chosen.make, chosen.model].filter(Boolean).join(" ")} · ${chosen.plate_number}`}
+              />
+              <Detail k="Hire type" v="By the day" />
+              <Detail
+                k="Drive option"
+                v={(driveChoice ?? tab) === "self_drive" ? "Drive it myself" : "With a driver"}
+              />
+              <Detail k="Duration" v={`${days} day(s) · ${passengers} passenger(s)`} />
+              <Detail k="Pickup" v={start?.toLocaleString("en-KE") ?? "—"} />
+              <Detail k="Return" v={endDate?.toLocaleString("en-KE") ?? "—"} />
+              <Detail k="Pickup location" v={pickup?.label ?? "—"} />
+              <Detail
+                k="Estimated total"
+                v={`KES ${(estimatedTotal ?? 0).toLocaleString("en-KE")}${upfrontDeposit > 0 ? " (upfront deposit included)" : ""}`}
+              />
+              <Detail k="Contact name" v={renterName.trim() || "—"} />
+              <Detail
+                k="M-Pesa number"
+                v={usePayLater ? "Not needed for pay later" : paymentPhone.trim() || "—"}
+              />
+            </dl>
+
+            {!submittedQuote && !usePayLater && chosen.hire_payment_policy !== "full" ? (
+              <div className="rounded-xl border border-border p-3">
+                <p className="text-sm font-semibold text-foreground">
+                  What would you like to pay now?
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This car allows day-by-day payments. The one-day amount is the minimum needed for
+                  the owner to see your booking; any remaining balance can be paid later in Twende.
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setInitialPaymentChoice("full")}
+                    className={`rounded-xl border-2 p-3 text-left ${initialPaymentChoice === "full" ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    <span className="block text-xs font-semibold text-foreground">
+                      Pay in full now
+                    </span>
+                    <span className="mt-1 block text-sm font-bold text-primary">
+                      KES {(estimatedTotal ?? 0).toLocaleString("en-KE")}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInitialPaymentChoice("one_day")}
+                    className={`rounded-xl border-2 p-3 text-left ${initialPaymentChoice === "one_day" ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    <span className="block text-xs font-semibold text-foreground">
+                      Pay the one-day minimum
+                    </span>
+                    <span className="mt-1 block text-sm font-bold text-primary">
+                      KES {(oneDayPayment ?? 0).toLocaleString("en-KE")}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {!submittedQuote && !usePayLater && chosen.hire_payment_policy === "full" ? (
+              <p className="rounded-xl border border-border bg-secondary/40 p-3 text-xs text-foreground">
+                This owner requires full payment before the booking is sent. We will prompt KES{" "}
+                {(estimatedTotal ?? 0).toLocaleString("en-KE")} on your M-Pesa phone.
+              </p>
+            ) : null}
+            {!submittedQuote && usePayLater ? (
+              <p className="rounded-xl border border-border bg-secondary/40 p-3 text-xs text-foreground">
+                This company booking will be sent for owner review under the pay-later terms you
+                signed. No M-Pesa payment is taken now.
+              </p>
+            ) : !submittedQuote && !usePayLater ? (
+              <p className="text-xs text-muted-foreground">
+                No payment starts until you confirm below. Approve the M-Pesa prompt on your phone;
+                keep payments inside Twende.
+              </p>
+            ) : null}
+
+            {submittedQuote ? (
+              <div className="rounded-xl border border-primary/25 bg-primary/5 p-3">
+                <p className="text-sm font-semibold text-foreground">
+                  Request {submittedQuote.reference} has already been sent.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Do not submit another copy. Use your requests to check the booking or continue a
+                  payment retry.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    to="/hire/bookings"
+                    className="rounded-full border border-input px-3 py-2 text-xs font-semibold text-foreground"
+                  >
+                    View my requests
+                  </Link>
+                  {!usePayLater && submittedQuote.amount != null ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPayCard({
+                          quoteId: submittedQuote.id,
+                          amount: submittedQuote.amount,
+                        });
+                        setPaymentAttemptKey((key) => key + 1);
+                      }}
+                      className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                    >
+                      Check payment or retry
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                <button
+                  type="button"
+                  onClick={() => setBookingStep("details")}
+                  className="rounded-full border border-input px-4 py-2.5 text-sm font-semibold text-foreground"
+                >
+                  Edit my details
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (submitLockRef.current) return;
+                    submitLockRef.current = true;
+                    submit.mutate();
+                  }}
+                  disabled={!canSubmit}
+                  className="rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                >
+                  {submit.isPending
+                    ? "Starting…"
+                    : usePayLater
+                      ? "Confirm booking request"
+                      : `Confirm details & pay KES ${selectedPaymentAmount.toLocaleString("en-KE")} by M-Pesa`}
+                </button>
+              </div>
+            )}
+            {missing.length && !submit.isPending ? (
+              <p className="text-[11px] text-muted-foreground">
+                To continue: {missing.join(", ")}.
+              </p>
+            ) : null}
+            {message ? (
+              <p role="status" className="text-xs text-muted-foreground">
+                {message}
+              </p>
+            ) : null}
           </section>
         ) : null}
 
@@ -1269,8 +1929,29 @@ function HirePage() {
                   setOpenId(null);
                   setStartAt("");
                   setReturnAt("");
+                  setPickup(null);
+                  setPeopleText("1");
+                  setStops([]);
+                  setNotes("");
+                  setLocationError(null);
+                  if (!rememberDocs) {
+                    setIdPath(null);
+                    setLicensePath(null);
+                  }
                   setRulesAccepted(false);
                   setCorporateTerms(null);
+                  setSubmittedQuote(null);
+                  setBookedRef(null);
+                  setPayCard(null);
+                  setPaymentAttemptKey(0);
+                  setInitialPaymentChoice("one_day");
+                  setDriveChoice(null);
+                  setTab("self_drive");
+                  setServicePeriod("daily");
+                  setHourlyFromChosen(false);
+                  submitLockRef.current = false;
+                  submit.reset();
+                  pay.reset();
                   setBookingStep("browse");
                   setMessage(null);
                   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1341,147 +2022,179 @@ function HirePage() {
             )}
 
             <div className="mt-3 rounded-xl border border-border p-3">
-              <p className="text-xs font-semibold text-foreground">
-                Choose pickup and return days and times
-              </p>
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                Select both days, review the range and price, then confirm below. Price is charged
-                per 24-hour block, rounded up, with a one-day minimum.
-              </p>
-              <ScheduleFields
-                startAt={startAt}
-                returnAt={returnAt}
-                onPickup={updatePickupTime}
-                onReturn={setReturnAt}
-                bookings={opened.bookings}
-                availabilityKnown
-              />
-              {openClash ? (
-                <p className="mt-2 text-xs text-destructive">
-                  This car is reserved during part of that period. Choose a different time window.
-                </p>
-              ) : null}
-              {openedTotal !== null && scheduleValid ? (
-                <p className="mt-3 font-display text-base font-bold text-foreground">
-                  Estimated total: KES {openedTotal.toLocaleString("en-KE")} · {days} day(s)
-                </p>
-              ) : (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Set both times to see the full rental estimate.
-                </p>
-              )}
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-              <Detail k="Plate" v={opened.plate_number} />
-              <Detail k="Seats" v={opened.seats ? String(opened.seats) : "—"} />
-              <Detail k="Colour" v={opened.colour ?? "—"} />
-              <Detail k="Year" v={opened.year ? String(opened.year) : "—"} />
-              <Detail
-                k="Price"
-                v={`KES ${listedDayTotal(opened, tab).toLocaleString("en-KE")} / day${tab === "chauffeured" ? " with chauffeur" : ""}`}
-              />
-              {tab === "chauffeured" ? (
+              <p className="text-xs font-semibold text-foreground">Vehicle details</p>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <Detail k="Plate" v={opened.plate_number} />
+                <Detail k="Seats" v={opened.seats ? String(opened.seats) : "—"} />
+                <Detail k="Colour" v={opened.colour ?? "—"} />
+                <Detail k="Year" v={opened.year ? String(opened.year) : "—"} />
                 <Detail
-                  k="Daily breakdown"
-                  v={`Car KES ${Number(opened.day_rate).toLocaleString("en-KE")} + chauffeur KES ${Number(opened.chauffeur_daily_rate).toLocaleString("en-KE")}`}
+                  k="Drive options"
+                  v={
+                    opened.hire_mode === "self_drive"
+                      ? "Drive it myself"
+                      : opened.hire_mode === "chauffeured"
+                        ? "With a driver"
+                        : "Drive it myself or with a driver"
+                  }
                 />
-              ) : null}
-            </dl>
-            {tab === "chauffeured" ? (
-              <p className="mt-2 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
-                Fuel is not included in the daily hire or chauffeur fee. The customer covers fuel
-                for the agreed route/distance, either arranged for that distance or purchased as
-                needed while travelling.
-              </p>
-            ) : null}
-            <div className="mt-3 grid gap-2 rounded-xl border border-border p-3 text-xs">
-              <p className="font-semibold text-foreground">Hire terms</p>
-              <p className="text-muted-foreground">
-                <span className="font-medium text-foreground">Insurance: </span>
-                {insuranceLabel(opened.hire_insurance_type)}
-                {opened.hire_insurance_details ? ` — ${opened.hire_insurance_details}` : ""}
-              </p>
-              <p className="text-muted-foreground">
-                <span className="font-medium text-foreground">Minimum age: </span>
-                {opened.hire_minimum_age
-                  ? `${opened.hire_minimum_age}+ years`
-                  : "No specific age limit listed; valid ID and licence checks still apply."}
-              </p>
-              <p className="text-muted-foreground">
-                <span className="font-medium text-foreground">Cancellation: </span>
-                {opened.hire_cancellation_policy ||
-                  "Submit cancellation requests through Twende Meru Rides. Any refund or deduction is subject to platform review; do not settle cancellations off-platform."}
-              </p>
-            </div>
-            {opened.hire_description ? (
-              <p className="mt-3 text-sm text-foreground">{opened.hire_description}</p>
-            ) : null}
-
-            <div className="mt-3 rounded-xl border border-border p-3">
-              <p className="text-xs font-semibold text-foreground">Owner's rules</p>
-              <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
-                {opened.hire_rules ||
-                  (tab === "chauffeured"
-                    ? "Fuel is not included. The customer covers fuel for the agreed route/distance, either arranged for that distance or purchased as needed while travelling. No smoking."
-                    : "Return the car clean and with the same fuel level. No smoking.")}
-              </p>
-            </div>
-
-            <div className="mt-3">
-              <p className="text-xs font-semibold text-foreground">Unavailable dates</p>
-              {opened.bookings.length ? (
-                <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
-                  {opened.bookings.map((b) => (
-                    <li key={b.start}>
-                      {new Date(b.start).toLocaleString("en-KE")} –{" "}
-                      {new Date(b.end).toLocaleString("en-KE")}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Available any day — no upcoming bookings.
+                {opened.hire_mode !== "chauffeured" ? (
+                  <Detail
+                    k="Drive-it-yourself rate"
+                    v={`KES ${Number(opened.day_rate).toLocaleString("en-KE")} / day`}
+                  />
+                ) : null}
+                {opened.hire_mode !== "self_drive" ? (
+                  <Detail
+                    k="With a driver"
+                    v={`KES ${listedDayTotal(opened, "chauffeured").toLocaleString("en-KE")} / day`}
+                  />
+                ) : null}
+                <Detail
+                  k="Taxi hire by the hour"
+                  v={
+                    opened.hire_hourly_available && opened.hire_mode !== "self_drive"
+                      ? "Available · request an offer"
+                      : "Not available"
+                  }
+                />
+                <Detail
+                  k="Payment"
+                  v={
+                    opened.hire_payment_policy !== "full"
+                      ? "Pay in full or start with one day"
+                      : "Full payment required"
+                  }
+                />
+                <Detail
+                  k="Deposit"
+                  v={
+                    Number(opened.hire_deposit_amount ?? 0) > 0
+                      ? `KES ${Number(opened.hire_deposit_amount).toLocaleString("en-KE")} · ${opened.hire_deposit_policy === "upfront" ? "paid with booking" : opened.hire_deposit_policy === "handover" ? "paid at pickup" : "per owner terms"}`
+                      : "None listed"
+                  }
+                />
+              </dl>
+              {opened.hire_mode !== "self_drive" ? (
+                <p className="mt-2 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+                  When hiring with a driver, fuel is not included. The customer covers fuel for the
+                  agreed route or distance.
                 </p>
-              )}
-            </div>
-
-            {parseFeatures(opened.hire_features).length ? (
-              <div className="mt-3">
-                <p className="text-xs font-semibold text-foreground">Features</p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {parseFeatures(opened.hire_features).map((feature) => (
-                    <span
-                      key={feature}
-                      className="rounded-full bg-secondary px-2.5 py-1 text-[11px] text-foreground"
-                    >
-                      {feature}
-                    </span>
-                  ))}
-                </div>
+              ) : null}
+              <div className="mt-3 grid gap-2 rounded-xl border border-border p-3 text-xs">
+                <p className="font-semibold text-foreground">Hire terms</p>
+                <p className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Insurance: </span>
+                  {insuranceLabel(opened.hire_insurance_type)}
+                  {opened.hire_insurance_details ? ` — ${opened.hire_insurance_details}` : ""}
+                </p>
+                <p className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Minimum age: </span>
+                  {opened.hire_minimum_age
+                    ? `${opened.hire_minimum_age}+ years`
+                    : "No specific age limit listed; valid ID and licence checks still apply."}
+                </p>
+                <p className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Cancellation: </span>
+                  {opened.hire_cancellation_policy ||
+                    "Submit cancellation requests through Twende Meru Rides. Any refund or deduction is subject to platform review; do not settle cancellations off-platform."}
+                </p>
               </div>
-            ) : null}
+              {opened.hire_description ? (
+                <p className="mt-3 text-sm text-foreground">{opened.hire_description}</p>
+              ) : null}
 
+              <div className="mt-3 rounded-xl border border-border p-3">
+                <p className="text-xs font-semibold text-foreground">Owner's rules</p>
+                <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
+                  {opened.hire_rules ||
+                    (opened.hire_mode === "chauffeured"
+                      ? "Fuel is not included. The customer covers fuel for the agreed route/distance, either arranged for that distance or purchased as needed while travelling. No smoking."
+                      : opened.hire_mode === "self_drive"
+                        ? "Return the car clean and with the same fuel level. No smoking."
+                        : "For self-drive, return the car clean and with the same fuel level. For trips with a driver, fuel is paid separately. No smoking.")}
+                </p>
+              </div>
+
+              <div className="mt-3">
+                <p className="text-xs font-semibold text-foreground">Unavailable dates</p>
+                {opened.bookings.length ? (
+                  <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                    {opened.bookings.map((b) => (
+                      <li key={b.start}>
+                        {new Date(b.start).toLocaleString("en-KE")} –{" "}
+                        {new Date(b.end).toLocaleString("en-KE")}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Available any day — no upcoming bookings.
+                  </p>
+                )}
+              </div>
+
+              {parseFeatures(opened.hire_features).length ? (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-foreground">Features</p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {parseFeatures(opened.hire_features).map((feature) => (
+                      <span
+                        key={feature}
+                        className="rounded-full bg-secondary px-2.5 py-1 text-[11px] text-foreground"
+                      >
+                        {feature}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setVehicleId(opened.id);
-                setRulesAccepted(false);
-                setBookingStep("details");
-                setMessage(null);
-                setOpenId(null);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              disabled={!scheduleValid || openClash}
-              className="mt-4 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-            >
-              Confirm dates & continue to renter details
-            </button>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setOpenId(null)}
+                className="rounded-full border border-input px-4 py-3 text-sm font-semibold text-foreground"
+              >
+                Go back to cars
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setVehicleId(opened.id);
+                  if (opened.hire_mode === "chauffeured") {
+                    setTab("chauffeured");
+                    setDriveChoice("chauffeured");
+                  } else if (opened.hire_mode === "self_drive") {
+                    setTab("self_drive");
+                    setDriveChoice("self_drive");
+                  } else {
+                    setTab("self_drive");
+                    setDriveChoice(null);
+                  }
+                  setInitialPaymentChoice(
+                    opened.hire_payment_policy === "full" ? "full" : "one_day",
+                  );
+                  setRulesAccepted(false);
+                  setServicePeriod("daily");
+                  setHourlyFromChosen(false);
+                  setBookingStep("dates");
+                  setMessage(null);
+                  setOpenId(null);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className="rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+              >
+                Select this car
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
       <PaymentProgressCard
         open={!!payCard}
+        attemptKey={paymentAttemptKey}
         amount={payCard?.amount}
         phone={paymentPhone || null}
         check={async (): Promise<PayState> => {
@@ -1492,9 +2205,22 @@ function HirePage() {
           const id = payCard?.quoteId;
           setPayCard(null);
           void queryClient.invalidateQueries({ queryKey: ["hire-quotes"] });
-          if (id) void navigate({ to: "/hire/agreement/$quoteId", params: { quoteId: id }, hash: "sign" });
+          if (id)
+            void navigate({
+              to: "/hire/agreement/$quoteId",
+              params: { quoteId: id },
+              hash: "sign",
+            });
         }}
-        onRetry={() => { if (payCard) pay.mutate({ quoteId: payCard.quoteId }); }}
+        onRetry={() => {
+          if (payCard) {
+            pay.mutate({
+              quoteId: payCard.quoteId,
+              ...(payCard.amount != null ? { amount: payCard.amount } : {}),
+            });
+          }
+        }}
+        retrying={pay.isPending}
         onClose={() => setPayCard(null)}
         successLabel="Sign your agreement"
       />

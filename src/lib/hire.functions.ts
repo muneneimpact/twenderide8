@@ -927,6 +927,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         idDocumentPath: z.string().max(400).optional(),
         licenseDocumentPath: z.string().max(400).optional(),
         rulesAccepted: z.boolean().optional(),
+        initialPayment: z.enum(["full", "one_day"]).optional(),
         corporate: z
           .object({
             payLaterMethod: z.enum(["cheque", "bank_transfer", "mpesa", "invoice"]),
@@ -1008,7 +1009,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       const { data: vehicle } = await supabaseAdmin
         .from("vehicles")
         .select(
-          "id, vehicle_class, hire_daily_rate, hire_chauffeur_daily_rate, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_mode, hire_available, hire_approval_status, status",
+          "id, vehicle_class, seats, hire_daily_rate, hire_chauffeur_daily_rate, hire_payment_policy, hire_deposit_policy, hire_deposit_amount, hire_pay_later_allowed, hire_mode, hire_available, hire_approval_status, status",
         )
         .eq("id", data.vehicleId)
         .maybeSingle();
@@ -1020,7 +1021,11 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       ) {
         throw new Error("That car is no longer available for hire.");
       }
-      if (vehicle.hire_mode !== "both" && vehicle.hire_mode !== data.driveMode) {
+      if (vehicle.seats != null && data.passengers > Number(vehicle.seats)) {
+        throw new Error(`This car has ${vehicle.seats} seats. Choose no more than that number of passengers.`);
+      }
+      const hireMode = vehicle.hire_mode ?? "both";
+      if (hireMode !== "both" && hireMode !== data.driveMode) {
         throw new Error("That car is not listed for the selected hire type.");
       }
       if (corporate && !vehicle.hire_pay_later_allowed) {
@@ -1069,12 +1074,17 @@ export const submitHireQuote = createServerFn({ method: "POST" })
       .eq("id", context.userId)
       .maybeSingle();
     let paymentPhone: string | null = null;
-    if (data.vehicleId) {
+    if (data.vehicleId && !corporate) {
       const rawPhone = data.contactPhone ?? profile?.phone ?? "";
       if (!rawPhone) throw new Error("Enter an M-Pesa phone number to pay for this booking.");
       paymentPhone = normaliseKenyanPhone(rawPhone);
     }
     const minimum = paymentPolicy === "daily_flexible" ? Math.ceil(hireEstimate / days) + upfrontDeposit : estimate;
+    if (data.vehicleId && paymentPolicy === "full" && data.initialPayment === "one_day") {
+      throw new Error("This vehicle requires full payment before the owner can see the booking.");
+    }
+    const initialPaymentAmount =
+      paymentPolicy === "full" || data.initialPayment === "full" ? estimate : minimum;
     const commissionPercent = data.vehicleId
       ? await (await import("./hire-payments.server")).getHireCommissionPercent()
       : null;
@@ -1114,6 +1124,12 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         payment_status: data.vehicleId ? "pending" : "legacy",
         payment_paid_total: 0,
         payment_minimum_amount: data.vehicleId ? minimum : null,
+        initial_payment_choice:
+          data.vehicleId && !corporate
+            ? paymentPolicy === "full"
+              ? "full"
+              : (data.initialPayment ?? "one_day")
+            : null,
         payment_hold_expires_at: corporate ? null : holdUntil,
         lifecycle_state: corporate ? "submitted" : data.vehicleId ? "payment_pending" : "submitted",
         commission_percent_snapshot: commissionPercent,
@@ -1189,7 +1205,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         payment = await payments.startHirePayment({
           quoteId: row.id,
           actorId: context.userId,
-          amount: minimum,
+          amount: initialPaymentAmount,
           phone: paymentPhone,
         });
       } catch (error) {
@@ -1199,7 +1215,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
           .from("hire_quotes")
           .update({ payment_status: "failed", payment_hold_expires_at: null })
           .eq("id", row.id);
-        payment = { accepted: false, status: "failed", message, amount: minimum, intentId: "" };
+        payment = { accepted: false, status: "failed", message, amount: initialPaymentAmount, intentId: "" };
       }
     }
 
@@ -1211,7 +1227,7 @@ export const submitHireQuote = createServerFn({ method: "POST" })
         title: data.vehicleId ? "Complete your hire payment" : "Quotation request received",
         body: data.vehicleId
           ? payment?.accepted
-            ? `Request ${row.reference}: approve the M-Pesa prompt for KES ${minimum.toLocaleString("en-KE")}. The owner will see the booking after the required payment clears.`
+            ? `Request ${row.reference}: approve the M-Pesa prompt for KES ${initialPaymentAmount.toLocaleString("en-KE")}. The owner will see the booking after the required payment clears.`
             : `Request ${row.reference} was saved, but the M-Pesa prompt did not start. ${payment?.message ?? "Retry payment from Your requests."}`
           : `Request ${row.reference}: KES ${estimate.toLocaleString("en-KE")} for ${days} day(s). A provider will respond shortly.`,
         dedupeKey: `hire:${row.id}`,
@@ -1471,7 +1487,7 @@ export const payHireBooking = createServerFn({ method: "POST" })
     const { data: quote } = await supabaseAdmin
       .from("hire_quotes")
       .select(
-        "id, requester_id, contact_phone, estimated_total, quoted_total, days, payment_policy, payment_status, payment_paid_total, payment_minimum_amount",
+        "id, requester_id, contact_phone, estimated_total, quoted_total, days, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, initial_payment_choice",
       )
       .eq("id", data.quoteId)
       .maybeSingle();
@@ -1489,7 +1505,7 @@ export const payHireBooking = createServerFn({ method: "POST" })
     );
     const amount =
       data.amount ??
-      (quote.payment_policy === "full"
+      (quote.initial_payment_choice === "full" || quote.payment_policy === "full"
         ? total - paid
         : Math.min(total - paid, Math.max(1, minimum)));
     const phone = data.phone ?? quote.contact_phone ?? profile?.phone ?? "";

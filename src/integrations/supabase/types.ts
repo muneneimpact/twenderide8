@@ -1591,6 +1591,7 @@ export type Database = {
           pay_later_method: string | null
           payment_hold_expires_at: string | null
           payment_minimum_amount: number | null
+          initial_payment_choice: string | null
           payment_paid_total: number
           payment_policy: string
           payment_status: string
@@ -1692,6 +1693,7 @@ export type Database = {
           reference?: string
           renter_id_number?: string | null
           renter_name?: string | null
+          initial_payment_choice?: string | null
           requester_id: string
           return_balance_due?: number | null
           return_deposit_held?: number | null
@@ -1783,6 +1785,7 @@ export type Database = {
           reference?: string
           renter_id_number?: string | null
           renter_name?: string | null
+          initial_payment_choice?: string | null
           requester_id?: string
           return_balance_due?: number | null
           return_deposit_held?: number | null

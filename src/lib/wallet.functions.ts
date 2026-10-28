@@ -344,7 +344,7 @@ export const payHireFromWallet = createServerFn({ method: "POST" })
     const { assertWalletPin } = await import("./wallet-pin.server");
     await assertWalletPin(context.userId, data.pin);
     const db = await admin();
-    const { data: quote } = await db.from("hire_quotes").select("id, reference, requester_id, status, vehicle_id, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, quoted_total, estimated_total, days").eq("id", data.quoteId).maybeSingle();
+    const { data: quote } = await db.from("hire_quotes").select("id, reference, requester_id, status, vehicle_id, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, initial_payment_choice, quoted_total, estimated_total, days").eq("id", data.quoteId).maybeSingle();
     if (!quote || quote.requester_id !== context.userId) throw new Error("That hire booking is not yours.");
     if (!quote.vehicle_id || quote.payment_policy === "legacy") throw new Error("This booking cannot be paid from the wallet.");
     if (!["submitted", "confirmed"].includes(quote.status)) throw new Error("This hire request is no longer open for payment.");
@@ -352,7 +352,14 @@ export const payHireFromWallet = createServerFn({ method: "POST" })
     const total = Number(quote.quoted_total ?? quote.estimated_total);
     const paid = Number(quote.payment_paid_total ?? 0);
     const minimum = Number(quote.payment_minimum_amount ?? (quote.payment_policy === "daily_flexible" ? Math.ceil(total / Math.max(1, Number(quote.days ?? 1))) : total));
-    const { amount } = (await import("./payment-safety")).validateWalletHirePayment({ total, paid, amount: data.amount, policy: quote.payment_policy, minimum });
+    const { amount } = (await import("./payment-safety")).validateWalletHirePayment({
+      total,
+      paid,
+      amount: data.amount,
+      policy: quote.payment_policy,
+      minimum,
+      initialPaymentChoice: quote.initial_payment_choice,
+    });
     const key = (await import("./payment-safety")).hireWalletIdempotencyKey(quote.id, paid, amount);
     const existing = await existingWalletPayment(db, key);
     if (existing?.status === "paid") return { ok: true, amount: Number(existing.amount) };

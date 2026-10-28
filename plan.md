@@ -88,3 +88,26 @@ Keep the existing Twende Meru logo assets. Use the existing logo as the QR centr
 ### Signature brand color
 
 Twende green remains the ownable action and trust color; sky blue stays the hire-discovery accent.
+
+## Car-hire booking flow enhancement
+
+### Scope and implementation approach
+
+Replace the current single jump from car details to a long renter form with a staged booking journey in `src/routes/_authenticated/hire.tsx`: browse and inspect a vehicle, choose dates and times, select a service when the vehicle supports both daily hire and hourly charter, choose a drive option when the vehicle supports both, enter renter contact details, add pickup/trip details and required documents in a separate step, then review and confirm. Add a reusable progress indicator that reflects the active stage and the selected vehicle's actual options. Keep the public vehicle detail content complete, and provide explicit actions to select the vehicle or return to the car list.
+
+Continue to use the existing daily availability calendar and quote/payment APIs. On the details stage, allow a typed pickup address through the existing `PlaceSearch` manual-address callback; preserve coordinates when a place is geocoded and submit null coordinates for a manually entered address. Keep hourly charter on its existing owner-offer pathway, but allow a customer who selected a dual-service car to continue directly into that car's hourly request form with the chosen pickup time and an initial duration, and provide a clear way back to service selection. Hourly charter remains an offer request; the customer pays through Twende only after accepting the owner's offer.
+
+For vehicles whose owner policy is `daily_flexible`, offer a choice at review between paying the full booking total now or paying the one-day minimum now. Derive the permitted minimum and total on the server from the selected vehicle and booking; keep the one-day minimum stored separately from the customer's selected payment choice so failed-payment retries preserve that choice across both the booking and requests pages. Enforce the saved choice in the shared M-Pesa and wallet payment validators. Vehicles with a `full` payment policy continue to require the full total. Prevent duplicate quote creation after submission, restart payment polling for every retry, validate passenger count against vehicle seats on the server for both daily and hourly hire, and preserve the existing company pay-later path, document requirements, rules acceptance, booking holds, and M-Pesa verification flow.
+
+Apply and verify the new `initial_payment_choice` column/check migration in the target database before deploying this code. This repository change includes and registers the migration but does not apply it to the shared database.
+
+### Project structure
+
+- `src/routes/_authenticated/hire.tsx`: booking-stage state, progress bar, car details, date/calendar, service and drive choices, renter details, manual pickup and final review.
+- `src/components/HourlyCharterBrowse.tsx`: reusable hourly form with optional locked-to-selected-vehicle mode, prefilled pickup date/time and duration, and a back action.
+- `src/lib/hire.functions.ts`, `src/lib/hire-payments.server.ts`, `src/lib/payment-safety.ts`, and `src/lib/wallet.functions.ts`: persist and enforce the initial full-versus-one-day choice across M-Pesa and wallet payments.
+- `src/routes/_authenticated/hire_.bookings.tsx`: honor the saved choice and restart payment progress for customer retries from the requests page.
+- `drizzle/migrations/0020_hire_initial_payment_choice.sql` and `drizzle/migrations/meta`: add and register the nullable quote-level payment choice for retry safety.
+- `TODO.md`: explicit acceptance clauses and implementation status for the staged car-hire experience.
+
+Reuse the existing Twende visual system and component styles; no new dependencies or branding changes are planned.

@@ -134,6 +134,13 @@
       "when": 1793075000000,
       "tag": "0019_hire_lifecycle_deposit_settlement",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793175371972,
+      "tag": "0020_hire_initial_payment_choice",
+      "breakpoints": true
     }
   ]
 }

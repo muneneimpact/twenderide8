@@ -15,6 +15,7 @@ type HirePaymentQuote = {
   payment_status: string;
   payment_paid_total: number;
   payment_minimum_amount: number | null;
+  initial_payment_choice: string | null;
   payment_hold_expires_at: string | null;
   days: number;
   status: string;
@@ -39,7 +40,7 @@ async function loadQuote(quoteId: string): Promise<HirePaymentQuote> {
   const { data, error } = await supabaseAdmin
     .from("hire_quotes")
     .select(
-      "id, reference, requester_id, vehicle_id, estimated_total, quoted_total, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, payment_hold_expires_at, days, status, contact_phone, contact_email",
+      "id, reference, requester_id, vehicle_id, estimated_total, quoted_total, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, initial_payment_choice, payment_hold_expires_at, days, status, contact_phone, contact_email",
     )
     .eq("id", quoteId)
     .maybeSingle();
@@ -123,8 +124,15 @@ export async function startHirePayment(input: {
         : `Pay at least KES ${Math.ceil(minimum - paid).toLocaleString("en-KE")} before the owner can see the booking.`,
     );
   }
-  if (quote.payment_policy === "full" && amount < remaining) {
-    throw new Error("This vehicle requires the full remaining hire amount in one payment.");
+  if (
+    (quote.payment_policy === "full" || quote.initial_payment_choice === "full") &&
+    amount < remaining
+  ) {
+    throw new Error(
+      quote.payment_policy === "full"
+        ? "This vehicle requires the full remaining hire amount in one payment."
+        : "You chose full payment for this hire. Pay the full remaining balance.",
+    );
   }
 
   const { data: ambiguousTimeout } = await supabaseAdmin

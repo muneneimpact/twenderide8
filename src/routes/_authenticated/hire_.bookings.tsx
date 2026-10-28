@@ -66,6 +66,7 @@ function HireBookingsPage() {
   const checkPaymentFn = useServerFn(checkHirePaymentNow);
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [payCard, setPayCard] = useState<{ quoteId: string; amount?: number | null } | null>(null);
+  const [paymentAttemptKey, setPaymentAttemptKey] = useState(0);
   const [paymentPhone, setPaymentPhone] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [counterPrices, setCounterPrices] = useState<Record<string, string>>({});
@@ -98,7 +99,11 @@ function HireBookingsPage() {
     mutationFn: (vars: { quoteId: string; amount?: number }) =>
       payFn({ data: { ...vars, phone: paymentPhone.trim() || undefined } }),
     onSuccess: (result, vars) => {
-      if (result.accepted) setPayCard({ quoteId: vars.quoteId, amount: vars.amount ?? null });
+      if (result.accepted) {
+        const amount = Number(result.amount ?? vars.amount) || null;
+        setPayCard({ quoteId: vars.quoteId, amount });
+        setPaymentAttemptKey((key) => key + 1);
+      }
       setMessage(
         result.accepted
           ? "M-Pesa prompt sent. Approve it on your phone; the booking updates after payment clears."
@@ -215,6 +220,9 @@ function HireBookingsPage() {
                             q.payment_minimum_amount ?? Math.ceil(total / Math.max(1, q.days)),
                           ),
                         );
+                        const fullPaymentChoice =
+                          q.payment_policy === "full" || q.initial_payment_choice === "full";
+                        const nextPaymentAmount = fullPaymentChoice ? remaining : installment;
                         return (
                           <div className="mt-2 rounded-xl border border-border p-3">
                             <p className="text-xs font-semibold text-foreground">
@@ -239,24 +247,25 @@ function HireBookingsPage() {
                                   onClick={() =>
                                     pay.mutate({
                                       quoteId: q.id,
-                                      amount: q.payment_policy === "full" ? remaining : installment,
+                                      amount: nextPaymentAmount,
                                     })
                                   }
                                   disabled={pay.isPending}
                                   className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60"
                                 >
                                   {pay.isPending
-                                    ? "Starting…"
-                                    : q.payment_status === "failed" ||
-                                        q.payment_status === "timed_out"
-                                      ? `Retry KES ${installment.toLocaleString("en-KE")}`
-                                      : `Pay next installment KES ${installment.toLocaleString("en-KE")}`}
+                                      ? "Starting…"
+                                      : q.payment_status === "failed" ||
+                                          q.payment_status === "timed_out"
+                                        ? `Retry KES ${nextPaymentAmount.toLocaleString("en-KE")}`
+                                        : `${fullPaymentChoice ? "Pay full balance" : "Pay next installment"} KES ${nextPaymentAmount.toLocaleString("en-KE")}`}
                                 </button>
                                 <PayHireWithWallet
                                   quoteId={q.id}
-                                  amount={q.payment_policy === "full" ? remaining : installment}
+                                  amount={nextPaymentAmount}
                                 />
                                 {q.payment_policy === "daily_flexible" &&
+                                !fullPaymentChoice &&
                                 remaining > installment ? (
                                   <button
                                     onClick={() => pay.mutate({ quoteId: q.id, amount: remaining })}
@@ -318,6 +327,7 @@ function HireBookingsPage() {
 
       <PaymentProgressCard
         open={!!payCard}
+        attemptKey={paymentAttemptKey}
         amount={payCard?.amount}
         phone={paymentPhone || null}
         check={async (): Promise<PayState> => {
@@ -331,8 +341,14 @@ function HireBookingsPage() {
           if (id) void navigate({ to: "/hire/agreement/$quoteId", params: { quoteId: id }, hash: "sign" });
         }}
         onRetry={() => {
-          if (payCard) pay.mutate({ quoteId: payCard.quoteId });
+          if (payCard) {
+            pay.mutate({
+              quoteId: payCard.quoteId,
+              ...(payCard.amount != null ? { amount: payCard.amount } : {}),
+            });
+          }
         }}
+        retrying={pay.isPending}
         onClose={() => setPayCard(null)}
         successLabel="Sign your agreement"
       />

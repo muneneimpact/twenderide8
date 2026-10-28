@@ -44,3 +44,18 @@
 
 - [x] Run the project build and lint/type diagnostics after implementation. The production build and `npx tsc --noEmit` pass. Repository-wide `npm run lint` remains blocked by 7,100+ pre-existing Prettier errors in untouched files.
 - [x] Confirm `/manus-routes.json` includes all page routes, including `/owner`.
+
+## Step-by-step customer car-hire booking
+
+- [x] On the car-hire booking page, show a progress bar and split the journey into manageable steps instead of asking for many details at once.
+- [x] After a customer clicks a car, show its details before booking. Let them choose **Select this car** or go back to choose another car.
+- [x] After the customer selects a car, show a calendar to choose the pickup and return dates and times.
+- [x] If the selected car offers both hourly charter (taxi hire) and hire by the day, show a step after date/time selection where the customer chooses which service they need; take each choice to the suitable next step.
+- [x] For hire by the day, let the customer choose **Drive it myself** or **With a driver** when the car supports both options; use common, clear wording.
+- [x] Split renter contact details from pickup, trip and document details so customers do not have to complete all personal, location and upload fields on one page.
+- [x] Move the customer to their details after the service and drive choices, and allow manual typing of the pickup location as well as place search/current location.
+- [x] Give the customer a review/confirm-details step before starting the M-Pesa payment flow.
+- [x] If the car owner's payment policy allows day-by-day payment, let the customer choose between paying the full booking total now and paying only the one-day minimum now; if the owner requires full payment, do not offer the one-day option. Enforce the amount from the server-side owner policy.
+- [x] Preserve the selected first-payment option across M-Pesa retries, restart payment polling for each accepted retry, and prevent a second quote from being created after the first request is saved.
+- [x] Reject a passenger count above the selected car's seats for both daily hire and hourly hire, in the customer form and on the server.
+- [x] Keep hourly charter on its existing request-an-offer path, with clear notice that the customer reviews the owner's offer and pays through Twende after accepting it.

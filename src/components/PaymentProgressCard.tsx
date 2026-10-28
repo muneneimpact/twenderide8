@@ -8,21 +8,25 @@ export type PayState = "pending" | "paid" | "failed";
  */
 export function PaymentProgressCard({
   open,
+  attemptKey = 0,
   amount,
   phone,
   check,
   onSuccess,
   onClose,
   onRetry,
+  retrying = false,
   successLabel = "Continue",
 }: {
   open: boolean;
+  attemptKey?: number;
   amount?: number | null | undefined;
   phone?: string | null | undefined;
   check: () => Promise<PayState>;
   onSuccess: () => void;
   onClose: () => void;
   onRetry?: (() => void) | undefined;
+  retrying?: boolean;
   successLabel?: string;
 }) {
   const [state, setState] = useState<PayState>("pending");
@@ -54,7 +58,7 @@ export function PaymentProgressCard({
       clearInterval(poll);
       clearInterval(tick);
     };
-  }, [open]);
+  }, [open, attemptKey]);
 
   useEffect(() => {
     if (state === "paid") {
@@ -120,7 +124,13 @@ export function PaymentProgressCard({
           ) : (
             <>
               {state === "failed" && onRetry ? (
-                <button onClick={onRetry} className="flex-1 rounded-full bg-primary px-4 py-2.5 font-semibold text-primary-foreground">Try again</button>
+                <button
+                  onClick={onRetry}
+                  disabled={retrying}
+                  className="flex-1 rounded-full bg-primary px-4 py-2.5 font-semibold text-primary-foreground disabled:opacity-60"
+                >
+                  {retrying ? "Sending new prompt…" : "Try again"}
+                </button>
               ) : null}
               <button onClick={onClose} className="flex-1 rounded-full border border-input px-4 py-2.5 font-semibold text-foreground">
                 {state === "pending" ? "Hide" : "Close"}
