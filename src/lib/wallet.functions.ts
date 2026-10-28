@@ -18,6 +18,15 @@ async function move(args: { userId: string; amount: number; kind: string; status
   return walletMove(args);
 }
 
+async function existingWalletPayment(db: Awaited<ReturnType<typeof admin>>, key: string) {
+  const { data } = await db
+    .from("payment_intents")
+    .select("id, amount, status")
+    .eq("idempotency_key", key)
+    .maybeSingle();
+  return data;
+}
+
 /** Moves a paid, unfulfilled ride's fare into the wallet exactly once. */
 async function creditRide(userId: string, rideId: string) {
   const db = await admin();
@@ -258,13 +267,15 @@ export const startWalletTopup = createServerFn({ method: "POST" })
     if (data.amount < TOPUP_MIN || data.amount > TOPUP_MAX) throw new Error(`Top up between KES ${TOPUP_MIN} and KES ${TOPUP_MAX.toLocaleString("en-KE")}.`);
     const { normaliseKenyanPhone } = await import("./phone");
     const phone = normaliseKenyanPhone(data.phone);
+    if (!phone) throw new Error("Enter a valid Kenyan M-Pesa number.");
     const db = await admin();
     const { data: intent, error } = await db
       .from("payment_intents")
       .insert({ customer_id: context.userId, method: "stk_push", amount: data.amount, msisdn: phone, status: "pending", idempotency_key: `wtopup:${context.userId}:${Date.now()}` })
       .select("*")
       .single();
-    if (error) throw new Error(error.message);
+    if (error?.code === "23505") throw new Error("A wallet top-up is already pending. Complete it or wait for it to expire.");
+    if (error || !intent) throw new Error(error?.message ?? "Could not start the wallet top-up.");
     const { getPaymentProvider } = await import("./adapters/payment.server");
     const result = await getPaymentProvider().initiateStkPush({ intentId: intent.id, rideReference: "WALLET-TOPUP", amount: data.amount, msisdn: phone, idempotencyKey: intent.idempotency_key });
     const st = result.status === "blocked_provider_gate" ? "failed" : result.status;
@@ -312,9 +323,14 @@ export const payRideFromWallet = createServerFn({ method: "POST" })
     if (ride.payment_status === "paid") return { ok: true };
     if (["cancelled_by_customer", "cancelled_by_driver", "cancelled_by_system", "expired"].includes(ride.status)) throw new Error("This ride is no longer active.");
     if (["processing", "awaiting_confirmation"].includes(ride.payment_status)) throw new Error("An M-PESA prompt is already waiting. Finish or cancel it first.");
-    await move({ userId: context.userId, amount: -Number(ride.total_fare), kind: "ride_payment", rideId: ride.id, note: `Paid ride ${ride.reference} from wallet`, key: `use:${ride.id}` });
-    await db.from("payment_intents").insert({ ride_id: ride.id, customer_id: context.userId, method: "stk_push", amount: ride.total_fare, status: "paid", provider: "twende_wallet", idempotency_key: `wallet:${ride.id}` });
-    await db.from("rides").update({ payment_status: "paid" }).eq("id", ride.id);
+    const amount = (await import("./payment-safety")).validateWalletRidePayment(Number(ride.total_fare));
+    const key = `wallet:${ride.id}`;
+    const existing = await existingWalletPayment(db, key);
+    if (existing?.status === "paid") return { ok: true };
+    await move({ userId: context.userId, amount: -amount, kind: "ride_payment", rideId: ride.id, note: `Paid ride ${ride.reference} from wallet`, key: `use:${ride.id}` });
+    const { error: intentError } = await db.from("payment_intents").insert({ ride_id: ride.id, customer_id: context.userId, method: "stk_push", amount, status: "paid", provider: "twende_wallet", idempotency_key: key });
+    if (intentError && intentError.code !== "23505") throw new Error(intentError.message);
+    await db.from("rides").update({ payment_status: "paid" }).eq("id", ride.id).neq("payment_status", "paid");
     const { confirmRidePaidFromWallet } = await import("./payments.server");
     await confirmRidePaidFromWallet(ride.id, `wallet:${ride.id}`, Number(ride.total_fare));
     return { ok: true };
@@ -328,18 +344,25 @@ export const payHireFromWallet = createServerFn({ method: "POST" })
     const { assertWalletPin } = await import("./wallet-pin.server");
     await assertWalletPin(context.userId, data.pin);
     const db = await admin();
-    const { data: quote } = await db.from("hire_quotes").select("id, reference, requester_id, status, vehicle_id, payment_policy, payment_status, payment_paid_total, quoted_total, estimated_total").eq("id", data.quoteId).maybeSingle();
+    const { data: quote } = await db.from("hire_quotes").select("id, reference, requester_id, status, vehicle_id, payment_policy, payment_status, payment_paid_total, payment_minimum_amount, quoted_total, estimated_total, days").eq("id", data.quoteId).maybeSingle();
     if (!quote || quote.requester_id !== context.userId) throw new Error("That hire booking is not yours.");
     if (!quote.vehicle_id || quote.payment_policy === "legacy") throw new Error("This booking cannot be paid from the wallet.");
     if (!["submitted", "confirmed"].includes(quote.status)) throw new Error("This hire request is no longer open for payment.");
     if (quote.payment_status === "paid") throw new Error("Already fully paid.");
-    const remaining = Math.max(0, Number(quote.quoted_total ?? quote.estimated_total) - Number(quote.payment_paid_total ?? 0));
-    const amount = Math.round(Math.min(data.amount, remaining));
-    if (amount <= 0) throw new Error("Nothing left to pay.");
-    const key = `hirewallet:${quote.id}:${Date.now()}`;
+    const total = Number(quote.quoted_total ?? quote.estimated_total);
+    const paid = Number(quote.payment_paid_total ?? 0);
+    const minimum = Number(quote.payment_minimum_amount ?? (quote.payment_policy === "daily_flexible" ? Math.ceil(total / Math.max(1, Number(quote.days ?? 1))) : total));
+    const { amount } = (await import("./payment-safety")).validateWalletHirePayment({ total, paid, amount: data.amount, policy: quote.payment_policy, minimum });
+    const key = (await import("./payment-safety")).hireWalletIdempotencyKey(quote.id, paid, amount);
+    const existing = await existingWalletPayment(db, key);
+    if (existing?.status === "paid") return { ok: true, amount: Number(existing.amount) };
     await move({ userId: context.userId, amount: -amount, kind: "hire_payment", note: `Car hire ${quote.reference ?? ""} from wallet`, key, hireQuoteId: quote.id });
     const { data: intent, error } = await db.from("payment_intents").insert({ hire_quote_id: quote.id, customer_id: context.userId, method: "stk_push", amount, status: "paid", provider: "twende_wallet", idempotency_key: key }).select("id").single();
-    if (error) throw new Error(error.message);
+    if (error?.code === "23505") {
+      const duplicate = await existingWalletPayment(db, key);
+      if (duplicate?.status === "paid") return { ok: true, amount: Number(duplicate.amount) };
+    }
+    if (error || !intent) throw new Error(error?.message ?? "Could not record the wallet payment.");
     const { settleHirePayment } = await import("./hire-payments.server");
     await settleHirePayment(intent.id, "Twende wallet");
     return { ok: true, amount };

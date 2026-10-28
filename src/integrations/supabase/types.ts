@@ -4029,6 +4029,10 @@ export type Database = {
         Args: { p_mpesa_receipt?: string; p_payment_intent_id: string }
         Returns: Json
       }
+      accept_hire_offer: {
+        Args: { p_commission_percent?: number; p_offer_id: string; p_requester_id: string }
+        Returns: Json
+      }
       available_balance: { Args: { _wallet_id: string }; Returns: number }
       can_view_ride: {
         Args: { _ride_id: string; _user_id: string }

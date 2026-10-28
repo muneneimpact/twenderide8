@@ -2528,33 +2528,15 @@ export const respondToHireOffer = createServerFn({ method: "POST" })
         await assertVehicleHasNoLiveRide(offer.vehicle_id, new Date(quote.start_at));
       }
       const isHourly = (quote as typeof quote & { service_type?: string }).service_type === "hourly_charter";
-      const price = Number(offer.price);
       const hourlyCommission = isHourly
         ? await (await import("./hire-payments.server")).getHireCommissionPercent()
         : null;
-      const { error: confirmError } = await supabaseAdmin
-        .from("hire_quotes")
-        .update({
-          status: "confirmed",
-          quoted_total: offer.price,
-          vehicle_id: offer.vehicle_id,
-          assigned_driver_id: offer.responder_id,
-          accepted_offer_id: offer.id,
-          ...(isHourly ? { payment_policy: "full", payment_status: "unpaid", payment_minimum_amount: price, estimated_total: 0, commission_percent_snapshot: hourlyCommission } : {}),
-        } as never)
-        .eq("id", offer.quote_id);
-      if (confirmError) throw new Error(confirmError.message);
-      const { error: acceptedError } = await supabaseAdmin
-        .from("hire_offers")
-        .update({ status: "accepted" })
-        .eq("id", offer.id);
-      if (acceptedError) throw new Error(acceptedError.message);
-      const { error: supersededError } = await supabaseAdmin
-        .from("hire_offers")
-        .update({ status: "superseded" })
-        .eq("quote_id", offer.quote_id)
-        .neq("id", offer.id);
-      if (supersededError) throw new Error(supersededError.message);
+      const { error: acceptError } = await supabaseAdmin.rpc("accept_hire_offer", {
+        p_offer_id: offer.id,
+        p_requester_id: context.userId,
+        ...(hourlyCommission === null ? {} : { p_commission_percent: hourlyCommission }),
+      });
+      if (acceptError) throw new Error(acceptError.message);
     }
 
     try {
