@@ -710,6 +710,27 @@ function HirePage() {
             </button>
           ))}
         </div>
+        <ol className="mx-4 grid grid-cols-3 gap-2 text-center text-[10px] font-semibold">
+          {[
+            { label: "Choose a car", active: bookingStep === "browse" },
+            { label: "Pick dates", active: bookingStep === "browse" && Boolean(opened) },
+            { label: "Book securely", active: bookingStep === "details" },
+          ].map((step, index) => (
+            <li
+              key={step.label}
+              className={`rounded-xl border px-2 py-2 ${
+                step.active
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-secondary/50 text-muted-foreground"
+              }`}
+            >
+              <span className="mr-1 inline-grid h-4 w-4 place-items-center rounded-full bg-background text-[9px]">
+                {index + 1}
+              </span>
+              {step.label}
+            </li>
+          ))}
+        </ol>
         {tab === "chauffeured" ? (
           <p className="mx-4 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
             This option includes the car and a driver for each booked day. Fuel is not included:
@@ -768,15 +789,31 @@ function HirePage() {
               <p className="mt-3 text-xs text-muted-foreground">Loading cars…</p>
             ) : null}
             {!vehicles.isPending && !(Boolean(ownerSlug) && ownerBrand.isPending) && listed.length === 0 ? (
-              <p className="mt-3 text-xs text-muted-foreground">
-                {ownerSlug && !ownerBrand.data
-                  ? "This owner page is no longer available. Browse all hire cars instead."
-                  : ownerSlug && !ownerBrand.data?.vehicles.length
-                    ? "This owner has no cars available for hire right now."
-                    : fSeats || fMake || fModel || fMaxPrice
-                  ? "No cars match these filters. Clear a filter to see more listings."
-                  : "No hire cars are currently published. Operations-approved and published cars appear here automatically; this list refreshes every 30 seconds."}
-              </p>
+              <div className="mt-3 rounded-xl border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+                <p>
+                  {ownerSlug && !ownerBrand.data
+                    ? "This owner page is no longer available. Browse all hire cars instead."
+                    : ownerSlug && !ownerBrand.data?.vehicles.length
+                      ? "This owner has no cars available for hire right now."
+                      : fSeats || fMake || fModel || fMaxPrice
+                        ? "No cars match these filters. Clear them to see more listings."
+                        : "No hire cars are currently published. Operations-approved and published cars appear here automatically; this list refreshes every 30 seconds."}
+                </p>
+                {fSeats || fMake || fModel || fMaxPrice ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFSeats("");
+                      setFMake("");
+                      setFModel("");
+                      setFMaxPrice("");
+                    }}
+                    className="mt-2 rounded-full border border-primary px-3 py-1.5 font-semibold text-primary"
+                  >
+                    Clear filters
+                  </button>
+                ) : null}
+              </div>
             ) : null}
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
@@ -1250,6 +1287,31 @@ function HirePage() {
               {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
             </div>
           </section>
+        ) : null}
+
+        {detailsReady && !bookedRef ? (
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-3 shadow-2xl backdrop-blur md:hidden">
+            <div className="mx-auto flex max-w-2xl items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[11px] font-semibold text-foreground">
+                  {estimatedTotal !== null
+                    ? `KES ${estimatedTotal.toLocaleString("en-KE")} · ${days} day(s)`
+                    : "Review your booking"}
+                </p>
+                <p className="truncate text-[10px] text-muted-foreground">
+                  {missing.length ? `${missing.length} item(s) left` : "Ready to submit securely"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => submit.mutate()}
+                disabled={!canSubmit}
+                className="shrink-0 rounded-full bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {submit.isPending ? "Sending…" : usePayLater ? "Sign & book" : "Book & pay"}
+              </button>
+            </div>
+          </div>
         ) : null}
 
         {bookedRef && hirerType === "company" ? (
