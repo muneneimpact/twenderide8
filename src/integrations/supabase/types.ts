@@ -1126,6 +1126,71 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_deposit_settlements: {
+        Row: {
+          balance_due: number
+          created_at: string
+          dispute_reason: string | null
+          held_amount: number
+          held_at: string | null
+          hire_quote_id: string
+          id: string
+          requested_amount: number
+          requested_at: string | null
+          retained_amount: number
+          returned_amount: number
+          settled_at: string | null
+          settled_by: string | null
+          settlement_notes: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          balance_due?: number
+          created_at?: string
+          dispute_reason?: string | null
+          held_amount?: number
+          held_at?: string | null
+          hire_quote_id: string
+          id?: string
+          requested_amount?: number
+          requested_at?: string | null
+          retained_amount?: number
+          returned_amount?: number
+          settled_at?: string | null
+          settled_by?: string | null
+          settlement_notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          balance_due?: number
+          created_at?: string
+          dispute_reason?: string | null
+          held_amount?: number
+          held_at?: string | null
+          hire_quote_id?: string
+          id?: string
+          requested_amount?: number
+          requested_at?: string | null
+          retained_amount?: number
+          returned_amount?: number
+          settled_at?: string | null
+          settled_by?: string | null
+          settlement_notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hire_deposit_settlements_hire_quote_id_fkey"
+            columns: ["hire_quote_id"]
+            isOneToOne: true
+            referencedRelation: "hire_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hire_etr_requests: {
         Row: {
           billing_email: string | null
@@ -1536,6 +1601,53 @@ export type Database = {
         }
         Relationships: []
       }
+      hire_quote_events: {
+        Row: {
+          actor_id: string | null
+          actor_role: string | null
+          created_at: string
+          event_type: string
+          from_state: string | null
+          hire_quote_id: string
+          id: string
+          metadata: Json
+          reason: string | null
+          to_state: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          event_type: string
+          from_state?: string | null
+          hire_quote_id: string
+          id?: string
+          metadata?: Json
+          reason?: string | null
+          to_state: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          event_type?: string
+          from_state?: string | null
+          hire_quote_id?: string
+          id?: string
+          metadata?: Json
+          reason?: string | null
+          to_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hire_quote_events_hire_quote_id_fkey"
+            columns: ["hire_quote_id"]
+            isOneToOne: false
+            referencedRelation: "hire_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hire_quotes: {
         Row: {
           accepted_offer_id: string | null
@@ -1578,6 +1690,7 @@ export type Database = {
           inspection_photos: Json
           kind: string
           license_document_path: string | null
+          lifecycle_state: string
           notes: string | null
           organisation: string | null
           owner_decline_reason: string | null
@@ -1669,6 +1782,7 @@ export type Database = {
           inspection_photos?: Json
           kind?: string
           license_document_path?: string | null
+          lifecycle_state?: string
           notes?: string | null
           organisation?: string | null
           owner_decline_reason?: string | null
@@ -1760,6 +1874,7 @@ export type Database = {
           inspection_photos?: Json
           kind?: string
           license_document_path?: string | null
+          lifecycle_state?: string
           notes?: string | null
           organisation?: string | null
           owner_decline_reason?: string | null
@@ -3980,6 +4095,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_hire_offer: {
+        Args: {
+          p_commission_percent?: number
+          p_offer_id: string
+          p_requester_id: string
+        }
+        Returns: Json
+      }
       accept_ride_offer: {
         Args: {
           _driver_id: string
